@@ -2,235 +2,24 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useCustomerStore, Customer } from "@/stores/customerStore";
-import { formatDate, formatPhone, getStatusColor } from "@/lib/utils";
+import { formatDate, formatPhone } from "@/lib/utils";
 import { generateMockCustomers } from "@/lib/mockData";
-
-// Modal Component
-function Modal({
-  isOpen,
-  onClose,
-  title,
-  children,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-}) {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {title}
-          </h3>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// Customer Form Component
-function CustomerForm({
-  customer,
-  onSubmit,
-  onCancel,
-}: {
-  customer?: Customer;
-  onSubmit: (data: Omit<Customer, "id" | "createdAt" | "updatedAt">) => void;
-  onCancel: () => void;
-}) {
-  const [formData, setFormData] = useState({
-    name: customer?.name || "",
-    phone: customer?.phone || "",
-    email: customer?.email || "",
-    address: customer?.address || "",
-    nid: customer?.nid || "",
-    notes: customer?.notes || "",
-  });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const validate = () => {
-    const newErrors: Record<string, string> = {};
-    if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.phone.trim()) newErrors.phone = "Phone is required";
-    if (formData.phone && !/^01[3-9]\d{8}$/.test(formData.phone)) {
-      newErrors.phone = "Invalid Bangladesh phone number";
-    }
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Invalid email address";
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validate()) {
-      onSubmit(formData);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Name <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          className={`w-full rounded-lg border px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
-            errors.name
-              ? "border-red-500 focus:ring-red-500"
-              : "border-gray-300 focus:ring-blue-500 dark:border-gray-700"
-          }`}
-          placeholder="Customer name"
-        />
-        {errors.name && (
-          <p className="mt-1 text-sm text-red-500">{errors.name}</p>
-        )}
-      </div>
-
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Phone <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="tel"
-          value={formData.phone}
-          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-          className={`w-full rounded-lg border px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
-            errors.phone
-              ? "border-red-500 focus:ring-red-500"
-              : "border-gray-300 focus:ring-blue-500 dark:border-gray-700"
-          }`}
-          placeholder="01712345678"
-        />
-        {errors.phone && (
-          <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
-        )}
-      </div>
-
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Email
-        </label>
-        <input
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          className={`w-full rounded-lg border px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
-            errors.email
-              ? "border-red-500 focus:ring-red-500"
-              : "border-gray-300 focus:ring-blue-500 dark:border-gray-700"
-          }`}
-          placeholder="customer@email.com"
-        />
-        {errors.email && (
-          <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-        )}
-      </div>
-
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Address
-        </label>
-        <input
-          type="text"
-          value={formData.address}
-          onChange={(e) =>
-            setFormData({ ...formData, address: e.target.value })
-          }
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          placeholder="Customer address"
-        />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          NID
-        </label>
-        <input
-          type="text"
-          value={formData.nid}
-          onChange={(e) => setFormData({ ...formData, nid: e.target.value })}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          placeholder="National ID number"
-        />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Notes
-        </label>
-        <textarea
-          value={formData.notes}
-          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          rows={3}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          placeholder="Additional notes..."
-        />
-      </div>
-
-      <div className="flex justify-end gap-3 pt-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/30"
-        >
-          {customer ? "Update Customer" : "Add Customer"}
-        </button>
-      </div>
-    </form>
-  );
-}
+import { AddCustomerModal, EditCustomerModal } from "@/components/customers/customer-modals";
+import { Modal, ModalFooter } from "@/components/ui/modal";
 
 export default function CustomersPage() {
   const {
     customers,
     addCustomer,
-    updateCustomer,
     deleteCustomer,
     searchCustomers,
   } = useCustomerStore();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Initialize mock data on first load if empty
@@ -257,41 +46,17 @@ export default function CustomersPage() {
     return searchCustomers(searchQuery);
   }, [customers, searchQuery, searchCustomers]);
 
-  const handleAddCustomer = (
-    data: Omit<Customer, "id" | "createdAt" | "updatedAt">
-  ) => {
-    addCustomer(data);
-    setIsModalOpen(false);
-  };
-
-  const handleUpdateCustomer = (
-    data: Omit<Customer, "id" | "createdAt" | "updatedAt">
-  ) => {
-    if (editingCustomer) {
-      updateCustomer(editingCustomer.id, data);
-      setEditingCustomer(null);
-      setIsModalOpen(false);
+  const handleDeleteCustomer = () => {
+    if (deletingCustomer) {
+      deleteCustomer(deletingCustomer.id);
+      setDeletingCustomer(null);
+      setShowDeleteModal(false);
     }
   };
 
-  const handleDeleteCustomer = (customer: Customer) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${customer.name}"? This action cannot be undone.`
-      )
-    ) {
-      deleteCustomer(customer.id);
-    }
-  };
-
-  const openEditModal = (customer: Customer) => {
-    setEditingCustomer(customer);
-    setIsModalOpen(true);
-  };
-
-  const openAddModal = () => {
-    setEditingCustomer(null);
-    setIsModalOpen(true);
+  const openDeleteModal = (customer: Customer) => {
+    setDeletingCustomer(customer);
+    setShowDeleteModal(true);
   };
 
   if (isLoading) {
@@ -315,7 +80,7 @@ export default function CustomersPage() {
           </p>
         </div>
         <button
-          onClick={openAddModal}
+          onClick={() => setShowAddModal(true)}
           className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/30"
         >
           <svg
@@ -460,7 +225,7 @@ export default function CustomersPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => openEditModal(customer)}
+                          onClick={() => setEditingCustomer(customer)}
                           className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
                           title="Edit"
                         >
@@ -479,7 +244,7 @@ export default function CustomersPage() {
                           </svg>
                         </button>
                         <button
-                          onClick={() => handleDeleteCustomer(customer)}
+                          onClick={() => openDeleteModal(customer)}
                           className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                           title="Delete"
                         >
@@ -507,22 +272,46 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Add Customer Modal */}
+      <AddCustomerModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+      />
+
+      {/* Edit Customer Modal */}
+      <EditCustomerModal
+        isOpen={!!editingCustomer}
+        onClose={() => setEditingCustomer(null)}
+        customer={editingCustomer}
+      />
+
+      {/* Delete Confirmation Modal */}
       <Modal
-        isOpen={isModalOpen}
+        isOpen={showDeleteModal}
         onClose={() => {
-          setIsModalOpen(false);
-          setEditingCustomer(null);
+          setShowDeleteModal(false);
+          setDeletingCustomer(null);
         }}
-        title={editingCustomer ? "Edit Customer" : "Add New Customer"}
+        title="Delete Customer"
+        size="sm"
       >
-        <CustomerForm
-          customer={editingCustomer || undefined}
-          onSubmit={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
+        <div className="text-left">
+          <p className="text-gray-600 dark:text-gray-400">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-gray-900 dark:text-white">
+              {deletingCustomer?.name}
+            </span>
+            ? This action cannot be undone.
+          </p>
+        </div>
+        <ModalFooter
           onCancel={() => {
-            setIsModalOpen(false);
-            setEditingCustomer(null);
+            setShowDeleteModal(false);
+            setDeletingCustomer(null);
           }}
+          onConfirm={handleDeleteCustomer}
+          cancelText="Cancel"
+          confirmText="Delete"
         />
       </Modal>
     </div>

@@ -97,7 +97,7 @@ export function Modal({
               {title}
             </h3>
             {showDivider && (
-              <span className="mx-auto mt-4 block h-[3px] w-22.5 rounded-[2px] bg-primary" />
+              <span className="mt-4 block h-[3px] w-22.5 rounded-[2px] bg-primary" />
             )}
           </div>
         )}

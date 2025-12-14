@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSalesStore, Sale } from "@/stores/salesStore";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
+import { PrintInvoiceButton } from "@/components/invoice/invoice-print";
 import Link from "next/link";
 
 export default function SalesPage() {
@@ -182,12 +183,13 @@ export default function SalesPage() {
                 <th className="hidden px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white md:table-cell">Paid</th>
                 <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">Due</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">Status</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredSales.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     {sales.length === 0 ? "No sales yet. Create your first invoice!" : "No sales match your filters."}
                   </td>
                 </tr>
@@ -219,6 +221,11 @@ export default function SalesPage() {
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium capitalize ${getStatusColor(sale.status)}`}>
                         {sale.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center">
+                        <PrintInvoiceButton sale={sale} variant="icon" />
+                      </div>
                     </td>
                   </tr>
                 ))

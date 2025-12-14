@@ -2,12 +2,13 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useSalesStore, SaleItem, PaymentMethod, calculateSaleItem, calculateSaleTotals } from "@/stores/salesStore";
+import { useSalesStore, Sale, SaleItem, PaymentMethod, calculateSaleItem, calculateSaleTotals } from "@/stores/salesStore";
 import { useCustomerStore, Customer } from "@/stores/customerStore";
 import { useProductStore } from "@/stores/productStore";
 import { useStockStore, StockItem } from "@/stores/stockStore";
 import { formatCurrency } from "@/lib/utils";
 import { AddCustomerModal } from "@/components/customers/customer-modals";
+import { InvoicePrintModal } from "@/components/invoice/invoice-print";
 import Link from "next/link";
 
 type Step = 1 | 2 | 3;
@@ -391,6 +392,10 @@ export default function NewSalePage() {
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [notes, setNotes] = useState("");
 
+  // Completed sale for print
+  const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
   useEffect(() => {
     setIsLoaded(true);
   }, []);
@@ -509,7 +514,14 @@ export default function NewSalePage() {
       stockStore.markAsSold(item.stockItemId, sale.id);
     });
 
-    // Redirect to sales list
+    // Show print modal with completed sale
+    setCompletedSale(sale);
+    setShowPrintModal(true);
+  };
+
+  // Handle closing print modal and redirecting
+  const handleClosePrintModal = () => {
+    setShowPrintModal(false);
     router.push("/sales");
   };
 
@@ -784,6 +796,15 @@ export default function NewSalePage() {
         onClose={() => setShowAddCustomerModal(false)}
         onCustomerAdded={handleCustomerAdded}
       />
+
+      {/* Print Invoice Modal */}
+      {completedSale && (
+        <InvoicePrintModal
+          sale={completedSale}
+          isOpen={showPrintModal}
+          onClose={handleClosePrintModal}
+        />
+      )}
     </div>
   );
 }

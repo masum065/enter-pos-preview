@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import { useSalesStore, SaleItem, PaymentMethod, calculateSaleItem, calculateSaleTotals } from "@/stores/salesStore";
 import { useCustomerStore, Customer } from "@/stores/customerStore";
 import { useProductStore } from "@/stores/productStore";
-import { useStockStore } from "@/stores/stockStore";
+import { useStockStore, StockItem } from "@/stores/stockStore";
 import { formatCurrency } from "@/lib/utils";
 import { AddCustomerModal } from "@/components/customers/customer-modals";
 import Link from "next/link";
 
 type Step = 1 | 2 | 3;
 
-// Customer Combobox Component
+const MIN_SEARCH_LENGTH = 3;
+
+// Customer Combobox Component with 3 char minimum
 function CustomerCombobox({
   selectedCustomer,
   onSelect,
@@ -28,11 +30,14 @@ function CustomerCombobox({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Only search when 3+ characters
+  const shouldSearch = query.trim().length >= MIN_SEARCH_LENGTH;
+
   // Filtered customers
   const filteredCustomers = useMemo(() => {
-    if (!query.trim()) return customers.slice(0, 8);
+    if (!shouldSearch) return [];
     return searchCustomers(query).slice(0, 10);
-  }, [query, customers, searchCustomers]);
+  }, [query, shouldSearch, searchCustomers]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -62,8 +67,9 @@ function CustomerCombobox({
     inputRef.current?.focus();
   };
 
-  // Show no results message when query has no matching customers
-  const showNoResults = query.trim() && filteredCustomers.length === 0;
+  // Show dropdown only after 3 chars
+  const showDropdown = isOpen && shouldSearch;
+  const showNoResults = shouldSearch && filteredCustomers.length === 0;
 
   return (
     <div className="relative">
@@ -113,13 +119,18 @@ function CustomerCombobox({
                 setIsOpen(true);
               }}
               onFocus={() => setIsOpen(true)}
-              placeholder="Search customer by name or phone..."
+              placeholder="Type 3+ characters to search customer..."
               className="w-full rounded-lg border border-gray-300 py-3 pl-12 pr-4 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
+            {query.length > 0 && query.length < MIN_SEARCH_LENGTH && (
+              <p className="mt-1 text-xs text-gray-500">
+                Type {MIN_SEARCH_LENGTH - query.length} more character{MIN_SEARCH_LENGTH - query.length > 1 ? "s" : ""} to search...
+              </p>
+            )}
           </div>
 
           {/* Dropdown */}
-          {isOpen && (
+          {showDropdown && (
             <div
               ref={dropdownRef}
               className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
@@ -164,8 +175,8 @@ function CustomerCombobox({
                 </div>
               )}
 
-              {/* Always show Add New at bottom if has results */}
-              {!showNoResults && (
+              {/* Add New at bottom if has results */}
+              {!showNoResults && filteredCustomers.length > 0 && (
                 <button
                   type="button"
                   onClick={() => {
@@ -188,6 +199,175 @@ function CustomerCombobox({
   );
 }
 
+// Serial Number Combobox with auto-suggest
+function SerialCombobox({
+  onSelectSerial,
+  addedSerials,
+}: {
+  onSelectSerial: (stockItem: StockItem) => void;
+  addedSerials: string[];
+}) {
+  const stockStore = useStockStore();
+  const productStore = useProductStore();
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Get available stock items
+  const availableStock = useMemo(() => {
+    return stockStore.stockItems.filter(
+      (item) => item.status === "Available" && !addedSerials.includes(item.serialNumber)
+    );
+  }, [stockStore.stockItems, addedSerials]);
+
+  // Filter by query (min 3 chars)
+  const shouldSearch = query.trim().length >= MIN_SEARCH_LENGTH;
+  
+  const filteredStock = useMemo(() => {
+    if (!shouldSearch) return [];
+    const q = query.toUpperCase();
+    return availableStock
+      .filter((item) => {
+        // Search by serial number
+        if (item.serialNumber.includes(q)) return true;
+        // Search by product name
+        const product = productStore.products.find((p) => p.id === item.productId);
+        if (product) {
+          const productName = `${product.brand} ${product.modelName}`.toUpperCase();
+          if (productName.includes(q)) return true;
+        }
+        return false;
+      })
+      .slice(0, 10);
+  }, [query, shouldSearch, availableStock, productStore.products]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelectStock = (stockItem: StockItem) => {
+    onSelectSerial(stockItem);
+    setQuery("");
+    setIsOpen(false);
+    inputRef.current?.focus();
+  };
+
+  const getProductName = (productId: string) => {
+    const product = productStore.products.find((p) => p.id === productId);
+    return product ? `${product.brand} ${product.modelName}` : "Unknown Product";
+  };
+
+  const showDropdown = isOpen && shouldSearch;
+  const showNoResults = shouldSearch && filteredStock.length === 0;
+
+  return (
+    <div className="relative flex-1">
+      {/* Search Input */}
+      <div className="relative">
+        <svg
+          className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value.toUpperCase());
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          placeholder="Type 3+ chars to search serial/product..."
+          className="w-full rounded-lg border border-gray-300 py-3 pl-12 pr-4 font-mono transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+        />
+      </div>
+
+      {/* Helper text */}
+      {query.length > 0 && query.length < MIN_SEARCH_LENGTH && (
+        <p className="mt-1 text-xs text-gray-500">
+          Type {MIN_SEARCH_LENGTH - query.length} more character{MIN_SEARCH_LENGTH - query.length > 1 ? "s" : ""} to search...
+        </p>
+      )}
+
+      {/* Dropdown */}
+      {showDropdown && (
+        <div
+          ref={dropdownRef}
+          className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+        >
+          {/* Stock List */}
+          {filteredStock.map((stockItem) => (
+            <button
+              key={stockItem.id}
+              type="button"
+              onClick={() => handleSelectStock(stockItem)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              <div>
+                <p className="font-mono font-medium text-gray-900 dark:text-white">
+                  {stockItem.serialNumber}
+                </p>
+                <p className="text-sm text-gray-500">{getProductName(stockItem.productId)}</p>
+              </div>
+              <div className="text-right">
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  Available
+                </span>
+              </div>
+            </button>
+          ))}
+
+          {/* No Results */}
+          {showNoResults && (
+            <div className="p-4 text-center">
+              <div className="mb-2 flex justify-center">
+                <svg className="h-10 w-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 2a10 10 0 110 20 10 10 0 010-20z" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                No product/serial found for &quot;{query}&quot;
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Check the serial number or add stock first
+              </p>
+            </div>
+          )}
+
+          {/* Available count */}
+          {!showNoResults && filteredStock.length > 0 && (
+            <div className="border-t border-gray-100 px-4 py-2 text-center text-xs text-gray-500 dark:border-gray-800">
+              {availableStock.length} items available in stock
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function NewSalePage() {
   const router = useRouter();
   const salesStore = useSalesStore();
@@ -203,8 +383,6 @@ export default function NewSalePage() {
 
   // Step 2: Items
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
-  const [serialInput, setSerialInput] = useState("");
-  const [serialError, setSerialError] = useState("");
 
   // Step 3: Payment
   const [discount, setDiscount] = useState(0);
@@ -231,40 +409,13 @@ export default function NewSalePage() {
   const paidTotal = payments.reduce((sum, p) => sum + p.amount, 0);
   const remaining = totals.grandTotal - paidTotal;
 
-  // Add item by serial number
-  const handleAddBySerial = () => {
-    setSerialError("");
-    const serial = serialInput.trim().toUpperCase();
+  // Get list of already added serials
+  const addedSerials = useMemo(() => saleItems.map((item) => item.serialNumber), [saleItems]);
 
-    if (!serial) {
-      setSerialError("Enter a serial number");
-      return;
-    }
-
-    // Check if already added
-    if (saleItems.some((item) => item.serialNumber === serial)) {
-      setSerialError("This item is already added");
-      return;
-    }
-
-    // Find stock item
-    const stockItem = stockStore.getStockBySerial(serial);
-    if (!stockItem) {
-      setSerialError("Serial number not found");
-      return;
-    }
-
-    if (stockItem.status !== "Available") {
-      setSerialError(`This item is ${stockItem.status.toLowerCase()}`);
-      return;
-    }
-
-    // Find product
+  // Add item from stock selection
+  const handleAddFromStock = (stockItem: StockItem) => {
     const product = productStore.products.find((p) => p.id === stockItem.productId);
-    if (!product) {
-      setSerialError("Product not found");
-      return;
-    }
+    if (!product) return;
 
     const salePrice = product.defaultSalePrice;
     const { amount, profit } = calculateSaleItem(salePrice, stockItem.purchasePrice, 0);
@@ -273,7 +424,7 @@ export default function NewSalePage() {
       id: `item_${Date.now()}`,
       productId: product.id,
       stockItemId: stockItem.id,
-      serialNumber: serial,
+      serialNumber: stockItem.serialNumber,
       productName: `${product.brand} ${product.modelName}`,
       quantity: 1,
       salePrice,
@@ -284,7 +435,6 @@ export default function NewSalePage() {
     };
 
     setSaleItems([...saleItems, newItem]);
-    setSerialInput("");
   };
 
   // Remove item
@@ -438,28 +588,16 @@ export default function NewSalePage() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Items</h2>
 
-            {/* Serial Input */}
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <input
-                  type="text"
-                  value={serialInput}
-                  onChange={(e) => setSerialInput(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddBySerial()}
-                  placeholder="Enter serial number..."
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 font-mono dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                />
-                {serialError && <p className="mt-1 text-sm text-red-500">{serialError}</p>}
-              </div>
-              <button onClick={handleAddBySerial} className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white">
-                Add
-              </button>
-            </div>
+            {/* Serial Search Combobox */}
+            <SerialCombobox
+              onSelectSerial={handleAddFromStock}
+              addedSerials={addedSerials}
+            />
 
             {/* Items List */}
             {saleItems.length === 0 ? (
               <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center dark:border-gray-700">
-                <p className="text-gray-500">No items added yet. Enter a serial number above.</p>
+                <p className="text-gray-500">No items added yet. Search for a serial number above.</p>
               </div>
             ) : (
               <div className="space-y-3">

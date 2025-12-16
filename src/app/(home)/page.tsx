@@ -40,10 +40,46 @@ function CardsSkeleton() {
 // Quick Actions Component
 function QuickActions() {
   const actions = [
-    { label: "New Sale", href: "/sales/new", color: "from-green-500 to-emerald-600", icon: "📝" },
-    { label: "Add Stock", href: "/inventory/stock/add", color: "from-blue-500 to-indigo-600", icon: "📦" },
-    { label: "New Service", href: "/services/new", color: "from-purple-500 to-pink-600", icon: "🔧" },
-    { label: "Add Expense", href: "/expenses/new", color: "from-orange-500 to-red-600", icon: "💰" },
+    { 
+      label: "New Sale", 
+      href: "/sales/new", 
+      color: "from-green-500 to-emerald-600", 
+      icon: (
+        <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+        </svg>
+      )
+    },
+    { 
+      label: "Add Stock", 
+      href: "/inventory/stock/add", 
+      color: "from-blue-500 to-indigo-600", 
+      icon: (
+        <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+        </svg>
+      )
+    },
+    { 
+      label: "New Service", 
+      href: "/services/new", 
+      color: "from-purple-500 to-pink-600", 
+      icon: (
+        <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" />
+        </svg>
+      )
+    },
+    { 
+      label: "Add Expense", 
+      href: "/expenses/new", 
+      color: "from-orange-500 to-red-600", 
+      icon: (
+        <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+        </svg>
+      )
+    },
   ];
 
   return (
@@ -56,7 +92,7 @@ function QuickActions() {
             href={action.href}
             className={`flex flex-col items-center justify-center rounded-xl bg-gradient-to-r ${action.color} p-4 text-white shadow-md transition-transform hover:scale-105`}
           >
-            <span className="text-2xl">{action.icon}</span>
+            {action.icon}
             <span className="mt-2 text-sm font-medium">{action.label}</span>
           </a>
         ))}
@@ -69,11 +105,56 @@ function QuickActions() {
 function RecentActivity() {
   // This will be populated from stores in the future
   const activities = [
-    { type: "sale", text: "New sale INV-2024-0030 - ৳145,000", time: "2 min ago", icon: "💳" },
-    { type: "stock", text: "Added 3 new MacBook Pro units", time: "15 min ago", icon: "📦" },
-    { type: "service", text: "Service SRV-2024-0018 completed", time: "1 hour ago", icon: "✅" },
-    { type: "customer", text: "New customer: Md. Rahim Uddin", time: "2 hours ago", icon: "👤" },
-    { type: "expense", text: "Expense: Shop rent - ৳30,000", time: "5 hours ago", icon: "💰" },
+    { 
+      type: "sale", 
+      text: "New sale INV-2024-0030 - ৳145,000", 
+      time: "2 min ago", 
+      icon: (
+        <svg className="h-5 w-5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+        </svg>
+      )
+    },
+    { 
+      type: "stock", 
+      text: "Added 3 new MacBook Pro units", 
+      time: "15 min ago", 
+      icon: (
+        <svg className="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+        </svg>
+      )
+    },
+    { 
+      type: "service", 
+      text: "Service SRV-2024-0018 completed", 
+      time: "1 hour ago", 
+      icon: (
+        <svg className="h-5 w-5 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+      )
+    },
+    { 
+      type: "customer", 
+      text: "New customer: Md. Rahim Uddin", 
+      time: "2 hours ago", 
+      icon: (
+        <svg className="h-5 w-5 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+        </svg>
+      )
+    },
+    { 
+      type: "expense", 
+      text: "Expense: Shop rent - ৳30,000", 
+      time: "5 hours ago", 
+      icon: (
+        <svg className="h-5 w-5 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+      )
+    },
   ];
 
   return (
@@ -82,7 +163,9 @@ function RecentActivity() {
       <div className="space-y-4">
         {activities.map((activity, i) => (
           <div key={i} className="flex items-start gap-3">
-            <span className="text-xl">{activity.icon}</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+              {activity.icon}
+            </div>
             <div className="flex-1">
               <p className="text-sm text-dark dark:text-white">{activity.text}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{activity.time}</p>
@@ -108,7 +191,9 @@ function LowStockAlert() {
   return (
     <div className="rounded-[10px] border-l-4 border-orange-500 bg-orange-50 p-4 dark:bg-orange-900/20">
       <div className="flex items-center gap-2">
-        <span className="text-xl">⚠️</span>
+        <svg className="h-5 w-5 text-orange-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+        </svg>
         <h4 className="font-semibold text-orange-800 dark:text-orange-300">Low Stock Alert</h4>
       </div>
       <ul className="mt-2 space-y-1">

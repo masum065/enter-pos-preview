@@ -453,15 +453,17 @@ export default function NewSalePage() {
       saleItems.map((item) => {
         if (item.id !== itemId) return item;
 
-        if (newPrice < item.purchasePrice) {
-          return item; // Don't allow price below purchase
-        }
-
+        // Allow any price but calculate proper profit (can be negative)
         const { amount, profit } = calculateSaleItem(newPrice, item.purchasePrice, item.discount);
         return { ...item, salePrice: newPrice, amount, profit };
       })
     );
   };
+
+  // Check if any item has invalid price (below purchase price)
+  const hasInvalidPrices = useMemo(() => {
+    return saleItems.some((item) => item.salePrice < item.purchasePrice);
+  }, [saleItems]);
 
   // Add payment
   const handleAddPayment = () => {
@@ -613,30 +615,65 @@ export default function NewSalePage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {saleItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 dark:text-white">{item.productName}</p>
-                      <p className="font-mono text-sm text-gray-500">{item.serialNumber}</p>
+                {saleItems.map((item) => {
+                  const isPriceTooLow = item.salePrice < item.purchasePrice;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`flex items-center gap-4 rounded-lg border p-4 ${
+                        isPriceTooLow 
+                          ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20" 
+                          : "border-gray-200 dark:border-gray-700"
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white">{item.productName}</p>
+                        <p className="font-mono text-sm text-gray-500">{item.serialNumber}</p>
+                        <p className="text-xs text-gray-400">Cost: {formatCurrency(item.purchasePrice)}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">৳</span>
+                          <input
+                            type="number"
+                            value={item.salePrice}
+                            onChange={(e) => handleUpdatePrice(item.id, Number(e.target.value))}
+                            className={`w-32 rounded border px-2 py-1.5 pl-6 text-right ${
+                              isPriceTooLow
+                                ? "border-red-500 bg-red-50 text-red-700 focus:ring-red-500 dark:bg-red-900/30 dark:text-red-300"
+                                : "border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                            }`}
+                            min={0}
+                          />
+                        </div>
+                        {isPriceTooLow ? (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                            Min: {formatCurrency(item.purchasePrice)}
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                            Profit: {formatCurrency(item.profit)}
+                          </p>
+                        )}
+                      </div>
+                      <button onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700">
+                        ✕
+                      </button>
                     </div>
-                    <div className="text-right">
-                      <input
-                        type="number"
-                        value={item.salePrice}
-                        onChange={(e) => handleUpdatePrice(item.id, Number(e.target.value))}
-                        className="w-32 rounded border border-gray-300 px-2 py-1 text-right dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                        min={item.purchasePrice}
-                      />
-                      <p className="mt-1 text-xs text-green-600">Profit: {formatCurrency(item.profit)}</p>
-                    </div>
-                    <button onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700">
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Error Alert */}
+            {hasInvalidPrices && saleItems.length > 0 && (
+              <div className="flex items-center gap-3 rounded-lg bg-red-100 p-4 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                <svg className="h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <p className="text-sm font-medium">
+                  Sale price cannot be lower than purchase price. Please fix the highlighted items.
+                </p>
               </div>
             )}
 
@@ -662,8 +699,8 @@ export default function NewSalePage() {
                   setPaymentAmount(totals.grandTotal);
                   setStep(3);
                 }}
-                disabled={saleItems.length === 0}
-                className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white disabled:opacity-50"
+                disabled={saleItems.length === 0 || hasInvalidPrices}
+                className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next: Payment
               </button>

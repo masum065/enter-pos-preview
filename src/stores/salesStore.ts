@@ -15,6 +15,8 @@ export interface SaleItem {
   discount: number;
   amount: number;
   profit: number;
+  isReturned?: boolean;
+  returnedAt?: string;
 }
 
 export interface Payment {
@@ -23,6 +25,26 @@ export interface Payment {
   amount: number;
   reference?: string;
   paidAt: string;
+}
+
+// Return/Refund types
+export interface ReturnItem {
+  saleItemId: string;
+  serialNumber: string;
+  productName: string;
+  returnAmount: number;
+  reason: string;
+}
+
+export interface SaleReturn {
+  id: string;
+  returnedItems: ReturnItem[];
+  totalReturnAmount: number;
+  refundMethod: PaymentMethod;
+  refundAmount: number;
+  reason: string;
+  processedBy: string;
+  createdAt: string;
 }
 
 export interface Sale {
@@ -47,7 +69,11 @@ export interface Sale {
   
   totalProfit: number;
   
-  status: "completed" | "partial" | "pending";
+  // Return tracking
+  returns?: SaleReturn[];
+  totalReturned?: number;
+  
+  status: "completed" | "partial" | "pending" | "returned" | "partially_returned";
   notes?: string;
   createdBy: string;
   createdAt: string;
@@ -81,9 +107,22 @@ interface SalesState {
   getSalesByCustomer: (customerId: string) => Sale[];
   getSalesWithDue: () => Sale[];
   getRecentSales: (limit?: number) => Sale[];
+  getSalesWithReturns: () => Sale[];
   
   // Payments
   addPayment: (saleId: string, payment: Omit<Payment, "id" | "paidAt">) => boolean;
+  
+  // Returns
+  processReturn: (
+    saleId: string,
+    returnData: {
+      itemIds: string[];
+      refundMethod: PaymentMethod;
+      refundAmount: number;
+      reason: string;
+      processedBy: string;
+    }
+  ) => SaleReturn | null;
   
   // Invoice
   generateInvoiceNumber: () => string;
@@ -209,6 +248,81 @@ export const useSalesStore = create<SalesState>()(
           .sales.slice()
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, limit);
+      },
+
+      getSalesWithReturns: () => {
+        return get().sales.filter((s) => s.returns && s.returns.length > 0);
+      },
+
+      processReturn: (saleId, returnData) => {
+        const state = get();
+        const sale = state.sales.find((s) => s.id === saleId);
+        
+        if (!sale) return null;
+
+        const now = new Date().toISOString();
+        
+        // Get items to return
+        const itemsToReturn = sale.items.filter(
+          (item) => returnData.itemIds.includes(item.id) && !item.isReturned
+        );
+        
+        if (itemsToReturn.length === 0) return null;
+
+        // Calculate return amount
+        const totalReturnAmount = itemsToReturn.reduce((sum, item) => sum + item.amount, 0);
+        
+        // Create return record
+        const newReturn: SaleReturn = {
+          id: `ret_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          returnedItems: itemsToReturn.map((item) => ({
+            saleItemId: item.id,
+            serialNumber: item.serialNumber,
+            productName: item.productName,
+            returnAmount: item.amount,
+            reason: returnData.reason,
+          })),
+          totalReturnAmount,
+          refundMethod: returnData.refundMethod,
+          refundAmount: returnData.refundAmount,
+          reason: returnData.reason,
+          processedBy: returnData.processedBy,
+          createdAt: now,
+        };
+
+        // Update items as returned
+        const updatedItems = sale.items.map((item) =>
+          returnData.itemIds.includes(item.id)
+            ? { ...item, isReturned: true, returnedAt: now }
+            : item
+        );
+
+        // Calculate new totals
+        const returnedItemsCount = updatedItems.filter((i) => i.isReturned).length;
+        const allItemsReturned = returnedItemsCount === updatedItems.length;
+        
+        // Determine new status
+        let newStatus: Sale["status"] = sale.status;
+        if (allItemsReturned) {
+          newStatus = "returned";
+        } else if (returnedItemsCount > 0) {
+          newStatus = "partially_returned";
+        }
+
+        // Update sale
+        const existingReturns = sale.returns || [];
+        const totalReturned = (sale.totalReturned || 0) + totalReturnAmount;
+        
+        get().updateSale(saleId, {
+          items: updatedItems,
+          returns: [...existingReturns, newReturn],
+          totalReturned,
+          status: newStatus,
+          // Adjust profit
+          totalProfit: sale.totalProfit - itemsToReturn.reduce((sum, i) => sum + i.profit, 0),
+        });
+
+        return newReturn;
       },
 
       addPayment: (saleId, payment) => {

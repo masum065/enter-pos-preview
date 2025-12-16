@@ -1,22 +1,249 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useSalesStore, Sale } from "@/stores/salesStore";
+import { useSalesStore, Sale, SaleItem, PaymentMethod } from "@/stores/salesStore";
+import { useStockStore } from "@/stores/stockStore";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { PrintInvoiceButton, InvoicePrintModal } from "@/components/invoice/invoice-print";
 import { Modal } from "@/components/ui/modal";
 import Link from "next/link";
+
+// Return Modal Component
+function ReturnModal({
+  sale,
+  onClose,
+  onSuccess,
+}: {
+  sale: Sale;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const { processReturn } = useSalesStore();
+  const { markAsAvailable } = useStockStore();
+  
+  const availableItems = sale.items.filter((item) => !item.isReturned);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [refundMethod, setRefundMethod] = useState<PaymentMethod>("Cash");
+  const [reason, setReason] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const selectedTotal = useMemo(() => {
+    return availableItems
+      .filter((item) => selectedItems.includes(item.id))
+      .reduce((sum, item) => sum + item.amount, 0);
+  }, [availableItems, selectedItems]);
+
+  const toggleItem = (itemId: string) => {
+    setSelectedItems((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const selectAll = () => {
+    if (selectedItems.length === availableItems.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(availableItems.map((item) => item.id));
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (selectedItems.length === 0) return;
+    if (!reason.trim()) {
+      alert("Please provide a reason for the return");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // Process the return in sales store
+      const result = processReturn(sale.id, {
+        itemIds: selectedItems,
+        refundMethod,
+        refundAmount: selectedTotal,
+        reason,
+        processedBy: "Admin", // TODO: Get from auth
+      });
+
+      if (result) {
+        // Mark stock items as available again
+        const itemsToReturn = sale.items.filter((item) => selectedItems.includes(item.id));
+        for (const item of itemsToReturn) {
+          markAsAvailable(item.stockItemId);
+        }
+        
+        onSuccess();
+      }
+    } catch (error) {
+      console.error("Return failed:", error);
+      alert("Failed to process return");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Process Return" size="lg">
+      <div className="space-y-6 text-left">
+        {/* Invoice Info */}
+        <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+          <div className="flex justify-between">
+            <span className="text-gray-600 dark:text-gray-400">Invoice</span>
+            <span className="font-mono font-semibold text-blue-600">{sale.invoiceNumber}</span>
+          </div>
+          <div className="mt-1 flex justify-between">
+            <span className="text-gray-600 dark:text-gray-400">Customer</span>
+            <span className="font-medium text-gray-900 dark:text-white">{sale.customerName}</span>
+          </div>
+        </div>
+
+        {/* Available Items */}
+        {availableItems.length === 0 ? (
+          <div className="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center dark:border-gray-600">
+            <p className="text-gray-500 dark:text-gray-400">All items have already been returned</p>
+          </div>
+        ) : (
+          <>
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="font-semibold text-gray-900 dark:text-white">Select Items to Return</h4>
+                <button
+                  onClick={selectAll}
+                  className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  {selectedItems.length === availableItems.length ? "Deselect All" : "Select All"}
+                </button>
+              </div>
+              <div className="max-h-48 space-y-2 overflow-y-auto">
+                {availableItems.map((item) => (
+                  <label
+                    key={item.id}
+                    className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-all ${
+                      selectedItems.includes(item.id)
+                        ? "border-red-500 bg-red-50 dark:border-red-400 dark:bg-red-900/20"
+                        : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.includes(item.id)}
+                      onChange={() => toggleItem(item.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900 dark:text-white">{item.productName}</p>
+                      <p className="text-sm text-gray-500">Serial: {item.serialNumber}</p>
+                    </div>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {formatCurrency(item.amount)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Return Details */}
+            {selectedItems.length > 0 && (
+              <>
+                {/* Reason */}
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Reason for Return <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                    placeholder="e.g., Defective product, Customer changed mind..."
+                  />
+                </div>
+
+                {/* Refund Method */}
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Refund Method
+                  </label>
+                  <select
+                    value={refundMethod}
+                    onChange={(e) => setRefundMethod(e.target.value as PaymentMethod)}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Bkash">Bkash</option>
+                    <option value="Nagad">Nagad</option>
+                    <option value="Card">Card</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                  </select>
+                </div>
+
+                {/* Summary */}
+                <div className="rounded-xl bg-red-50 p-4 dark:bg-red-900/20">
+                  <div className="flex justify-between text-lg">
+                    <span className="font-medium text-red-700 dark:text-red-300">
+                      Total Refund ({selectedItems.length} items)
+                    </span>
+                    <span className="font-bold text-red-600 dark:text-red-400">
+                      {formatCurrency(selectedTotal)}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-600 dark:text-gray-300"
+          >
+            Cancel
+          </button>
+          {selectedItems.length > 0 && (
+            <button
+              onClick={handleSubmit}
+              disabled={isProcessing || !reason.trim()}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                  Process Return
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 // Sale Detail Modal Component
 function SaleDetailModal({
   sale,
   onClose,
   onPrint,
+  onReturn,
 }: {
   sale: Sale;
   onClose: () => void;
   onPrint: () => void;
+  onReturn: () => void;
 }) {
+  const hasReturnableItems = sale.items.some((item) => !item.isReturned);
+  const hasReturns = sale.returns && sale.returns.length > 0;
+
   return (
     <Modal isOpen={true} onClose={onClose} title="Invoice Details" size="lg">
       <div className="space-y-6 text-left">
@@ -53,14 +280,26 @@ function SaleDetailModal({
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Product</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Serial</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Price</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase text-gray-500">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {sale.items.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <tr key={idx} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${item.isReturned ? "opacity-50" : ""}`}>
                     <td className="px-4 py-3 text-gray-900 dark:text-white">{item.productName}</td>
                     <td className="px-4 py-3 font-mono text-sm text-gray-600 dark:text-gray-400">{item.serialNumber}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(item.amount)}</td>
+                    <td className="px-4 py-3 text-center">
+                      {item.isReturned ? (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                          Returned
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                          Active
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -78,6 +317,12 @@ function SaleDetailModal({
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">Discount</span>
               <span className="font-medium text-red-600">-{formatCurrency(sale.discountAmount)}</span>
+            </div>
+          )}
+          {sale.totalReturned && sale.totalReturned > 0 && (
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Returned</span>
+              <span className="font-medium text-red-600">-{formatCurrency(sale.totalReturned)}</span>
             </div>
           )}
           <div className="flex justify-between border-t border-blue-200 pt-2 dark:border-blue-800">
@@ -108,6 +353,26 @@ function SaleDetailModal({
           )}
         </div>
 
+        {/* Returns History */}
+        {hasReturns && (
+          <div className="space-y-2">
+            <h4 className="font-semibold text-gray-900 dark:text-white">Return History</h4>
+            <div className="space-y-2">
+              {sale.returns!.map((ret, idx) => (
+                <div key={idx} className="rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">{formatDate(ret.createdAt)}</span>
+                    <span className="font-semibold text-red-600 dark:text-red-400">-{formatCurrency(ret.refundAmount)}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                    {ret.returnedItems.length} item(s) • {ret.reason}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Status Summary */}
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 rounded-lg bg-green-50 p-3 text-center dark:bg-green-900/20">
@@ -137,7 +402,7 @@ function SaleDetailModal({
           <div>
             <span className="text-sm text-gray-500 dark:text-gray-400">Status: </span>
             <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium capitalize ${getStatusColor(sale.status)}`}>
-              {sale.status}
+              {sale.status.replace("_", " ")}
             </span>
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -153,6 +418,17 @@ function SaleDetailModal({
           >
             Close
           </button>
+          {hasReturnableItems && sale.status !== "returned" && (
+            <button
+              onClick={onReturn}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+              Return Items
+            </button>
+          )}
           {sale.dueAmount > 0 && (
             <Link
               href="/sales/due"
@@ -179,11 +455,12 @@ function SaleDetailModal({
 export default function SalesPage() {
   const { sales, getRecentSales, getSalesWithDue } = useSalesStore();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "partial" | "pending">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "partial" | "pending" | "returned">("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [isLoaded, setIsLoaded] = useState(false);
   const [viewingSale, setViewingSale] = useState<Sale | null>(null);
   const [printingSale, setPrintingSale] = useState<Sale | null>(null);
+  const [returningSale, setReturningSale] = useState<Sale | null>(null);
 
   useEffect(() => {
     setIsLoaded(true);
@@ -195,7 +472,11 @@ export default function SalesPage() {
 
     // Status filter
     if (statusFilter !== "all") {
-      result = result.filter((s) => s.status === statusFilter);
+      if (statusFilter === "returned") {
+        result = result.filter((s) => s.status === "returned" || s.status === "partially_returned");
+      } else {
+        result = result.filter((s) => s.status === statusFilter);
+      }
     }
 
     // Date filter
@@ -241,6 +522,7 @@ export default function SalesPage() {
     totalProfit: sales.reduce((sum, s) => sum + s.totalProfit, 0),
     totalDue: sales.reduce((sum, s) => sum + s.dueAmount, 0),
     dueCount: sales.filter((s) => s.dueAmount > 0).length,
+    returnedCount: sales.filter((s) => s.status === "returned" || s.status === "partially_returned").length,
   }), [sales]);
 
   const handleViewSale = (sale: Sale) => {
@@ -252,6 +534,18 @@ export default function SalesPage() {
       setPrintingSale(viewingSale);
       setViewingSale(null);
     }
+  };
+
+  const handleReturnFromDetail = () => {
+    if (viewingSale) {
+      setReturningSale(viewingSale);
+      setViewingSale(null);
+    }
+  };
+
+  const handleReturnSuccess = () => {
+    setReturningSale(null);
+    // Optionally show a toast
   };
 
   if (!isLoaded) {
@@ -311,7 +605,7 @@ export default function SalesPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
         {/* Status Filter */}
         <div className="flex flex-wrap gap-2">
-          {(["all", "completed", "partial", "pending"] as const).map((status) => (
+          {(["all", "completed", "partial", "pending", "returned"] as const).map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
@@ -406,7 +700,7 @@ export default function SalesPage() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium capitalize ${getStatusColor(sale.status)}`}>
-                        {sale.status}
+                        {sale.status.replace("_", " ")}
                       </span>
                     </td>
                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
@@ -447,6 +741,7 @@ export default function SalesPage() {
           sale={viewingSale}
           onClose={() => setViewingSale(null)}
           onPrint={handlePrintFromDetail}
+          onReturn={handleReturnFromDetail}
         />
       )}
 
@@ -456,6 +751,15 @@ export default function SalesPage() {
           sale={printingSale}
           isOpen={true}
           onClose={() => setPrintingSale(null)}
+        />
+      )}
+
+      {/* Return Modal */}
+      {returningSale && (
+        <ReturnModal
+          sale={returningSale}
+          onClose={() => setReturningSale(null)}
+          onSuccess={handleReturnSuccess}
         />
       )}
     </div>

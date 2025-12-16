@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStockStore } from "@/stores/stockStore";
 import { useProductStore, Product } from "@/stores/productStore";
@@ -210,11 +210,12 @@ function AddStockContent() {
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Select Product <span className="text-red-500">*</span>
             </label>
-            <select
-              value={selectedProduct}
-              onChange={(e) => {
-                setSelectedProduct(e.target.value);
-                const product = products.find((p) => p.id === e.target.value);
+            <ProductSearchSelect
+              products={products}
+              selectedProductId={selectedProduct}
+              onSelect={(productId) => {
+                setSelectedProduct(productId);
+                const product = products.find((p) => p.id === productId);
                 if (product && formData.purchasePrice === 0) {
                   setFormData((prev) => ({
                     ...prev,
@@ -222,17 +223,8 @@ function AddStockContent() {
                   }));
                 }
               }}
-              className={`w-full rounded-lg border px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
-                errors.product ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500 dark:border-gray-700"
-              }`}
-            >
-              <option value="">-- Select Product --</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.brand} {product.modelName} - {formatCurrency(product.defaultSalePrice)}
-                </option>
-              ))}
-            </select>
+              hasError={!!errors.product}
+            />
             {errors.product && <p className="mt-1 text-sm text-red-500">{errors.product}</p>}
           </div>
 
@@ -412,6 +404,162 @@ function AddStockContent() {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// Searchable Product Select Component
+function ProductSearchSelect({
+  products,
+  selectedProductId,
+  onSelect,
+  hasError = false,
+}: {
+  products: Product[];
+  selectedProductId: string;
+  onSelect: (productId: string) => void;
+  hasError?: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
+
+  // Filtered products (max 5)
+  const filteredProducts = useMemo(() => {
+    if (!query.trim()) return products.slice(0, 5);
+    const q = query.toLowerCase();
+    return products
+      .filter((p) =>
+        p.modelName.toLowerCase().includes(q) ||
+        p.brand.toLowerCase().includes(q) ||
+        `${p.brand} ${p.modelName}`.toLowerCase().includes(q)
+      )
+      .slice(0, 5);
+  }, [products, query]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelectProduct = (product: Product) => {
+    onSelect(product.id);
+    setQuery("");
+    setIsOpen(false);
+  };
+
+  const handleClear = () => {
+    onSelect("");
+    setQuery("");
+    inputRef.current?.focus();
+  };
+
+  return (
+    <div className="relative">
+      {selectedProductId && selectedProduct ? (
+        // Selected Product Display
+        <div className={`flex items-center justify-between rounded-lg border px-4 py-3 ${hasError ? "border-red-500 bg-red-50 dark:bg-red-900/20" : "border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20"}`}>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-sm font-bold text-blue-700 dark:bg-blue-800 dark:text-blue-300">
+              {selectedProduct.brand.charAt(0)}
+            </div>
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">
+                {selectedProduct.brand} {selectedProduct.modelName}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Sale Price: {formatCurrency(selectedProduct.defaultSalePrice)}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleClear}
+            className="ml-2 rounded-full p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        // Search Input
+        <div className="relative">
+          <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setIsOpen(true);
+            }}
+            onFocus={() => setIsOpen(true)}
+            placeholder="Search products by name or brand..."
+            className={`w-full rounded-lg border py-3 pl-12 pr-4 text-gray-900 focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
+              hasError ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500 dark:border-gray-700"
+            }`}
+          />
+        </div>
+      )}
+
+      {/* Dropdown */}
+      {isOpen && !selectedProductId && (
+        <div
+          ref={dropdownRef}
+          className="absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          {filteredProducts.length === 0 ? (
+            <div className="px-4 py-4 text-center text-gray-500">
+              <p>No products found</p>
+              <p className="mt-1 text-sm">Try a different search term</p>
+            </div>
+          ) : (
+            <>
+              {filteredProducts.map((product) => (
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => handleSelectProduct(product)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                    {product.brand.charAt(0)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {product.brand} {product.modelName}
+                    </p>
+                    <p className="text-sm text-gray-500">{product.category} • {formatCurrency(product.defaultSalePrice)}</p>
+                  </div>
+                </button>
+              ))}
+
+              {filteredProducts.length > 0 && products.length > 5 && !query && (
+                <div className="border-t border-gray-100 px-4 py-2 text-xs text-gray-400 dark:border-gray-700">
+                  Type to search {products.length} products...
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

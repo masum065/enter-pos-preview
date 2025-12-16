@@ -2,10 +2,166 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useCustomerStore, Customer } from "@/stores/customerStore";
-import { formatDate, formatPhone } from "@/lib/utils";
+import { useSalesStore } from "@/stores/salesStore";
+import { formatDate, formatPhone, formatCurrency } from "@/lib/utils";
 import { generateMockCustomers } from "@/lib/mockData";
 import { AddCustomerModal, EditCustomerModal } from "@/components/customers/customer-modals";
 import { Modal, ModalFooter } from "@/components/ui/modal";
+import Link from "next/link";
+
+// Customer Detail Modal Component
+function CustomerDetailModal({
+  customer,
+  onClose,
+  onEdit,
+}: {
+  customer: Customer;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const { getSalesByCustomer } = useSalesStore();
+  const customerSales = getSalesByCustomer(customer.id);
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    const totalPurchases = customerSales.length;
+    const totalSpent = customerSales.reduce((sum, s) => sum + s.grandTotal, 0);
+    const totalDue = customerSales.reduce((sum, s) => sum + s.dueAmount, 0);
+    return { totalPurchases, totalSpent, totalDue };
+  }, [customerSales]);
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Customer Details" size="lg">
+      <div className="space-y-6 text-left">
+        {/* Customer Header */}
+        <div className="flex items-start gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-bold text-white">
+            {customer.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{customer.name}</h3>
+            <p className="text-lg text-blue-600 dark:text-blue-400">{formatPhone(customer.phone)}</p>
+            <p className="text-sm text-gray-500">Customer since {formatDate(customer.createdAt)}</p>
+          </div>
+        </div>
+
+        {/* Contact Info */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
+            <p className="mt-1 font-medium text-gray-900 dark:text-white">
+              {customer.email || "-"}
+            </p>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+            <p className="text-sm text-gray-500 dark:text-gray-400">NID</p>
+            <p className="mt-1 font-mono font-medium text-gray-900 dark:text-white">
+              {customer.nid || "-"}
+            </p>
+          </div>
+        </div>
+
+        {/* Address */}
+        <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Address</p>
+          <p className="mt-1 font-medium text-gray-900 dark:text-white">
+            {customer.address || "No address provided"}
+          </p>
+        </div>
+
+        {/* Notes */}
+        {customer.notes && (
+          <div className="rounded-xl bg-yellow-50 p-4 dark:bg-yellow-900/20">
+            <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">Notes</p>
+            <p className="mt-1 text-gray-700 dark:text-gray-300">{customer.notes}</p>
+          </div>
+        )}
+
+        {/* Purchase Stats */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl bg-blue-50 p-4 text-center dark:bg-blue-900/20">
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalPurchases}</p>
+            <p className="text-sm text-blue-700 dark:text-blue-300">Total Purchases</p>
+          </div>
+          <div className="rounded-xl bg-green-50 p-4 text-center dark:bg-green-900/20">
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(stats.totalSpent)}</p>
+            <p className="text-sm text-green-700 dark:text-green-300">Total Spent</p>
+          </div>
+          <div className="rounded-xl bg-red-50 p-4 text-center dark:bg-red-900/20">
+            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCurrency(stats.totalDue)}</p>
+            <p className="text-sm text-red-700 dark:text-red-300">Outstanding Due</p>
+          </div>
+        </div>
+
+        {/* Purchase History */}
+        <div>
+          <h4 className="mb-3 font-semibold text-gray-900 dark:text-white">
+            Purchase History ({customerSales.length})
+          </h4>
+          {customerSales.length === 0 ? (
+            <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 text-center dark:border-gray-700">
+              <p className="text-gray-500 dark:text-gray-400">No purchase history yet</p>
+            </div>
+          ) : (
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className="w-full">
+                <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Invoice</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Date</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Amount</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Due</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {customerSales.map((sale) => (
+                    <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="px-4 py-3 font-mono text-sm text-blue-600 dark:text-blue-400">{sale.invoiceNumber}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{formatDate(sale.invoiceDate)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(sale.grandTotal)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={sale.dueAmount > 0 ? "font-medium text-red-600 dark:text-red-400" : "text-gray-400"}>
+                          {sale.dueAmount > 0 ? formatCurrency(sale.dueAmount) : "-"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            Close
+          </button>
+          {stats.totalDue > 0 && (
+            <Link
+              href="/sales/due"
+              className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 font-medium text-white hover:bg-orange-700"
+            >
+              Collect Due
+            </Link>
+          )}
+          <button
+            onClick={onEdit}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit Customer
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 export default function CustomersPage() {
   const {
@@ -20,6 +176,7 @@ export default function CustomersPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
+  const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Initialize mock data on first load if empty
@@ -57,6 +214,17 @@ export default function CustomersPage() {
   const openDeleteModal = (customer: Customer) => {
     setDeletingCustomer(customer);
     setShowDeleteModal(true);
+  };
+
+  const handleViewCustomer = (customer: Customer) => {
+    setViewingCustomer(customer);
+  };
+
+  const handleEditFromDetail = () => {
+    if (viewingCustomer) {
+      setEditingCustomer(viewingCustomer);
+      setViewingCustomer(null);
+    }
   };
 
   if (isLoading) {
@@ -100,54 +268,36 @@ export default function CustomersPage() {
         </button>
       </div>
 
-      {/* Search & Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="md:col-span-2">
-          <div className="relative">
-            <svg
-              className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, phone, or NID..."
-              className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-gray-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-            />
-          </div>
-        </div>
-
-        <div className="rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 p-4 text-white shadow-lg">
-          <p className="text-sm font-medium text-blue-100">Total Customers</p>
-          <p className="text-3xl font-bold">{customers.length}</p>
-        </div>
-
-        <div className="rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 p-4 text-white shadow-lg">
-          <p className="text-sm font-medium text-emerald-100">This Month</p>
-          <p className="text-3xl font-bold">
-            {
-              customers.filter((c) => {
-                const date = new Date(c.createdAt);
-                const now = new Date();
-                return (
-                  date.getMonth() === now.getMonth() &&
-                  date.getFullYear() === now.getFullYear()
-                );
-              }).length
-            }
-          </p>
-        </div>
+      {/* Search */}
+      <div className="relative max-w-md">
+        <svg
+          className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by name, phone, email..."
+          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-gray-900 placeholder-gray-500 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
+        />
       </div>
+
+      {/* Results count */}
+      {searchQuery && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Found {filteredCustomers.length} customers
+        </p>
+      )}
 
       {/* Customer Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -188,7 +338,8 @@ export default function CustomersPage() {
                 filteredCustomers.map((customer) => (
                   <tr
                     key={customer.id}
-                    className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    onClick={() => handleViewCustomer(customer)}
+                    className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -222,8 +373,20 @@ export default function CustomersPage() {
                         {formatDate(customer.createdAt)}
                       </p>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
+                        {/* View Button */}
+                        <button
+                          onClick={() => handleViewCustomer(customer)}
+                          className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                          title="View Details"
+                        >
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+                        {/* Edit Button */}
                         <button
                           onClick={() => setEditingCustomer(customer)}
                           className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
@@ -243,6 +406,7 @@ export default function CustomersPage() {
                             />
                           </svg>
                         </button>
+                        {/* Delete Button */}
                         <button
                           onClick={() => openDeleteModal(customer)}
                           className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400"
@@ -271,6 +435,15 @@ export default function CustomersPage() {
           </table>
         </div>
       </div>
+
+      {/* Customer Detail Modal */}
+      {viewingCustomer && (
+        <CustomerDetailModal
+          customer={viewingCustomer}
+          onClose={() => setViewingCustomer(null)}
+          onEdit={handleEditFromDetail}
+        />
+      )}
 
       {/* Add Customer Modal */}
       <AddCustomerModal

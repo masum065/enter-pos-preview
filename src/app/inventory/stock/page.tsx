@@ -1,11 +1,167 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useStockStore, StockItem, StockStatus } from "@/stores/stockStore";
 import { useProductStore, Product } from "@/stores/productStore";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { generateMockProducts, generateMockStock } from "@/lib/mockData";
 import Link from "next/link";
+
+// Searchable Product Select Component
+function ProductSearchSelect({
+  products,
+  selectedProductId,
+  onSelect,
+}: {
+  products: Product[];
+  selectedProductId: string;
+  onSelect: (productId: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
+
+  // Filtered products (max 5)
+  const filteredProducts = useMemo(() => {
+    if (!query.trim()) return products.slice(0, 5);
+    const q = query.toLowerCase();
+    return products
+      .filter((p) => 
+        p.modelName.toLowerCase().includes(q) ||
+        p.brand.toLowerCase().includes(q) ||
+        `${p.brand} ${p.modelName}`.toLowerCase().includes(q)
+      )
+      .slice(0, 5);
+  }, [products, query]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelectProduct = (product: Product) => {
+    onSelect(product.id);
+    setQuery("");
+    setIsOpen(false);
+  };
+
+  const handleClear = () => {
+    onSelect("All");
+    setQuery("");
+    inputRef.current?.focus();
+  };
+
+  return (
+    <div className="relative min-w-[200px]">
+      {selectedProductId !== "All" && selectedProduct ? (
+        // Selected Product Display
+        <div className="flex items-center justify-between rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 dark:border-blue-700 dark:bg-blue-900/20">
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-800 dark:text-blue-300">
+              {selectedProduct.brand}
+            </span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              {selectedProduct.modelName}
+            </span>
+          </div>
+          <button
+            onClick={handleClear}
+            className="ml-2 rounded-full p-1 text-gray-400 hover:bg-blue-100 hover:text-gray-600 dark:hover:bg-blue-800"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        // Search Input
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setIsOpen(true);
+            }}
+            onFocus={() => setIsOpen(true)}
+            placeholder="Filter by product..."
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-4 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          />
+        </div>
+      )}
+
+      {/* Dropdown */}
+      {isOpen && selectedProductId === "All" && (
+        <div
+          ref={dropdownRef}
+          className="absolute left-0 right-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          {/* All Products Option */}
+          <button
+            onClick={() => {
+              onSelect("All");
+              setQuery("");
+              setIsOpen(false);
+            }}
+            className="w-full px-4 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            All Products
+          </button>
+          
+          <div className="border-t border-gray-100 dark:border-gray-700"></div>
+
+          {filteredProducts.length === 0 ? (
+            <div className="px-4 py-3 text-center text-sm text-gray-500">
+              No products found
+            </div>
+          ) : (
+            filteredProducts.map((product) => (
+              <button
+                key={product.id}
+                onClick={() => handleSelectProduct(product)}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                  {product.brand.charAt(0)}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {product.brand} {product.modelName}
+                  </p>
+                  <p className="text-xs text-gray-500">{product.category}</p>
+                </div>
+              </button>
+            ))
+          )}
+          
+          {filteredProducts.length > 0 && products.length > 5 && !query && (
+            <div className="border-t border-gray-100 px-4 py-2 text-xs text-gray-400 dark:border-gray-700">
+              Type to search {products.length} products...
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Status filter tabs
 const STATUS_OPTIONS: (StockStatus | "All")[] = ["All", "Available", "Sold", "Service", "Returned", "Damaged"];
@@ -213,18 +369,11 @@ export default function StockPage() {
 
         <div className="flex flex-1 gap-4">
           {/* Product Filter */}
-          <select
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          >
-            <option value="All">All Products</option>
-            {products.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.brand} {product.modelName}
-              </option>
-            ))}
-          </select>
+          <ProductSearchSelect
+            products={products}
+            selectedProductId={selectedProduct}
+            onSelect={setSelectedProduct}
+          />
 
           {/* Search */}
           <div className="relative flex-1">

@@ -5,6 +5,7 @@ import { useStockStore, StockItem, StockStatus } from "@/stores/stockStore";
 import { useProductStore, Product } from "@/stores/productStore";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { generateMockProducts, generateMockStock } from "@/lib/mockData";
+import { Modal } from "@/components/ui/modal";
 import Link from "next/link";
 
 // Searchable Product Select Component
@@ -165,9 +166,10 @@ function ProductSearchSelect({
 
 // Status filter tabs
 const STATUS_OPTIONS: (StockStatus | "All")[] = ["All", "Available", "Sold", "Service", "Returned", "Damaged"];
+const STOCK_STATUS_OPTIONS: StockStatus[] = ["Available", "Sold", "Service", "Returned", "Damaged"];
 
 export default function StockPage() {
-  const { stockItems, getAvailableStockCount, getSoldStockCount, getTotalStockValue } = useStockStore();
+  const { stockItems, getAvailableStockCount, getSoldStockCount, getTotalStockValue, updateStockItem, deleteStockItem } = useStockStore();
   const { products, addProduct } = useProductStore();
   const stockStore = useStockStore();
   const productStore = useProductStore();
@@ -176,6 +178,7 @@ export default function StockPage() {
   const [selectedStatus, setSelectedStatus] = useState<StockStatus | "All">("All");
   const [selectedProduct, setSelectedProduct] = useState<string>("All");
   const [isLoading, setIsLoading] = useState(true);
+  const [editingStockItem, setEditingStockItem] = useState<StockItem | null>(null);
 
   // Initialize mock data
   useEffect(() => {
@@ -402,7 +405,7 @@ export default function StockPage() {
                 <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white md:table-cell">Purchase Price</th>
                 <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">Supplier</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Status</th>
-                <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">Added</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -437,8 +440,16 @@ export default function StockPage() {
                         {item.status}
                       </span>
                     </td>
-                    <td className="hidden px-6 py-4 lg:table-cell">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{formatDate(item.createdAt)}</p>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => setEditingStockItem(item)}
+                        className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+                        title="Edit"
+                      >
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -454,6 +465,161 @@ export default function StockPage() {
           <p>Showing {filteredStock.length} of {stockItems.length} items</p>
         </div>
       )}
+
+      {/* Stock Edit Modal */}
+      {editingStockItem && (
+        <Modal isOpen={true} onClose={() => setEditingStockItem(null)} title="Edit Stock Item" size="md">
+          <StockEditForm
+            stockItem={editingStockItem}
+            productName={getProductName(editingStockItem.productId)}
+            onClose={() => setEditingStockItem(null)}
+            onSave={(data) => {
+              updateStockItem(editingStockItem.id, data);
+              setEditingStockItem(null);
+            }}
+          />
+        </Modal>
+      )}
     </div>
+  );
+}
+
+// Stock Edit Form Component
+function StockEditForm({
+  stockItem,
+  productName,
+  onClose,
+  onSave,
+}: {
+  stockItem: StockItem;
+  productName: string;
+  onClose: () => void;
+  onSave: (data: Partial<StockItem>) => void;
+}) {
+  const [serialNumber, setSerialNumber] = useState(stockItem.serialNumber);
+  const [imei, setImei] = useState(stockItem.imei || "");
+  const [purchasePrice, setPurchasePrice] = useState(stockItem.purchasePrice);
+  const [supplierName, setSupplierName] = useState(stockItem.supplierName || "");
+  const [status, setStatus] = useState<StockStatus>(stockItem.status);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      serialNumber,
+      imei: imei || undefined,
+      purchasePrice,
+      supplierName: supplierName || undefined,
+      status,
+    });
+  };
+
+  const isSold = stockItem.status === "Sold";
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5 text-left">
+      {/* Product Info */}
+      <div className="rounded-lg bg-gray-100 p-3 dark:bg-gray-800">
+        <p className="text-sm text-gray-500 dark:text-gray-400">Product</p>
+        <p className="font-medium text-gray-900 dark:text-white">{productName}</p>
+      </div>
+
+      {isSold && (
+        <div className="flex items-center gap-2 rounded-lg bg-yellow-100 p-3 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
+          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          <span className="text-sm font-medium">This item has been sold. Edit with caution.</span>
+        </div>
+      )}
+
+      {/* Serial Number */}
+      <div>
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Serial Number *
+        </label>
+        <input
+          type="text"
+          value={serialNumber}
+          onChange={(e) => setSerialNumber(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          required
+        />
+      </div>
+
+      {/* IMEI */}
+      <div>
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          IMEI (Optional)
+        </label>
+        <input
+          type="text"
+          value={imei}
+          onChange={(e) => setImei(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          placeholder="For mobile devices"
+        />
+      </div>
+
+      {/* Purchase Price */}
+      <div>
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Purchase Price *
+        </label>
+        <input
+          type="number"
+          value={purchasePrice}
+          onChange={(e) => setPurchasePrice(Number(e.target.value))}
+          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          min={0}
+          required
+        />
+      </div>
+
+      {/* Supplier */}
+      <div>
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Supplier (Optional)
+        </label>
+        <input
+          type="text"
+          value={supplierName}
+          onChange={(e) => setSupplierName(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        />
+      </div>
+
+      {/* Status */}
+      <div>
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Status
+        </label>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as StockStatus)}
+          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        >
+          {STOCK_STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-end gap-3 pt-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-600 dark:text-gray-300"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+        >
+          Save Changes
+        </button>
+      </div>
+    </form>
   );
 }

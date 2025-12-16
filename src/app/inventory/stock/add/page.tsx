@@ -1,19 +1,32 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useStockStore } from "@/stores/stockStore";
 import { useProductStore, Product } from "@/stores/productStore";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 
+// Wrapper component for Suspense
 export default function AddStockPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[400px] items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div></div>}>
+      <AddStockContent />
+    </Suspense>
+  );
+}
+
+function AddStockContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { addStockItem, addBulkStock, checkDuplicateSerial } = useStockStore();
   const { products } = useProductStore();
 
+  // Get productId from URL if provided
+  const preSelectedProductId = searchParams.get("productId") || "";
+
   const [mode, setMode] = useState<"single" | "bulk">("single");
-  const [selectedProduct, setSelectedProduct] = useState<string>("");
+  const [selectedProduct, setSelectedProduct] = useState<string>(preSelectedProductId);
   const [formData, setFormData] = useState({
     serialNumber: "",
     imei: "",
@@ -28,6 +41,19 @@ export default function AddStockPage() {
 
   // Get selected product details
   const selectedProductDetails = products.find((p) => p.id === selectedProduct);
+
+  // Set initial purchase price when product is pre-selected
+  useEffect(() => {
+    if (preSelectedProductId && formData.purchasePrice === 0) {
+      const product = products.find((p) => p.id === preSelectedProductId);
+      if (product) {
+        setFormData((prev) => ({
+          ...prev,
+          purchasePrice: Math.round(product.defaultSalePrice * 0.85),
+        }));
+      }
+    }
+  }, [preSelectedProductId, products]);
 
   const validateSingle = () => {
     const newErrors: Record<string, string> = {};

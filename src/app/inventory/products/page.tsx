@@ -2,10 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useProductStore, Product, ProductCategory } from "@/stores/productStore";
-import { useStockStore, StockItem } from "@/stores/stockStore";
+import { useStockStore, StockItem, StockStatus } from "@/stores/stockStore";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { generateMockProducts } from "@/lib/mockData";
 import { Modal, ModalFooter } from "@/components/ui/modal";
+import Link from "next/link";
+
+// Stock Status Options
+const STOCK_STATUS_OPTIONS: StockStatus[] = ["Available", "Sold", "Service", "Returned", "Damaged"];
 
 // Product Form Component
 function ProductForm({
@@ -179,6 +183,148 @@ function ProductForm({
   );
 }
 
+// Stock Edit Modal Component
+function StockEditModal({
+  stockItem,
+  productName,
+  onClose,
+  onSave,
+}: {
+  stockItem: StockItem;
+  productName: string;
+  onClose: () => void;
+  onSave: (data: Partial<StockItem>) => void;
+}) {
+  const [serialNumber, setSerialNumber] = useState(stockItem.serialNumber);
+  const [imei, setImei] = useState(stockItem.imei || "");
+  const [purchasePrice, setPurchasePrice] = useState(stockItem.purchasePrice);
+  const [supplierName, setSupplierName] = useState(stockItem.supplierName || "");
+  const [status, setStatus] = useState<StockStatus>(stockItem.status);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      serialNumber,
+      imei: imei || undefined,
+      purchasePrice,
+      supplierName: supplierName || undefined,
+      status,
+    });
+  };
+
+  const isSold = stockItem.status === "Sold";
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Edit Stock Item" size="md">
+      <form onSubmit={handleSubmit} className="space-y-5 text-left">
+        {/* Product Info */}
+        <div className="rounded-lg bg-gray-100 p-3 dark:bg-gray-800">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Product</p>
+          <p className="font-medium text-gray-900 dark:text-white">{productName}</p>
+        </div>
+
+        {isSold && (
+          <div className="flex items-center gap-2 rounded-lg bg-yellow-100 p-3 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
+            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span className="text-sm font-medium">This item has been sold. Edit with caution.</span>
+          </div>
+        )}
+
+        {/* Serial Number */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Serial Number *
+          </label>
+          <input
+            type="text"
+            value={serialNumber}
+            onChange={(e) => setSerialNumber(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            required
+          />
+        </div>
+
+        {/* IMEI */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            IMEI (Optional)
+          </label>
+          <input
+            type="text"
+            value={imei}
+            onChange={(e) => setImei(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            placeholder="For mobile devices"
+          />
+        </div>
+
+        {/* Purchase Price */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Purchase Price *
+          </label>
+          <input
+            type="number"
+            value={purchasePrice}
+            onChange={(e) => setPurchasePrice(Number(e.target.value))}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            min={0}
+            required
+          />
+        </div>
+
+        {/* Supplier */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Supplier (Optional)
+          </label>
+          <input
+            type="text"
+            value={supplierName}
+            onChange={(e) => setSupplierName(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          />
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Status
+          </label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as StockStatus)}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          >
+            {STOCK_STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-600 dark:text-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+          >
+            Save Changes
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // Product Detail Modal with Stock List and Filter Tabs
 function ProductDetailModal({
   product,
@@ -191,7 +337,9 @@ function ProductDetailModal({
   onClose: () => void;
   onEdit: () => void;
 }) {
+  const { updateStockItem, deleteStockItem } = useStockStore();
   const [stockFilter, setStockFilter] = useState<"available" | "sold" | "all">("available");
+  const [editingStockItem, setEditingStockItem] = useState<StockItem | null>(null);
 
   const availableStock = stockItems.filter((s) => s.status === "Available");
   const soldStock = stockItems.filter((s) => s.status === "Sold");
@@ -217,133 +365,177 @@ function ProductDetailModal({
     Damaged: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
   };
 
+  const handleSaveStock = (data: Partial<StockItem>) => {
+    if (editingStockItem) {
+      updateStockItem(editingStockItem.id, data);
+      setEditingStockItem(null);
+    }
+  };
+
+  const productName = `${product.brand} ${product.modelName}`;
+
   return (
-    <Modal isOpen={true} onClose={onClose} title="Product Details" size="lg">
-      <div className="space-y-6 text-left">
-        {/* Product Info */}
-        <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 p-5 dark:from-blue-900/20 dark:to-indigo-900/20">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{product.brand}</p>
-              <h3 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{product.modelName}</h3>
-              {product.description && (
-                <p className="mt-2 text-gray-600 dark:text-gray-400">{product.description}</p>
-              )}
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {formatCurrency(product.defaultSalePrice)}
-              </p>
-              <p className="text-sm text-gray-500">{product.warrantyMonths} months warranty</p>
+    <>
+      <Modal isOpen={true} onClose={onClose} title="Product Details" size="lg">
+        <div className="space-y-6 text-left">
+          {/* Product Info */}
+          <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 p-5 dark:from-blue-900/20 dark:to-indigo-900/20">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{product.brand}</p>
+                <h3 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{product.modelName}</h3>
+                {product.description && (
+                  <p className="mt-2 text-gray-600 dark:text-gray-400">{product.description}</p>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {formatCurrency(product.defaultSalePrice)}
+                </p>
+                <p className="text-sm text-gray-500">{product.warrantyMonths} months warranty</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Stock Summary - Clickable Stats */}
-        <div className="grid gap-3 sm:grid-cols-3">
-          <button
-            onClick={() => setStockFilter("available")}
-            className={`rounded-lg p-4 text-center transition-all ${
-              stockFilter === "available"
-                ? "bg-green-100 ring-2 ring-green-500 dark:bg-green-900/30"
-                : "bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30"
-            }`}
-          >
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{availableStock.length}</p>
-            <p className="text-sm text-green-700 dark:text-green-300">Available</p>
-          </button>
-          <button
-            onClick={() => setStockFilter("sold")}
-            className={`rounded-lg p-4 text-center transition-all ${
-              stockFilter === "sold"
-                ? "bg-red-100 ring-2 ring-red-500 dark:bg-red-900/30"
-                : "bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30"
-            }`}
-          >
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{soldStock.length}</p>
-            <p className="text-sm text-red-700 dark:text-red-300">Sold</p>
-          </button>
-          <button
-            onClick={() => setStockFilter("all")}
-            className={`rounded-lg p-4 text-center transition-all ${
-              stockFilter === "all"
-                ? "bg-gray-200 ring-2 ring-gray-500 dark:bg-gray-700"
-                : "bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
-            }`}
-          >
-            <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">{stockItems.length}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
-          </button>
-        </div>
-
-        {/* Stock List with Filter */}
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h4 className="font-semibold text-gray-900 dark:text-white">
-              {stockFilter === "available" ? "Available Stock" : stockFilter === "sold" ? "Sold Items" : "All Stock Items"}
-              <span className="ml-2 text-sm font-normal text-gray-500">({filteredStockItems.length})</span>
-            </h4>
+          {/* Stock Summary - Clickable Stats */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <button
+              onClick={() => setStockFilter("available")}
+              className={`rounded-lg p-4 text-center transition-all ${
+                stockFilter === "available"
+                  ? "bg-green-100 ring-2 ring-green-500 dark:bg-green-900/30"
+                  : "bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30"
+              }`}
+            >
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{availableStock.length}</p>
+              <p className="text-sm text-green-700 dark:text-green-300">Available</p>
+            </button>
+            <button
+              onClick={() => setStockFilter("sold")}
+              className={`rounded-lg p-4 text-center transition-all ${
+                stockFilter === "sold"
+                  ? "bg-red-100 ring-2 ring-red-500 dark:bg-red-900/30"
+                  : "bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30"
+              }`}
+            >
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{soldStock.length}</p>
+              <p className="text-sm text-red-700 dark:text-red-300">Sold</p>
+            </button>
+            <button
+              onClick={() => setStockFilter("all")}
+              className={`rounded-lg p-4 text-center transition-all ${
+                stockFilter === "all"
+                  ? "bg-gray-200 ring-2 ring-gray-500 dark:bg-gray-700"
+                  : "bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
+              }`}
+            >
+              <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">{stockItems.length}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
+            </button>
           </div>
-          
-          {filteredStockItems.length === 0 ? (
-            <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 text-center dark:border-gray-700">
-              <p className="text-gray-500 dark:text-gray-400">
-                {stockFilter === "available" 
-                  ? "No available stock for this product" 
-                  : stockFilter === "sold" 
-                  ? "No sold items yet" 
-                  : "No stock items for this product"}
-              </p>
+
+          {/* Stock List with Filter */}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="font-semibold text-gray-900 dark:text-white">
+                {stockFilter === "available" ? "Available Stock" : stockFilter === "sold" ? "Sold Items" : "All Stock Items"}
+                <span className="ml-2 text-sm font-normal text-gray-500">({filteredStockItems.length})</span>
+              </h4>
+              <Link
+                href={`/inventory/stock/add?productId=${product.id}`}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Stock
+              </Link>
             </div>
-          ) : (
-            <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
-              <table className="w-full">
-                <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Serial</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Purchase Price</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {filteredStockItems.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                      <td className="px-4 py-3 font-mono text-sm text-gray-900 dark:text-white">{item.serialNumber}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{formatCurrency(item.purchasePrice)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{formatDate(item.purchaseDate)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[item.status]}`}>
-                          {item.status}
-                        </span>
-                      </td>
+            
+            {filteredStockItems.length === 0 ? (
+              <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 text-center dark:border-gray-700">
+                <p className="text-gray-500 dark:text-gray-400">
+                  {stockFilter === "available" 
+                    ? "No available stock for this product" 
+                    : stockFilter === "sold" 
+                    ? "No sold items yet" 
+                    : "No stock items for this product"}
+                </p>
+              </div>
+            ) : (
+              <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                <table className="w-full">
+                  <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Serial</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Purchase Price</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold uppercase text-gray-500">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {filteredStockItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <td className="px-4 py-3">
+                          <p className="font-mono text-sm text-gray-900 dark:text-white">{item.serialNumber}</p>
+                          <p className="text-xs text-gray-500">{formatDate(item.purchaseDate)}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{formatCurrency(item.purchasePrice)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[item.status]}`}>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => setEditingStockItem(item)}
+                            className="rounded p-1 text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30"
+                            title="Edit Stock Item"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-3 pt-2">
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-700 dark:text-gray-300"
-          >
-            Close
-          </button>
-          <button
-            onClick={onEdit}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
-          >
-            Edit Product
-          </button>
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              onClick={onClose}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-700 dark:text-gray-300"
+            >
+              Close
+            </button>
+            <button
+              onClick={onEdit}
+              className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+            >
+              Edit Product
+            </button>
+          </div>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+
+      {/* Stock Edit Modal */}
+      {editingStockItem && (
+        <StockEditModal
+          stockItem={editingStockItem}
+          productName={productName}
+          onClose={() => setEditingStockItem(null)}
+          onSave={handleSaveStock}
+        />
+      )}
+    </>
   );
 }
+
 
 // Category badge colors
 const categoryColors: Record<ProductCategory, string> = {

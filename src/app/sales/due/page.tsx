@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSalesStore, Sale, PaymentMethod } from "@/stores/salesStore";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { Modal, ModalFooter } from "@/components/ui/modal";
 
-// Payment Modal Component
+// Payment Modal Component using reusable Modal
 function PaymentModal({
   sale,
   onClose,
@@ -18,8 +19,7 @@ function PaymentModal({
   const [amount, setAmount] = useState(sale.dueAmount);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (amount <= 0) {
       setError("Amount must be greater than 0");
       return;
@@ -32,14 +32,10 @@ function PaymentModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
-        <h3 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
-          Collect Payment - {sale.invoiceNumber}
-        </h3>
-
-        <div className="mb-4 rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+    <Modal isOpen={true} onClose={onClose} title={`Collect Payment - ${sale.invoiceNumber}`} size="md">
+      <div className="space-y-4 text-left">
+        {/* Summary */}
+        <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
           <div className="flex justify-between">
             <span className="text-gray-600 dark:text-gray-400">Total Amount</span>
             <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(sale.grandTotal)}</span>
@@ -54,76 +50,77 @@ function PaymentModal({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Payment Method
-            </label>
-            <select
-              value={method}
-              onChange={(e) => setMethod(e.target.value as PaymentMethod)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-            >
-              <option value="Cash">Cash</option>
-              <option value="Bkash">Bkash</option>
-              <option value="Nagad">Nagad</option>
-              <option value="Card">Card</option>
-              <option value="Bank Transfer">Bank Transfer</option>
-            </select>
-          </div>
+        {/* Payment Method */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Payment Method
+          </label>
+          <select
+            value={method}
+            onChange={(e) => setMethod(e.target.value as PaymentMethod)}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          >
+            <option value="Cash">Cash</option>
+            <option value="Bkash">Bkash</option>
+            <option value="Nagad">Nagad</option>
+            <option value="Card">Card</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+          </select>
+        </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Amount
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">৳</span>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
-                max={sale.dueAmount}
-                className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              />
-            </div>
-            {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+        {/* Amount */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Amount
+          </label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">৳</span>
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(Number(e.target.value))}
+              max={sale.dueAmount}
+              className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
           </div>
+          {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+        </div>
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setAmount(sale.dueAmount)}
-              className="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
-            >
-              Full Amount
-            </button>
-            <button
-              type="button"
-              onClick={() => setAmount(Math.round(sale.dueAmount / 2))}
-              className="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
-            >
-              Half
-            </button>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-700 dark:text-gray-300"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-2 font-medium text-white"
-            >
-              Collect {formatCurrency(amount)}
-            </button>
-          </div>
-        </form>
+        {/* Quick Amount Buttons */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setAmount(sale.dueAmount)}
+            className="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+          >
+            Full Amount
+          </button>
+          <button
+            type="button"
+            onClick={() => setAmount(Math.round(sale.dueAmount / 2))}
+            className="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+          >
+            Half
+          </button>
+        </div>
       </div>
-    </div>
+
+      {/* Footer */}
+      <div className="flex justify-end gap-3 pt-6">
+        <button
+          onClick={onClose}
+          className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-700 dark:text-gray-300"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-2 font-medium text-white"
+        >
+          Collect {formatCurrency(amount)}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

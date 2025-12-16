@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 interface ModalProps {
@@ -22,6 +23,13 @@ export function Modal({
   showDivider = true,
   className,
 }: ModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  // Mount check for SSR
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Handle escape key
   const handleEscape = useCallback(
     (e: KeyboardEvent) => {
@@ -44,7 +52,7 @@ export function Modal({
     };
   }, [isOpen, handleEscape]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const sizeClasses = {
     sm: "max-w-[400px]",
@@ -53,11 +61,11 @@ export function Modal({
     xl: "max-w-[900px]",
   };
 
-  return (
-    <div role="presentation" className="fixed inset-0 z-50">
+  const modalContent = (
+    <div role="presentation" className="fixed inset-0 z-[9999]">
       {/* Backdrop */}
       <div
-        className="animate-fade-in fixed inset-0 bg-[rgba(94,93,93,0.25)] backdrop-blur-sm"
+        className="animate-fade-in fixed inset-0 z-[9999] bg-[rgba(94,93,93,0.25)] backdrop-blur-sm"
         role="presentation"
         onClick={onClose}
       />
@@ -65,7 +73,7 @@ export function Modal({
       {/* Modal Content */}
       <div
         className={cn(
-          "animate-zoom-in fixed left-[50%] top-[50%] z-50 -translate-x-1/2 -translate-y-1/2",
+          "animate-zoom-in fixed left-[50%] top-[50%] z-[10000] -translate-x-1/2 -translate-y-1/2",
           "max-h-[90vh] w-full overflow-y-auto rounded-[15px] bg-white shadow-3",
           "dark:bg-gray-dark dark:shadow-card",
           "max-sm:max-w-[90vw]",
@@ -138,6 +146,10 @@ export function Modal({
       `}</style>
     </div>
   );
+
+  // Use portal to render modal at document.body level
+  // This ensures it's above all other elements regardless of parent stacking contexts
+  return createPortal(modalContent, document.body);
 }
 
 // Modal Footer Component for consistent button layout

@@ -179,6 +179,7 @@ export default function StockPage() {
   const [selectedProduct, setSelectedProduct] = useState<string>("All");
   const [isLoading, setIsLoading] = useState(true);
   const [editingStockItem, setEditingStockItem] = useState<StockItem | null>(null);
+  const [viewingStockItem, setViewingStockItem] = useState<StockItem | null>(null);
 
   // Initialize mock data
   useEffect(() => {
@@ -417,7 +418,11 @@ export default function StockPage() {
                 </tr>
               ) : (
                 filteredStock.map((item) => (
-                  <tr key={item.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <tr 
+                    key={item.id} 
+                    onClick={() => setViewingStockItem(item)}
+                    className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  >
                     <td className="px-6 py-4">
                       <div>
                         <p className="font-mono font-medium text-gray-900 dark:text-white">{item.serialNumber}</p>
@@ -440,16 +445,32 @@ export default function StockPage() {
                         {item.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => setEditingStockItem(item)}
-                        className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
-                        title="Edit"
-                      >
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1">
+                        {/* View Button */}
+                        <button
+                          onClick={() => setViewingStockItem(item)}
+                          className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                          title="View Details"
+                        >
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+                        {/* Edit Button */}
+                        {item.status !== "Sold" && (
+                          <button
+                            onClick={() => setEditingStockItem(item)}
+                            className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+                            title="Edit"
+                          >
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -480,9 +501,155 @@ export default function StockPage() {
           />
         </Modal>
       )}
+
+      {/* Stock Detail Modal */}
+      {viewingStockItem && (
+        <StockDetailModal
+          stockItem={viewingStockItem}
+          product={products.find(p => p.id === viewingStockItem.productId)}
+          onClose={() => setViewingStockItem(null)}
+          onEdit={() => {
+            if (viewingStockItem.status !== "Sold") {
+              setEditingStockItem(viewingStockItem);
+              setViewingStockItem(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
+
+// Stock Detail Modal Component
+function StockDetailModal({
+  stockItem,
+  product,
+  onClose,
+  onEdit,
+}: {
+  stockItem: StockItem;
+  product?: Product;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const isSold = stockItem.status === "Sold";
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Stock Item Details" size="lg">
+      <div className="space-y-6 text-left">
+        {/* Product Header */}
+        <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 p-5 dark:from-blue-900/20 dark:to-indigo-900/20">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-100 text-xl font-bold text-blue-700 dark:bg-blue-800 dark:text-blue-300">
+              {product?.brand.charAt(0) || "?"}
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 dark:text-gray-400">{product?.brand || "Unknown"}</p>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">{product?.modelName || "Unknown Product"}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{product?.category}</p>
+            </div>
+            <div className="text-right">
+              <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium ${getStatusColor(stockItem.status)}`}>
+                {stockItem.status}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Serial & IMEI */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Serial Number</p>
+            <p className="mt-1 font-mono text-lg font-medium text-gray-900 dark:text-white">{stockItem.serialNumber}</p>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+            <p className="text-sm text-gray-500 dark:text-gray-400">IMEI</p>
+            <p className="mt-1 font-mono text-lg font-medium text-gray-900 dark:text-white">{stockItem.imei || "-"}</p>
+          </div>
+        </div>
+
+        {/* Purchase Info */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl bg-green-50 p-4 dark:bg-green-900/20">
+            <p className="text-sm text-green-700 dark:text-green-300">Purchase Price</p>
+            <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(stockItem.purchasePrice)}</p>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Supplier</p>
+            <p className="mt-1 font-medium text-gray-900 dark:text-white">{stockItem.supplierName || "Not specified"}</p>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Purchase Date</p>
+            <p className="mt-1 font-medium text-gray-900 dark:text-white">{formatDate(stockItem.purchaseDate)}</p>
+          </div>
+        </div>
+
+        {/* Sale Price Reference */}
+        {product && (
+          <div className="rounded-xl bg-blue-50 p-4 dark:bg-blue-900/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-blue-700 dark:text-blue-300">Default Sale Price</p>
+                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(product.defaultSalePrice)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-blue-700 dark:text-blue-300">Estimated Profit</p>
+                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                  {formatCurrency(product.defaultSalePrice - stockItem.purchasePrice)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sold Info */}
+        {isSold && stockItem.soldAt && (
+          <div className="rounded-xl bg-red-50 p-4 dark:bg-red-900/20">
+            <p className="text-sm text-red-700 dark:text-red-300">Sold On</p>
+            <p className="mt-1 font-medium text-red-600 dark:text-red-400">{formatDate(stockItem.soldAt)}</p>
+          </div>
+        )}
+
+        {/* Timestamps */}
+        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+          <p className="mb-2 text-sm font-medium text-gray-500">Timeline</p>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Added to inventory</span>
+              <span className="text-gray-900 dark:text-white">{formatDate(stockItem.createdAt)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Last updated</span>
+              <span className="text-gray-900 dark:text-white">{formatDate(stockItem.updatedAt)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            Close
+          </button>
+          {!isSold && (
+            <button
+              onClick={onEdit}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Item
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 
 // Stock Edit Form Component
 function StockEditForm({

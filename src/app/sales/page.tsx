@@ -3,8 +3,178 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSalesStore, Sale } from "@/stores/salesStore";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
-import { PrintInvoiceButton } from "@/components/invoice/invoice-print";
+import { PrintInvoiceButton, InvoicePrintModal } from "@/components/invoice/invoice-print";
+import { Modal } from "@/components/ui/modal";
 import Link from "next/link";
+
+// Sale Detail Modal Component
+function SaleDetailModal({
+  sale,
+  onClose,
+  onPrint,
+}: {
+  sale: Sale;
+  onClose: () => void;
+  onPrint: () => void;
+}) {
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Invoice Details" size="lg">
+      <div className="space-y-6 text-left">
+        {/* Invoice Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Invoice Number</p>
+            <p className="mt-1 font-mono text-xl font-bold text-blue-600 dark:text-blue-400">
+              {sale.invoiceNumber}
+            </p>
+          </div>
+          <div className="text-left sm:text-right">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Date</p>
+            <p className="mt-1 font-medium text-gray-900 dark:text-white">{formatDate(sale.invoiceDate)}</p>
+          </div>
+        </div>
+
+        {/* Customer Info */}
+        <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Customer</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{sale.customerName}</p>
+          <p className="text-gray-600 dark:text-gray-400">{sale.customerPhone}</p>
+        </div>
+
+        {/* Items */}
+        <div>
+          <h4 className="mb-3 font-semibold text-gray-900 dark:text-white">
+            Items ({sale.items.length})
+          </h4>
+          <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+            <table className="w-full">
+              <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Product</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Serial</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Price</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {sale.items.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <td className="px-4 py-3 text-gray-900 dark:text-white">{item.productName}</td>
+                    <td className="px-4 py-3 font-mono text-sm text-gray-600 dark:text-gray-400">{item.serialNumber}</td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(item.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Financial Summary */}
+        <div className="space-y-2 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 p-4 dark:from-blue-900/20 dark:to-indigo-900/20">
+          <div className="flex justify-between">
+            <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+            <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(sale.subtotal)}</span>
+          </div>
+          {sale.discountAmount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Discount</span>
+              <span className="font-medium text-red-600">-{formatCurrency(sale.discountAmount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-blue-200 pt-2 dark:border-blue-800">
+            <span className="text-lg font-semibold text-gray-900 dark:text-white">Grand Total</span>
+            <span className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(sale.grandTotal)}</span>
+          </div>
+        </div>
+
+        {/* Payments */}
+        <div className="space-y-2">
+          <h4 className="font-semibold text-gray-900 dark:text-white">Payments</h4>
+          {sale.payments.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400">No payments recorded</p>
+          ) : (
+            <div className="space-y-2">
+              {sale.payments.map((payment, idx) => (
+                <div key={idx} className="flex items-center justify-between rounded-lg bg-green-50 px-4 py-2 dark:bg-green-900/20">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-800 dark:text-green-300">
+                      {payment.method}
+                    </span>
+                    <span className="text-sm text-gray-500">{formatDate(payment.paidAt)}</span>
+                  </div>
+                  <span className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(payment.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Status Summary */}
+        <div className="flex flex-wrap gap-4">
+          <div className="flex-1 rounded-lg bg-green-50 p-3 text-center dark:bg-green-900/20">
+            <p className="text-sm text-green-700 dark:text-green-300">Paid</p>
+            <p className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(sale.paidAmount)}</p>
+          </div>
+          <div className="flex-1 rounded-lg bg-red-50 p-3 text-center dark:bg-red-900/20">
+            <p className="text-sm text-red-700 dark:text-red-300">Due</p>
+            <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(sale.dueAmount)}</p>
+          </div>
+          <div className="flex-1 rounded-lg bg-purple-50 p-3 text-center dark:bg-purple-900/20">
+            <p className="text-sm text-purple-700 dark:text-purple-300">Profit</p>
+            <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{formatCurrency(sale.totalProfit)}</p>
+          </div>
+        </div>
+
+        {/* Notes */}
+        {sale.notes && (
+          <div className="rounded-lg bg-yellow-50 p-4 dark:bg-yellow-900/20">
+            <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">Notes</p>
+            <p className="mt-1 text-gray-700 dark:text-gray-300">{sale.notes}</p>
+          </div>
+        )}
+
+        {/* Status Badge */}
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm text-gray-500 dark:text-gray-400">Status: </span>
+            <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium capitalize ${getStatusColor(sale.status)}`}>
+              {sale.status}
+            </span>
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Created by: {sale.createdBy}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            Close
+          </button>
+          {sale.dueAmount > 0 && (
+            <Link
+              href="/sales/due"
+              className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 font-medium text-white hover:bg-orange-700"
+            >
+              Collect Due
+            </Link>
+          )}
+          <button
+            onClick={onPrint}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print Invoice
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 export default function SalesPage() {
   const { sales, getRecentSales, getSalesWithDue } = useSalesStore();
@@ -12,6 +182,8 @@ export default function SalesPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "partial" | "pending">("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [isLoaded, setIsLoaded] = useState(false);
+  const [viewingSale, setViewingSale] = useState<Sale | null>(null);
+  const [printingSale, setPrintingSale] = useState<Sale | null>(null);
 
   useEffect(() => {
     setIsLoaded(true);
@@ -70,6 +242,17 @@ export default function SalesPage() {
     totalDue: sales.reduce((sum, s) => sum + s.dueAmount, 0),
     dueCount: sales.filter((s) => s.dueAmount > 0).length,
   }), [sales]);
+
+  const handleViewSale = (sale: Sale) => {
+    setViewingSale(sale);
+  };
+
+  const handlePrintFromDetail = () => {
+    if (viewingSale) {
+      setPrintingSale(viewingSale);
+      setViewingSale(null);
+    }
+  };
 
   if (!isLoaded) {
     return (
@@ -195,7 +378,11 @@ export default function SalesPage() {
                 </tr>
               ) : (
                 filteredSales.map((sale) => (
-                  <tr key={sale.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <tr 
+                    key={sale.id} 
+                    onClick={() => handleViewSale(sale)}
+                    className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  >
                     <td className="px-6 py-4">
                       <p className="font-mono font-medium text-blue-600 dark:text-blue-400">{sale.invoiceNumber}</p>
                     </td>
@@ -222,8 +409,20 @@ export default function SalesPage() {
                         {sale.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1">
+                        {/* View Button */}
+                        <button
+                          onClick={() => handleViewSale(sale)}
+                          className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                          title="View Details"
+                        >
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+                        {/* Print Button */}
                         <PrintInvoiceButton sale={sale} variant="icon" />
                       </div>
                     </td>
@@ -240,6 +439,24 @@ export default function SalesPage() {
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Showing {filteredSales.length} of {sales.length} invoices
         </p>
+      )}
+
+      {/* Sale Detail Modal */}
+      {viewingSale && (
+        <SaleDetailModal
+          sale={viewingSale}
+          onClose={() => setViewingSale(null)}
+          onPrint={handlePrintFromDetail}
+        />
+      )}
+
+      {/* Print Modal */}
+      {printingSale && (
+        <InvoicePrintModal
+          sale={printingSale}
+          isOpen={true}
+          onClose={() => setPrintingSale(null)}
+        />
       )}
     </div>
   );

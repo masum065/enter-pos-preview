@@ -1,38 +1,168 @@
 "use client";
 
-import { Suspense } from "react";
-import dynamic from "next/dynamic";
+import { Suspense, useMemo } from "react";
 import { POSOverviewCards } from "./_components/pos-overview-cards";
-
-// Dynamically import chart components to avoid SSR issues with Zustand
-const PaymentsOverview = dynamic(
-  () => import("@/components/Charts/payments-overview").then((mod) => mod.PaymentsOverview),
-  { ssr: false, loading: () => <ChartSkeleton /> }
-);
-
-const WeeksProfit = dynamic(
-  () => import("@/components/Charts/weeks-profit").then((mod) => mod.WeeksProfit),
-  { ssr: false, loading: () => <ChartSkeleton /> }
-);
-
-const UsedDevices = dynamic(
-  () => import("@/components/Charts/used-devices").then((mod) => mod.UsedDevices),
-  { ssr: false, loading: () => <ChartSkeleton /> }
-);
+import { useSalesStore } from "@/stores/salesStore";
+import { useStockStore } from "@/stores/stockStore";
+import { formatCurrency } from "@/lib/utils";
 
 // Skeleton components
-function ChartSkeleton() {
-  return (
-    <div className="h-80 animate-pulse rounded-[10px] bg-gray-200 dark:bg-gray-700" />
-  );
-}
-
 function CardsSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 2xl:gap-7.5">
       {[1, 2, 3, 4, 5, 6].map((i) => (
         <div key={i} className="h-40 animate-pulse rounded-[10px] bg-gray-200 dark:bg-gray-700" />
       ))}
+    </div>
+  );
+}
+
+// Sales Summary Card (replaces PaymentsOverview)
+function SalesSummaryChart() {
+  const { sales, getTodaysSales } = useSalesStore();
+  const todayStats = getTodaysSales();
+  
+  // Get last 7 days sales
+  const last7Days = useMemo(() => {
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const today = new Date();
+    const data = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dayName = days[date.getDay()];
+      const dayStr = date.toISOString().split("T")[0];
+      
+      const daySales = sales.filter(s => s.createdAt.split("T")[0] === dayStr);
+      const total = daySales.reduce((sum, s) => sum + s.grandTotal, 0);
+      
+      data.push({ day: dayName, amount: total, count: daySales.length });
+    }
+    return data;
+  }, [sales]);
+
+  const totalWeekSales = last7Days.reduce((sum, d) => sum + d.amount, 0);
+  const maxAmount = Math.max(...last7Days.map(d => d.amount), 1);
+
+  return (
+    <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-dark dark:text-white">Weekly Sales</h3>
+        <span className="text-sm text-gray-500 dark:text-gray-400">Last 7 days</span>
+      </div>
+      
+      {/* Bar Chart */}
+      <div className="mb-4 flex h-40 items-end justify-between gap-2">
+        {last7Days.map((day, i) => (
+          <div key={i} className="flex flex-1 flex-col items-center gap-1">
+            <div className="relative w-full flex-1">
+              <div 
+                className="absolute bottom-0 w-full rounded-t-md bg-gradient-to-t from-blue-500 to-indigo-500 transition-all duration-300"
+                style={{ height: `${Math.max((day.amount / maxAmount) * 100, 5)}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{day.day}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+        <div className="text-center">
+          <p className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalWeekSales)}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Total Sales</p>
+        </div>
+        <div className="text-center">
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(todayStats.total)}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Today</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Stock by Category Chart (replaces UsedDevices)
+function StockByCategoryChart() {
+  const { stockItems } = useStockStore();
+  
+  const categoryData = useMemo(() => {
+    const categories: Record<string, { available: number; sold: number }> = {};
+    
+    stockItems.forEach(item => {
+      // We'll use a simple mapping - in real scenario, get from product
+      const cat = "Items"; // Simplified
+      if (!categories[cat]) categories[cat] = { available: 0, sold: 0 };
+      if (item.status === "Available") categories[cat].available++;
+      else if (item.status === "Sold") categories[cat].sold++;
+    });
+    
+    return {
+      available: stockItems.filter(s => s.status === "Available").length,
+      sold: stockItems.filter(s => s.status === "Sold").length,
+      service: stockItems.filter(s => s.status === "Service").length,
+      total: stockItems.length,
+    };
+  }, [stockItems]);
+
+  const availablePercent = categoryData.total > 0 ? (categoryData.available / categoryData.total) * 100 : 0;
+  const soldPercent = categoryData.total > 0 ? (categoryData.sold / categoryData.total) * 100 : 0;
+
+  return (
+    <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
+      <h3 className="mb-4 text-lg font-semibold text-dark dark:text-white">Stock Status</h3>
+      
+      {/* Donut-like visualization */}
+      <div className="mb-4 flex items-center justify-center">
+        <div className="relative h-32 w-32">
+          {/* Background Circle */}
+          <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="16" fill="none" stroke="#e5e7eb" strokeWidth="3" className="dark:stroke-gray-700" />
+            <circle 
+              cx="18" cy="18" r="16" fill="none" 
+              stroke="#22c55e" strokeWidth="3"
+              strokeDasharray={`${availablePercent} ${100 - availablePercent}`}
+              strokeLinecap="round"
+            />
+            <circle 
+              cx="18" cy="18" r="16" fill="none" 
+              stroke="#ef4444" strokeWidth="3"
+              strokeDasharray={`${soldPercent} ${100 - soldPercent}`}
+              strokeDashoffset={`${-availablePercent}`}
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-dark dark:text-white">{categoryData.total}</span>
+            <span className="text-xs text-gray-500">Total</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-green-500" />
+            <span className="text-sm text-gray-600 dark:text-gray-400">Available</span>
+          </div>
+          <span className="font-semibold text-gray-900 dark:text-white">{categoryData.available}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-red-500" />
+            <span className="text-sm text-gray-600 dark:text-gray-400">Sold</span>
+          </div>
+          <span className="font-semibold text-gray-900 dark:text-white">{categoryData.sold}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-yellow-500" />
+            <span className="text-sm text-gray-600 dark:text-gray-400">In Service</span>
+          </div>
+          <span className="font-semibold text-gray-900 dark:text-white">{categoryData.service}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -189,20 +319,45 @@ function LowStockAlert() {
   if (lowStockItems.length === 0) return null;
 
   return (
-    <div className="rounded-[10px] border-l-4 border-orange-500 bg-orange-50 p-4 dark:bg-orange-900/20">
-      <div className="flex items-center gap-2">
-        <svg className="h-5 w-5 text-orange-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-        </svg>
-        <h4 className="font-semibold text-orange-800 dark:text-orange-300">Low Stock Alert</h4>
+    <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+            <svg className="h-5 w-5 text-orange-600 dark:text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-dark dark:text-white">Low Stock Alert</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{lowStockItems.length} items need attention</p>
+          </div>
+        </div>
+        <a 
+          href="/inventory/stock" 
+          className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+        >
+          View All →
+        </a>
       </div>
-      <ul className="mt-2 space-y-1">
+      
+      <div className="space-y-3">
         {lowStockItems.map((item, i) => (
-          <li key={i} className="text-sm text-orange-700 dark:text-orange-400">
-            {item.product}: only {item.available} left
-          </li>
+          <div 
+            key={i} 
+            className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-3 dark:border-orange-800/30 dark:bg-orange-900/10"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-sm font-bold text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+                {item.available}
+              </div>
+              <span className="font-medium text-gray-900 dark:text-white">{item.product}</span>
+            </div>
+            <span className="rounded-full bg-orange-500 px-2.5 py-0.5 text-xs font-medium text-white">
+              Low Stock
+            </span>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
@@ -228,34 +383,16 @@ export default function Home() {
         <QuickActions />
       </div>
 
-      {/* Low Stock Alert */}
-      <div className="mt-6">
-        <LowStockAlert />
+      {/* Charts Section */}
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <SalesSummaryChart />
+        <StockByCategoryChart />
       </div>
 
-      {/* Charts Section */}
-      <div className="mt-6 grid grid-cols-12 gap-4 md:gap-6 2xl:gap-7.5">
-        <div className="col-span-12 xl:col-span-7">
-          <Suspense fallback={<ChartSkeleton />}>
-            <PaymentsOverview className="h-full" />
-          </Suspense>
-        </div>
-
-        <div className="col-span-12 xl:col-span-5">
-          <Suspense fallback={<ChartSkeleton />}>
-            <WeeksProfit className="h-full" />
-          </Suspense>
-        </div>
-
-        <div className="col-span-12 xl:col-span-5">
-          <Suspense fallback={<ChartSkeleton />}>
-            <UsedDevices className="h-full" />
-          </Suspense>
-        </div>
-
-        <div className="col-span-12 xl:col-span-7">
-          <RecentActivity />
-        </div>
+      {/* Low Stock Alert & Recent Activity */}
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <LowStockAlert />
+        <RecentActivity />
       </div>
     </>
   );

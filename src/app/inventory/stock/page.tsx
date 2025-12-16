@@ -504,6 +504,7 @@ function StockEditForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSold) return; // Prevent submitting sold items
     onSave({
       serialNumber,
       imei: imei || undefined,
@@ -524,67 +525,79 @@ function StockEditForm({
       </div>
 
       {isSold && (
-        <div className="flex items-center gap-2 rounded-lg bg-yellow-100 p-3 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
+        <div className="flex items-center gap-2 rounded-lg bg-red-100 p-3 text-red-700 dark:bg-red-900/30 dark:text-red-300">
           <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
           </svg>
-          <span className="text-sm font-medium">This item has been sold. Edit with caution.</span>
+          <span className="text-sm font-medium">This item has been sold. Editing is disabled to protect sales records.</span>
         </div>
       )}
 
       {/* Serial Number */}
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Serial Number *
+          Serial Number {!isSold && "*"}
         </label>
         <input
           type="text"
           value={serialNumber}
           onChange={(e) => setSerialNumber(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-          required
+          className={`w-full rounded-lg border px-4 py-2.5 font-mono dark:border-gray-600 dark:text-white ${
+            isSold ? "cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-700" : "border-gray-300 dark:bg-gray-800"
+          }`}
+          disabled={isSold}
+          required={!isSold}
         />
       </div>
 
       {/* IMEI */}
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          IMEI (Optional)
+          IMEI
         </label>
         <input
           type="text"
           value={imei}
           onChange={(e) => setImei(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-          placeholder="For mobile devices"
+          className={`w-full rounded-lg border px-4 py-2.5 font-mono dark:border-gray-600 dark:text-white ${
+            isSold ? "cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-700" : "border-gray-300 dark:bg-gray-800"
+          }`}
+          disabled={isSold}
+          placeholder={isSold ? "" : "For mobile devices"}
         />
       </div>
 
       {/* Purchase Price */}
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Purchase Price *
+          Purchase Price {!isSold && "*"}
         </label>
         <input
           type="number"
           value={purchasePrice}
           onChange={(e) => setPurchasePrice(Number(e.target.value))}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          className={`w-full rounded-lg border px-4 py-2.5 dark:border-gray-600 dark:text-white ${
+            isSold ? "cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-700" : "border-gray-300 dark:bg-gray-800"
+          }`}
+          disabled={isSold}
           min={0}
-          required
+          required={!isSold}
         />
       </div>
 
       {/* Supplier */}
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Supplier (Optional)
+          Supplier
         </label>
         <input
           type="text"
           value={supplierName}
           onChange={(e) => setSupplierName(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          className={`w-full rounded-lg border px-4 py-2.5 dark:border-gray-600 dark:text-white ${
+            isSold ? "cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-700" : "border-gray-300 dark:bg-gray-800"
+          }`}
+          disabled={isSold}
         />
       </div>
 
@@ -596,13 +609,25 @@ function StockEditForm({
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as StockStatus)}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          className={`w-full rounded-lg border px-4 py-2.5 dark:border-gray-600 dark:text-white ${
+            isSold ? "cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-700" : "border-gray-300 dark:bg-gray-800"
+          }`}
+          disabled={isSold}
         >
           {STOCK_STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
       </div>
+
+      {/* Sold At Info */}
+      {isSold && stockItem.soldAt && (
+        <div className="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            <span className="font-medium">Sold on:</span> {formatDate(stockItem.soldAt)}
+          </p>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-2">
@@ -611,15 +636,18 @@ function StockEditForm({
           onClick={onClose}
           className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-600 dark:text-gray-300"
         >
-          Cancel
+          {isSold ? "Close" : "Cancel"}
         </button>
-        <button
-          type="submit"
-          className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
-        >
-          Save Changes
-        </button>
+        {!isSold && (
+          <button
+            type="submit"
+            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+          >
+            Save Changes
+          </button>
+        )}
       </div>
     </form>
   );
 }
+

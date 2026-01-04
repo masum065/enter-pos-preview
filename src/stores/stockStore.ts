@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useAuthStore } from "./authStore";
+import { useActivityLogStore } from "./activityLogStore";
 
 export type StockStatus = "Available" | "Sold" | "Service" | "Returned" | "Damaged";
 
@@ -78,6 +80,18 @@ export const useStockStore = create<StockState>()(
           stockItems: [newItem, ...state.stockItems],
         }));
 
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: newItem.id,
+          details: `Added new stock item: ${newItem.serialNumber}`,
+          after: newItem
+        });
+
         return newItem;
       },
 
@@ -108,6 +122,17 @@ export const useStockStore = create<StockState>()(
           set((state) => ({
             stockItems: [...newItems, ...state.stockItems],
           }));
+
+          // Logging (One Action = One Log)
+          const currentUser = useAuthStore.getState().currentUser;
+          useActivityLogStore.getState().addLog({
+            userId: currentUser?.id || "system",
+            userName: currentUser?.name || "System",
+            userRole: currentUser?.role,
+            action: "STOCK_UPDATE",
+            details: `Bulk added ${newItems.length} stock items.`,
+            after: { count: newItems.length }
+          });
         }
 
         return newItems;
@@ -119,13 +144,15 @@ export const useStockStore = create<StockState>()(
         
         if (index === -1) return false;
 
+        const oldItem = state.stockItems[index];
+
         // Check for duplicate serial if updating serial number
         if (data.serialNumber && get().checkDuplicateSerial(data.serialNumber, id)) {
           throw new Error("Serial number already exists");
         }
 
         const updatedItem = {
-          ...state.stockItems[index],
+          ...oldItem,
           ...data,
           updatedAt: new Date().toISOString(),
         };
@@ -133,6 +160,19 @@ export const useStockStore = create<StockState>()(
         set((state) => ({
           stockItems: state.stockItems.map((s) => (s.id === id ? updatedItem : s)),
         }));
+
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: id,
+          details: `Updated stock item ${oldItem.serialNumber}.`,
+          before: oldItem,
+          after: updatedItem
+        });
 
         return true;
       },
@@ -149,6 +189,18 @@ export const useStockStore = create<StockState>()(
         set((state) => ({
           stockItems: state.stockItems.filter((s) => s.id !== id),
         }));
+
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: id,
+          details: `Deleted stock item: ${item.serialNumber}`,
+          before: item
+        });
 
         return true;
       },

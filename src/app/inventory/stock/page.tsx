@@ -195,7 +195,7 @@ export default function StockPage() {
           description: product.description,
           specifications: product.specifications,
           defaultSalePrice: product.defaultSalePrice,
-          warrantyMonths: product.warrantyMonths,
+          warranty: product.warranty,
           imageUrl: product.imageUrl,
         });
       });

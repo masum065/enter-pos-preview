@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCustomerStore, Customer } from "@/stores/customerStore";
 import { isValidBDPhone } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
@@ -9,17 +9,21 @@ interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCustomerAdded?: (customer: Customer) => void;
+  defaultName?: string;
+  defaultPhone?: string;
 }
 
 export function AddCustomerModal({
   isOpen,
   onClose,
   onCustomerAdded,
+  defaultName = "",
+  defaultPhone = "",
 }: AddCustomerModalProps) {
   const { addCustomer } = useCustomerStore();
   const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
+    name: defaultName,
+    phone: defaultPhone,
     email: "",
     address: "",
     nid: "",
@@ -27,8 +31,31 @@ export function AddCustomerModal({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Sync form with default values when modal opens or defaults change
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        name: defaultName,
+        phone: defaultPhone,
+        email: "",
+        address: "",
+        nid: "",
+        notes: "",
+      });
+      setErrors({});
+    }
+  }, [isOpen, defaultName, defaultPhone]);
+
+  // Update form when default values change (when modal opens with new search query)
   const resetForm = () => {
-    setFormData({ name: "", phone: "", email: "", address: "", nid: "", notes: "" });
+    setFormData({ 
+      name: defaultName, 
+      phone: defaultPhone, 
+      email: "", 
+      address: "", 
+      nid: "", 
+      notes: "" 
+    });
     setErrors({});
   };
 

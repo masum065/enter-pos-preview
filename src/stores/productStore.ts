@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useAuthStore } from "./authStore";
+import { useActivityLogStore } from "./activityLogStore";
 
 export type ProductCategory = "Laptop" | "Mobile" | "Tablet" | "Accessories" | "Parts" | "Other";
 
@@ -11,7 +13,7 @@ export interface Product {
   description?: string;
   specifications?: string;
   defaultSalePrice: number;
-  warrantyMonths?: number;
+  warranty?: string;
   imageUrl?: string;
   createdAt: string;
   updatedAt: string;
@@ -63,6 +65,18 @@ export const useProductStore = create<ProductState>()(
           products: [newProduct, ...state.products],
         }));
 
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE", // Adding a product is a stock related update
+          entityId: newProduct.id,
+          details: `Added new product: ${newProduct.brand} ${newProduct.modelName}`,
+          after: newProduct
+        });
+
         return newProduct;
       },
 
@@ -72,8 +86,11 @@ export const useProductStore = create<ProductState>()(
         
         if (index === -1) return false;
 
+        const oldProduct = state.products[index];
+        const isPriceChange = data.defaultSalePrice !== undefined && data.defaultSalePrice !== oldProduct.defaultSalePrice;
+
         const updatedProduct = {
-          ...state.products[index],
+          ...oldProduct,
           ...data,
           updatedAt: new Date().toISOString(),
         };
@@ -82,18 +99,57 @@ export const useProductStore = create<ProductState>()(
           products: state.products.map((p) => (p.id === id ? updatedProduct : p)),
         }));
 
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        
+        if (isPriceChange) {
+          useActivityLogStore.getState().addLog({
+            userId: currentUser?.id || "system",
+            userName: currentUser?.name || "System",
+            userRole: currentUser?.role,
+            action: "PRICE_CHANGE",
+            entityId: id,
+            details: `Price changed for ${oldProduct.brand} ${oldProduct.modelName}: ${oldProduct.defaultSalePrice} -> ${data.defaultSalePrice}`,
+            before: { price: oldProduct.defaultSalePrice },
+            after: { price: data.defaultSalePrice }
+          });
+        } else {
+          useActivityLogStore.getState().addLog({
+            userId: currentUser?.id || "system",
+            userName: currentUser?.name || "System",
+            userRole: currentUser?.role,
+            action: "STOCK_UPDATE",
+            entityId: id,
+            details: `Updated product details for ${oldProduct.brand} ${oldProduct.modelName}`,
+            before: oldProduct,
+            after: updatedProduct
+          });
+        }
+
         return true;
       },
 
       deleteProduct: (id) => {
         const state = get();
-        const exists = state.products.some((p) => p.id === id);
+        const product = state.products.find((p) => p.id === id);
         
-        if (!exists) return false;
+        if (!product) return false;
 
         set((state) => ({
           products: state.products.filter((p) => p.id !== id),
         }));
+
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: id,
+          details: `Deleted product: ${product.brand} ${product.modelName}`,
+          before: product
+        });
 
         return true;
       },

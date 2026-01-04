@@ -139,6 +139,7 @@ export function InvoicePrintModal({ sale, isOpen, onClose }: InvoicePrintProps) 
               <tr>
                 <th className="bg-gray-800 px-3 py-3 text-left text-white">Item</th>
                 <th className="bg-gray-800 px-3 py-3 text-left text-white">Serial</th>
+                <th className="bg-gray-800 px-3 py-3 text-left text-white">Warranty</th>
                 <th className="bg-gray-800 px-3 py-3 text-right text-white">Price</th>
               </tr>
             </thead>
@@ -147,6 +148,7 @@ export function InvoicePrintModal({ sale, isOpen, onClose }: InvoicePrintProps) 
                 <tr key={idx}>
                   <td className="border-b border-gray-200 px-3 py-3 text-gray-900">{item.productName}</td>
                   <td className="serial border-b border-gray-200 px-3 py-3 font-mono text-sm text-gray-600">{item.serialNumber}</td>
+                  <td className="border-b border-gray-200 px-3 py-3 text-sm text-gray-600">{item.warranty || "No Warranty"}</td>
                   <td className="border-b border-gray-200 px-3 py-3 text-right text-gray-900">{formatCurrency(item.amount)}</td>
                 </tr>
               ))}
@@ -200,8 +202,9 @@ export function InvoicePrintModal({ sale, isOpen, onClose }: InvoicePrintProps) 
 
           {/* Warranty Note */}
           <div className="warranty-note mt-6 rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800">
-            <strong>Warranty Notice:</strong> Please keep this invoice for warranty claims. 
-            Product warranty is applicable as per manufacturer terms.
+            <strong>Warranty Notice:</strong> Please keep this invoice for any warranty claims. 
+            The warranty is valid from the date of purchase mentioned above. 
+            All items marked with warranty terms are covered as per their respective descriptions.
           </div>
 
           {/* Footer */}

@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { PaymentMethod } from "./salesStore";
+import { useAuthStore } from "./authStore";
+import { useActivityLogStore } from "./activityLogStore";
 
 export type ExpenseCategory = 
   | "Rent"
@@ -110,6 +112,18 @@ export const useExpenseStore = create<ExpenseState>()(
           expenseCounter: state.expenseCounter + 1,
         }));
 
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: newExpense.id,
+          details: `Added new expense: ${newExpense.expenseNumber} - ${newExpense.category}. Amount: ${newExpense.amount}`,
+          after: newExpense
+        });
+
         return newExpense;
       },
 
@@ -125,9 +139,23 @@ export const useExpenseStore = create<ExpenseState>()(
           updatedAt: new Date().toISOString(),
         };
 
+        const oldExpense = state.expenses[index];
         set((state) => ({
           expenses: state.expenses.map((e) => (e.id === id ? updatedExpense : e)),
         }));
+
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: id,
+          details: `Updated expense: ${oldExpense.expenseNumber}`,
+          before: oldExpense,
+          after: updatedExpense
+        });
 
         return true;
       },
@@ -138,9 +166,22 @@ export const useExpenseStore = create<ExpenseState>()(
         
         if (!exists) return false;
 
+        const expense = state.expenses.find((e) => e.id === id);
         set((state) => ({
           expenses: state.expenses.filter((e) => e.id !== id),
         }));
+
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: id,
+          details: `Deleted expense: ${expense?.expenseNumber}`,
+          before: expense
+        });
 
         return true;
       },

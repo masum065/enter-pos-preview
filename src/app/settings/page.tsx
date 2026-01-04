@@ -99,7 +99,7 @@ export default function SettingsPage() {
 
       mockData.products.forEach((p) => productStore.addProduct({
         modelName: p.modelName, brand: p.brand, category: p.category, description: p.description,
-        defaultSalePrice: p.defaultSalePrice, warrantyMonths: p.warrantyMonths,
+        defaultSalePrice: p.defaultSalePrice, warranty: p.warranty,
       }));
 
       mockData.expenses.forEach((e) => expenseStore.addExpense({

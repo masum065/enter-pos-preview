@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useActivityLogStore } from "./activityLogStore";
 
 export type UserRole = "admin" | "manager" | "cashier";
 
@@ -62,7 +63,7 @@ const MOCK_USERS: Record<string, { password: string; user: User }> = {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       currentUser: null,
       isAuthenticated: false,
       isLoading: false,
@@ -81,6 +82,15 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+
+          useActivityLogStore.getState().addLog({
+            userId: mockUser.user.id,
+            userName: mockUser.user.name,
+            userRole: mockUser.user.role,
+            action: "LOGIN",
+            details: `User ${mockUser.user.name} logged in successfully.`,
+          });
+
           return true;
         }
 
@@ -89,6 +99,17 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        const user = get().currentUser;
+        if (user) {
+          useActivityLogStore.getState().addLog({
+            userId: user.id,
+            userName: user.name,
+            userRole: user.role,
+            action: "LOGOUT",
+            details: `User ${user.name} logged out.`,
+          });
+        }
+
         set({
           currentUser: null,
           isAuthenticated: false,

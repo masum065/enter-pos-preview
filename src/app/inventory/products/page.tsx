@@ -30,7 +30,7 @@ function ProductForm({
     description: product?.description || "",
     specifications: product?.specifications || "",
     defaultSalePrice: product?.defaultSalePrice || 0,
-    warrantyMonths: product?.warrantyMonths || 12,
+    warranty: product?.warranty || "12 Months Service Warranty",
     imageUrl: product?.imageUrl || "",
   });
 
@@ -139,14 +139,14 @@ function ProductForm({
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Warranty (Months)
+            Warranty Details
           </label>
           <input
-            type="number"
-            value={formData.warrantyMonths}
-            onChange={(e) => setFormData({ ...formData, warrantyMonths: Number(e.target.value) })}
+            type="text"
+            value={formData.warranty}
+            onChange={(e) => setFormData({ ...formData, warranty: e.target.value })}
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-            min="0"
+            placeholder="e.g. 1 Year Service Warranty"
           />
         </div>
       </div>
@@ -419,7 +419,7 @@ function ProductDetailModal({
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {formatCurrency(product.defaultSalePrice)}
                 </p>
-                <p className="text-sm text-gray-500">{product.warrantyMonths} months warranty</p>
+                <p className="text-sm text-gray-500">{product.warranty}</p>
               </div>
             </div>
           </div>
@@ -599,7 +599,7 @@ export default function ProductsPage() {
           description: product.description,
           specifications: product.specifications,
           defaultSalePrice: product.defaultSalePrice,
-          warrantyMonths: product.warrantyMonths,
+          warranty: product.warranty,
           imageUrl: product.imageUrl,
         });
       });
@@ -872,9 +872,9 @@ export default function ProductsPage() {
                     <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                       {formatCurrency(product.defaultSalePrice)}
                     </p>
-                    {product.warrantyMonths && (
+                    {product.warranty && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {product.warrantyMonths} months warranty
+                        {product.warranty}
                       </p>
                     )}
                   </div>

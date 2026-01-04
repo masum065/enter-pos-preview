@@ -23,7 +23,7 @@ function CustomerCombobox({
 }: {
   selectedCustomer: Customer | null;
   onSelect: (customer: Customer | null) => void;
-  onAddNew: () => void;
+  onAddNew: (searchQuery: string) => void;
 }) {
   const { customers, searchCustomers } = useCustomerStore();
   const [query, setQuery] = useState("");
@@ -164,7 +164,7 @@ function CustomerCombobox({
                     type="button"
                     onClick={() => {
                       setIsOpen(false);
-                      onAddNew();
+                      onAddNew(query);
                     }}
                     className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all hover:shadow-xl"
                   >
@@ -182,7 +182,7 @@ function CustomerCombobox({
                   type="button"
                   onClick={() => {
                     setIsOpen(false);
-                    onAddNew();
+                    onAddNew(query);
                   }}
                   className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-blue-600 transition-colors hover:bg-blue-50 dark:border-gray-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
                 >
@@ -381,6 +381,7 @@ export default function NewSalePage() {
   // Step 1: Customer
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
 
   // Step 2: Items
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
@@ -431,6 +432,7 @@ export default function NewSalePage() {
       stockItemId: stockItem.id,
       serialNumber: stockItem.serialNumber,
       productName: `${product.brand} ${product.modelName}`,
+      warranty: product.warranty,
       quantity: 1,
       salePrice,
       purchasePrice: stockItem.purchasePrice,
@@ -582,7 +584,10 @@ export default function NewSalePage() {
             <CustomerCombobox
               selectedCustomer={selectedCustomer}
               onSelect={setSelectedCustomer}
-              onAddNew={() => setShowAddCustomerModal(true)}
+              onAddNew={(query) => {
+                setCustomerSearchQuery(query);
+                setShowAddCustomerModal(true);
+              }}
             />
 
             <div className="flex justify-end pt-4">
@@ -629,7 +634,6 @@ export default function NewSalePage() {
                       <div className="flex-1">
                         <p className="font-medium text-gray-900 dark:text-white">{item.productName}</p>
                         <p className="font-mono text-sm text-gray-500">{item.serialNumber}</p>
-                        <p className="text-xs text-gray-400">Cost: {formatCurrency(item.purchasePrice)}</p>
                       </div>
                       <div className="text-right">
                         <div className="relative">
@@ -646,13 +650,9 @@ export default function NewSalePage() {
                             min={0}
                           />
                         </div>
-                        {isPriceTooLow ? (
+                        {isPriceTooLow && (
                           <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                            Min: {formatCurrency(item.purchasePrice)}
-                          </p>
-                        ) : (
-                          <p className="mt-1 text-xs text-green-600 dark:text-green-400">
-                            Profit: {formatCurrency(item.profit)}
+                            Price too low
                           </p>
                         )}
                       </div>
@@ -733,10 +733,6 @@ export default function NewSalePage() {
                 <div className="flex justify-between border-t pt-2 text-lg font-bold">
                   <span>Grand Total</span>
                   <span>{formatCurrency(totals.grandTotal)}</span>
-                </div>
-                <div className="flex justify-between text-green-600">
-                  <span>Total Profit</span>
-                  <span>{formatCurrency(totals.totalProfit)}</span>
                 </div>
               </div>
             </div>
@@ -830,8 +826,14 @@ export default function NewSalePage() {
       {/* Add Customer Modal */}
       <AddCustomerModal
         isOpen={showAddCustomerModal}
-        onClose={() => setShowAddCustomerModal(false)}
+        onClose={() => {
+          setShowAddCustomerModal(false);
+          setCustomerSearchQuery("");
+        }}
         onCustomerAdded={handleCustomerAdded}
+        // Detect if query is phone number (only digits and starts with 01) or name
+        defaultPhone={/^0?1[0-9]*$/.test(customerSearchQuery.replace(/\s/g, "")) ? customerSearchQuery.replace(/\s/g, "") : ""}
+        defaultName={!/^0?1[0-9]*$/.test(customerSearchQuery.replace(/\s/g, "")) ? customerSearchQuery : ""}
       />
 
       {/* Print Invoice Modal */}

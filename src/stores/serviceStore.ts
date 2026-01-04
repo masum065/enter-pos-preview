@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useAuthStore } from "./authStore";
+import { useActivityLogStore } from "./activityLogStore";
 
 export type ServiceStatus = 
   | "Received" 
@@ -115,6 +117,18 @@ export const useServiceStore = create<ServiceState>()(
           serviceCounter: state.serviceCounter + 1,
         }));
 
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE", // Using STOCK_UPDATE for general inventory/service actions in the absence of a specific service action type
+          entityId: newService.id,
+          details: `New service record created: ${newService.serviceNumber} for ${newService.customerName}`,
+          after: newService
+        });
+
         return newService;
       },
 
@@ -124,8 +138,10 @@ export const useServiceStore = create<ServiceState>()(
         
         if (index === -1) return false;
 
+        const oldService = state.services[index];
+
         const updatedService = {
-          ...state.services[index],
+          ...oldService,
           ...data,
           updatedAt: new Date().toISOString(),
         };
@@ -134,18 +150,43 @@ export const useServiceStore = create<ServiceState>()(
           services: state.services.map((s) => (s.id === id ? updatedService : s)),
         }));
 
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: id,
+          details: `Updated service record ${oldService.serviceNumber}`,
+          before: oldService,
+          after: updatedService
+        });
+
         return true;
       },
 
       deleteService: (id) => {
         const state = get();
-        const exists = state.services.some((s) => s.id === id);
+        const service = state.services.find((s) => s.id === id);
         
-        if (!exists) return false;
+        if (!service) return false;
 
         set((state) => ({
           services: state.services.filter((s) => s.id !== id),
         }));
+
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: id,
+          details: `Deleted service record: ${service.serviceNumber}`,
+          before: service
+        });
 
         return true;
       },
@@ -159,6 +200,7 @@ export const useServiceStore = create<ServiceState>()(
           updates.deliveredDate = new Date().toISOString();
         }
 
+        // updateService will handle the logging
         return get().updateService(id, updates);
       },
 
@@ -172,6 +214,7 @@ export const useServiceStore = create<ServiceState>()(
           newDueAmount <= 0 ? "Paid" : 
           newPaidAmount > 0 ? "Partial" : "Pending";
 
+        // updateService will handle the logging
         return get().updateService(id, {
           paidAmount: newPaidAmount,
           dueAmount: Math.max(0, newDueAmount),

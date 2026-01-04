@@ -92,41 +92,41 @@ interface ProductTemplate {
   category: ProductCategory;
   description: string;
   defaultSalePrice: number;
-  warrantyMonths: number;
+  warranty: string;
 }
 
 const PRODUCT_TEMPLATES: ProductTemplate[] = [
   // Laptops
-  { modelName: "MacBook Pro 14 M3", brand: "Apple", category: "Laptop", description: "14-inch, M3 Pro, 18GB RAM, 512GB SSD", defaultSalePrice: 295000, warrantyMonths: 12 },
-  { modelName: "MacBook Air M2", brand: "Apple", category: "Laptop", description: "13.6-inch, M2, 8GB RAM, 256GB SSD", defaultSalePrice: 145000, warrantyMonths: 12 },
-  { modelName: "ThinkPad X1 Carbon", brand: "Lenovo", category: "Laptop", description: "14-inch, i7-1365U, 16GB RAM, 512GB SSD", defaultSalePrice: 185000, warrantyMonths: 24 },
-  { modelName: "Dell XPS 15", brand: "Dell", category: "Laptop", description: "15.6-inch, i7-13700H, 16GB RAM, 512GB SSD", defaultSalePrice: 175000, warrantyMonths: 12 },
-  { modelName: "HP Spectre x360", brand: "HP", category: "Laptop", description: "14-inch, i7-1355U, 16GB RAM, 1TB SSD", defaultSalePrice: 165000, warrantyMonths: 12 },
-  { modelName: "ASUS ROG Strix G16", brand: "ASUS", category: "Laptop", description: "16-inch, i9-13980HX, RTX 4070, 32GB RAM", defaultSalePrice: 245000, warrantyMonths: 24 },
-  { modelName: "Acer Swift 3", brand: "Acer", category: "Laptop", description: "14-inch, i5-1340P, 8GB RAM, 512GB SSD", defaultSalePrice: 75000, warrantyMonths: 12 },
-  { modelName: "MSI Katana 15", brand: "MSI", category: "Laptop", description: "15.6-inch, i7-13620H, RTX 4060, 16GB RAM", defaultSalePrice: 145000, warrantyMonths: 12 },
+  { modelName: "MacBook Pro 14 M3", brand: "Apple", category: "Laptop", description: "14-inch, M3 Pro, 18GB RAM, 512GB SSD", defaultSalePrice: 295000, warranty: "12 Months Service & 7 Days Replacement" },
+  { modelName: "MacBook Air M2", brand: "Apple", category: "Laptop", description: "13.6-inch, M2, 8GB RAM, 256GB SSD", defaultSalePrice: 145000, warranty: "12 Months Official" },
+  { modelName: "ThinkPad X1 Carbon", brand: "Lenovo", category: "Laptop", description: "14-inch, i7-1365U, 16GB RAM, 512GB SSD", defaultSalePrice: 185000, warranty: "24 Months Service" },
+  { modelName: "Dell XPS 15", brand: "Dell", category: "Laptop", description: "15.6-inch, i7-13700H, 16GB RAM, 512GB SSD", defaultSalePrice: 175000, warranty: "12 Months Official" },
+  { modelName: "HP Spectre x360", brand: "HP", category: "Laptop", description: "14-inch, i7-1355U, 16GB RAM, 1TB SSD", defaultSalePrice: 165000, warranty: "12 Months Official" },
+  { modelName: "ASUS ROG Strix G16", brand: "ASUS", category: "Laptop", description: "16-inch, i9-13980HX, RTX 4070, 32GB RAM", defaultSalePrice: 245000, warranty: "24 Months Service" },
+  { modelName: "Acer Swift 3", brand: "Acer", category: "Laptop", description: "14-inch, i5-1340P, 8GB RAM, 512GB SSD", defaultSalePrice: 75000, warranty: "12 Months Service" },
+  { modelName: "MSI Katana 15", brand: "MSI", category: "Laptop", description: "15.6-inch, i7-13620H, RTX 4060, 16GB RAM", defaultSalePrice: 145000, warranty: "12 Months Service" },
   
   // Mobiles
-  { modelName: "iPhone 15 Pro Max", brand: "Apple", category: "Mobile", description: "256GB, Titanium Blue", defaultSalePrice: 185000, warrantyMonths: 12 },
-  { modelName: "iPhone 15", brand: "Apple", category: "Mobile", description: "128GB, Blue", defaultSalePrice: 125000, warrantyMonths: 12 },
-  { modelName: "Samsung Galaxy S24 Ultra", brand: "Samsung", category: "Mobile", description: "256GB, Titanium Gray", defaultSalePrice: 165000, warrantyMonths: 12 },
-  { modelName: "Samsung Galaxy A54", brand: "Samsung", category: "Mobile", description: "128GB, Awesome Graphite", defaultSalePrice: 45000, warrantyMonths: 12 },
-  { modelName: "Xiaomi 14", brand: "Xiaomi", category: "Mobile", description: "256GB, Black", defaultSalePrice: 85000, warrantyMonths: 12 },
-  { modelName: "OnePlus 12", brand: "OnePlus", category: "Mobile", description: "256GB, Flowy Emerald", defaultSalePrice: 95000, warrantyMonths: 12 },
-  { modelName: "Google Pixel 8 Pro", brand: "Google", category: "Mobile", description: "128GB, Obsidian", defaultSalePrice: 115000, warrantyMonths: 12 },
-  { modelName: "Realme GT 5 Pro", brand: "Realme", category: "Mobile", description: "256GB, Bright Moon", defaultSalePrice: 65000, warrantyMonths: 12 },
+  { modelName: "iPhone 15 Pro Max", brand: "Apple", category: "Mobile", description: "256GB, Titanium Blue", defaultSalePrice: 185000, warranty: "12 Months Official" },
+  { modelName: "iPhone 15", brand: "Apple", category: "Mobile", description: "128GB, Blue", defaultSalePrice: 125000, warranty: "12 Months Official" },
+  { modelName: "Samsung Galaxy S24 Ultra", brand: "Samsung", category: "Mobile", description: "256GB, Titanium Gray", defaultSalePrice: 165000, warranty: "12 Months Official" },
+  { modelName: "Samsung Galaxy A54", brand: "Samsung", category: "Mobile", description: "128GB, Awesome Graphite", defaultSalePrice: 45000, warranty: "12 Months Service" },
+  { modelName: "Xiaomi 14", brand: "Xiaomi", category: "Mobile", description: "256GB, Black", defaultSalePrice: 85000, warranty: "12 Months Official" },
+  { modelName: "OnePlus 12", brand: "OnePlus", category: "Mobile", description: "256GB, Flowy Emerald", defaultSalePrice: 95000, warranty: "12 Months Service" },
+  { modelName: "Google Pixel 8 Pro", brand: "Google", category: "Mobile", description: "128GB, Obsidian", defaultSalePrice: 115000, warranty: "12 Months Official" },
+  { modelName: "Realme GT 5 Pro", brand: "Realme", category: "Mobile", description: "256GB, Bright Moon", defaultSalePrice: 65000, warranty: "12 Months Service" },
   
   // Tablets
-  { modelName: "iPad Pro 12.9 M2", brand: "Apple", category: "Tablet", description: "256GB, Wi-Fi, Space Gray", defaultSalePrice: 145000, warrantyMonths: 12 },
-  { modelName: "iPad Air M1", brand: "Apple", category: "Tablet", description: "64GB, Wi-Fi, Purple", defaultSalePrice: 85000, warrantyMonths: 12 },
-  { modelName: "Samsung Galaxy Tab S9+", brand: "Samsung", category: "Tablet", description: "256GB, Graphite", defaultSalePrice: 95000, warrantyMonths: 12 },
+  { modelName: "iPad Pro 12.9 M2", brand: "Apple", category: "Tablet", description: "256GB, Wi-Fi, Space Gray", defaultSalePrice: 145000, warranty: "12 Months Official" },
+  { modelName: "iPad Air M1", brand: "Apple", category: "Tablet", description: "64GB, Wi-Fi, Purple", defaultSalePrice: 85000, warranty: "12 Months Official" },
+  { modelName: "Samsung Galaxy Tab S9+", brand: "Samsung", category: "Tablet", description: "256GB, Graphite", defaultSalePrice: 95000, warranty: "12 Months Service" },
   
   // Accessories
-  { modelName: "AirPods Pro 2", brand: "Apple", category: "Accessories", description: "with MagSafe Charging Case", defaultSalePrice: 32000, warrantyMonths: 12 },
-  { modelName: "Magic Keyboard", brand: "Apple", category: "Accessories", description: "with Touch ID, US English", defaultSalePrice: 18000, warrantyMonths: 12 },
-  { modelName: "Logitech MX Master 3S", brand: "Logitech", category: "Accessories", description: "Wireless Mouse, Graphite", defaultSalePrice: 12000, warrantyMonths: 24 },
-  { modelName: "Samsung T7 SSD 1TB", brand: "Samsung", category: "Accessories", description: "Portable SSD, USB 3.2", defaultSalePrice: 12000, warrantyMonths: 36 },
-  { modelName: "Anker PowerBank 20000mAh", brand: "Anker", category: "Accessories", description: "65W USB-C, Black", defaultSalePrice: 5500, warrantyMonths: 18 },
+  { modelName: "AirPods Pro 2", brand: "Apple", category: "Accessories", description: "with MagSafe Charging Case", defaultSalePrice: 32000, warranty: "12 Months Official" },
+  { modelName: "Magic Keyboard", brand: "Apple", category: "Accessories", description: "with Touch ID, US English", defaultSalePrice: 18000, warranty: "12 Months Official" },
+  { modelName: "Logitech MX Master 3S", brand: "Logitech", category: "Accessories", description: "Wireless Mouse, Graphite", defaultSalePrice: 12000, warranty: "24 Months Service" },
+  { modelName: "Samsung T7 SSD 1TB", brand: "Samsung", category: "Accessories", description: "Portable SSD, USB 3.2", defaultSalePrice: 12000, warranty: "36 Months Service" },
+  { modelName: "Anker PowerBank 20000mAh", brand: "Anker", category: "Accessories", description: "65W USB-C, Black", defaultSalePrice: 5500, warranty: "18 Months Service" },
 ];
 
 export const generateMockProducts = (): Product[] => {
@@ -236,6 +236,7 @@ export const generateMockSales = (
       stockItemId: stock.id,
       serialNumber: stock.serialNumber,
       productName: `${product.brand} ${product.modelName}`,
+      warranty: product.warranty,
       quantity: 1,
       salePrice,
       purchasePrice: stock.purchasePrice,

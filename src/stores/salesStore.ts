@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useAuthStore } from "./authStore";
+import { useActivityLogStore } from "./activityLogStore";
 
 export type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer" | "Other";
 
@@ -9,6 +11,7 @@ export interface SaleItem {
   stockItemId: string;
   serialNumber: string;
   productName: string;
+  warranty?: string;
   quantity: number;
   salePrice: number;
   purchasePrice: number;
@@ -180,6 +183,22 @@ export const useSalesStore = create<SalesState>()(
           draftSale: null,
         }));
 
+        // Logging (Principle #2 & #3: One Action = One Log, Action matches data)
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "SALE_CREATE",
+          entityId: newSale.id,
+          details: `New sale created: ${newSale.invoiceNumber} for ${newSale.customerName}. Total: ${newSale.grandTotal}`,
+          after: {
+            invoiceNumber: newSale.invoiceNumber,
+            grandTotal: newSale.grandTotal,
+            itemsCount: newSale.items.length
+          }
+        });
+
         return newSale;
       },
 
@@ -320,6 +339,19 @@ export const useSalesStore = create<SalesState>()(
           status: newStatus,
           // Adjust profit
           totalProfit: sale.totalProfit - itemsToReturn.reduce((sum, i) => sum + i.profit, 0),
+        });
+
+        // Logging (Principle #4: Before vs After)
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "REFUND",
+          entityId: sale.id,
+          details: `Refund processed for ${sale.invoiceNumber}. Refund amount: ${returnData.refundAmount}`,
+          before: { status: sale.status, totalReturned: sale.totalReturned || 0 },
+          after: { status: newStatus, totalReturned: totalReturned }
         });
 
         return newReturn;

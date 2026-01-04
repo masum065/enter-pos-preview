@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useAuthStore } from "./authStore";
+import { useActivityLogStore } from "./activityLogStore";
 
 export interface Customer {
   id: string;
@@ -49,6 +51,18 @@ export const useCustomerStore = create<CustomerState>()(
           customers: [newCustomer, ...state.customers],
         }));
 
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE", // Using STOCK_UPDATE as a general category
+          entityId: newCustomer.id,
+          details: `Added new customer: ${newCustomer.name}`,
+          after: newCustomer
+        });
+
         return newCustomer;
       },
 
@@ -64,9 +78,23 @@ export const useCustomerStore = create<CustomerState>()(
           updatedAt: new Date().toISOString(),
         };
 
+        const oldCustomer = state.customers[index];
         set((state) => ({
           customers: state.customers.map((c) => (c.id === id ? updatedCustomer : c)),
         }));
+
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: id,
+          details: `Updated customer: ${oldCustomer.name}`,
+          before: oldCustomer,
+          after: updatedCustomer
+        });
 
         return true;
       },
@@ -77,9 +105,22 @@ export const useCustomerStore = create<CustomerState>()(
         
         if (!exists) return false;
 
+        const customer = state.customers.find((c) => c.id === id);
         set((state) => ({
           customers: state.customers.filter((c) => c.id !== id),
         }));
+
+        // Logging
+        const currentUser = useAuthStore.getState().currentUser;
+        useActivityLogStore.getState().addLog({
+          userId: currentUser?.id || "system",
+          userName: currentUser?.name || "System",
+          userRole: currentUser?.role,
+          action: "STOCK_UPDATE",
+          entityId: id,
+          details: `Deleted customer: ${customer?.name}`,
+          before: customer
+        });
 
         return true;
       },

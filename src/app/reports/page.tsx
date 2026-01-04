@@ -6,27 +6,32 @@ import { useServiceStore } from "@/stores/serviceStore";
 import { useExpenseStore } from "@/stores/expenseStore";
 import { useStockStore } from "@/stores/stockStore";
 import { useCustomerStore } from "@/stores/customerStore";
+import { useActivityLogStore } from "@/stores/activityLogStore";
 import { formatCurrency, formatDate, downloadCSV } from "@/lib/utils";
 
-type ReportType = "sales" | "profit" | "inventory" | "service" | "expense";
+type ReportType = "sales" | "profit" | "inventory" | "service" | "expense" | "activity";
 
 export default function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState<ReportType>("sales");
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "year" | "all">("month");
   const [isLoaded, setIsLoaded] = useState(false);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [logSearch, setLogSearch] = useState("");
+  const [logActionFilter, setLogActionFilter] = useState<string>("all");
 
   const salesStore = useSalesStore();
   const serviceStore = useServiceStore();
   const expenseStore = useExpenseStore();
   const stockStore = useStockStore();
   const customerStore = useCustomerStore();
+  const logStore = useActivityLogStore();
 
   useEffect(() => {
     setIsLoaded(true);
   }, []);
 
   // Date filtering helper
-  const filterByDate = <T extends { createdAt?: string; invoiceDate?: string; date?: string }>(
+  const filterByDate = <T extends { createdAt?: string; invoiceDate?: string; date?: string; timestamp?: string }>(
     items: T[],
     dateField: keyof T
   ): T[] => {
@@ -148,9 +153,46 @@ export default function ReportsPage() {
         Method: e.paymentMethod,
         PaidBy: e.paidBy,
       }));
-      downloadCSV(data, `expense-report-${new Date().toISOString().split("T")[0]}`);
+    } else if (selectedReport === "activity") {
+      const filtered = filterByDate(logStore.logs, "timestamp");
+      const data = filtered.map((l) => ({
+        Time: formatDate(l.timestamp, "datetime"),
+        Action: l.action,
+        User: l.userName,
+        Role: l.userRole || "N/A",
+        IP_Address: l.ipAddress || "Unknown",
+        Details: l.details,
+        EntityID: l.entityId || "N/A",
+      }));
+      downloadCSV(data, `activity-logs-${new Date().toISOString().split("T")[0]}`);
     }
   };
+
+  const handleClearLogs = () => {
+    if (window.confirm("Are you sure you want to permanently clear all activity logs? This action cannot be undone.")) {
+      logStore.clearLogs();
+    }
+  };
+
+  const filteredLogs = useMemo(() => {
+    let logs = filterByDate(logStore.logs, "timestamp");
+    
+    if (logActionFilter !== "all") {
+      logs = logs.filter(l => l.action === logActionFilter);
+    }
+    
+    if (logSearch) {
+      const query = logSearch.toLowerCase();
+      logs = logs.filter(l => 
+        l.details.toLowerCase().includes(query) || 
+        l.userName.toLowerCase().includes(query) ||
+        l.action.toLowerCase().includes(query)
+      );
+    }
+    
+    return logs;
+  }, [logStore.logs, dateRange, logSearch, logActionFilter]);
+
 
   if (!isLoaded) {
     return (
@@ -181,7 +223,7 @@ export default function ReportsPage() {
 
       {/* Report Type Tabs */}
       <div className="flex flex-wrap gap-2">
-        {(["sales", "profit", "inventory", "service", "expense"] as ReportType[]).map((type) => (
+        {(["sales", "profit", "inventory", "service", "expense", "activity"] as ReportType[]).map((type) => (
           <button
             key={type}
             onClick={() => setSelectedReport(type)}
@@ -191,7 +233,7 @@ export default function ReportsPage() {
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
             }`}
           >
-            {type} Report
+            {type === "activity" ? "Activity Log" : `${type} Report`}
           </button>
         ))}
       </div>
@@ -342,32 +384,176 @@ export default function ReportsPage() {
           </div>
         )}
 
-        {/* Expense Report */}
-        {selectedReport === "expense" && (
-          <>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl bg-gradient-to-br from-orange-500 to-red-500 p-6 text-white shadow-lg">
-                <p className="text-sm text-orange-100">Total Expenses</p>
-                <p className="mt-2 text-3xl font-bold">{formatCurrency(expenseReport.totalAmount)}</p>
-                <p className="mt-1 text-sm text-orange-100">{expenseReport.totalExpenses} records</p>
+        {/* Activity Log Report */}
+        {selectedReport === "activity" && (
+          <div className="space-y-4">
+            {/* Log Controls */}
+            <div className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm dark:bg-gray-900 md:flex-row md:items-center">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search logs by user, action or details..."
+                  value={logSearch}
+                  onChange={(e) => setLogSearch(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
+                />
               </div>
-              <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-900">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Average Expense</p>
-                <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{formatCurrency(expenseReport.avgExpense)}</p>
+              <select
+                value={logActionFilter}
+                onChange={(e) => setLogActionFilter(e.target.value)}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:outline-none dark:border-gray-700 dark:bg-gray-800"
+              >
+                <option value="all">All Actions</option>
+                <option value="LOGIN">Logins</option>
+                <option value="SALE_CREATE">Sales</option>
+                <option value="REFUND">Refunds</option>
+                <option value="STOCK_UPDATE">Stock Updates</option>
+                <option value="PRICE_CHANGE">Price Changes</option>
+              </select>j
+              <button
+              disabled={true}
+                onClick={handleClearLogs}
+                className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-900/20"
+              >
+                Clear Data
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900 overflow-hidden">
+              <div className="border-b border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/50 flex justify-between items-center">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Detailed System Audit Trail</h3>
+                <span className="text-xs font-medium text-gray-500">{filteredLogs.length} logs found</span>
               </div>
-              <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-900">
-                <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Top Categories</h3>
-                <div className="mt-3 space-y-2">
-                  {expenseReport.topCategories.map(({ category, total }) => (
-                    <div key={category} className="flex justify-between text-sm">
-                      <span className="text-gray-700 dark:text-gray-300">{category}</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(total)}</span>
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {filteredLogs.length > 0 ? (
+                  filteredLogs.slice(0, 50).map((log) => (
+                    <div key={log.id} className="border-b border-gray-100 last:border-0 dark:border-gray-800">
+                      <div 
+                        onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                        className="p-4 flex gap-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors cursor-pointer"
+                      >
+                        <div className={`mt-1 h-9 w-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                          log.action === "LOGIN" ? "bg-green-100 text-green-600" :
+                          log.action === "SALE_CREATE" ? "bg-blue-100 text-blue-600" :
+                          log.action === "PRICE_CHANGE" ? "bg-orange-100 text-orange-600" :
+                          log.action === "REFUND" ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600"
+                        }`}>
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {log.action === "LOGIN" && <path d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />}
+                            {log.action === "SALE_CREATE" && <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
+                            {log.action === "STOCK_UPDATE" && <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />}
+                            {log.action === "PRICE_CHANGE" && <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />}
+                            {log.action === "REFUND" && <path d="M16 15L12 19M12 19L8 15M12 19V9.5C12 7.56701 13.567 6 15.5 6H16" />}
+                            {!["LOGIN", "SALE_CREATE", "STOCK_UPDATE", "PRICE_CHANGE", "REFUND"].includes(log.action) && <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-gray-900 dark:text-white capitalize">{log.action.replace('_', ' ').toLowerCase()}</span>
+                              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                {formatDate(log.timestamp, "datetime")}
+                              </span>
+                            </div>
+                            <div className={`transition-transform duration-200 ${expandedLogId === log.id ? 'rotate-180' : ''}`}>
+                              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </div>
+                          <p className="text-gray-700 dark:text-gray-300 mt-1 text-sm">{log.details}</p>
+                          <div className="mt-2 flex items-center gap-4">
+                            <div className="flex items-center gap-1.5">
+                              <div className="h-5 w-5 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                <svg className="h-3 w-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                                </svg>
+                              </div>
+                              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                <span className="text-gray-400">By:</span> {log.userName}
+                                {log.userRole && (
+                                  <span className={`ml-1 rounded px-1.5 py-0.5 text-[10px] uppercase font-bold ${
+                                    log.userRole === "admin" ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
+                                    log.userRole === "manager" ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" :
+                                    "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                                  }`}>
+                                    {log.userRole}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            {log.ipAddress && (
+                              <div className="flex items-center gap-1.5 border-l border-gray-100 dark:border-gray-800 pl-4">
+                                <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-1.447-.894L15 7m0 13V7m0 0L9 7" />
+                                </svg>
+                                <span className="text-[11px] font-mono text-gray-400">
+                                  {log.ipAddress === "::1" || log.ipAddress === "127.0.0.1" ? "Localhost" : log.ipAddress}
+                                </span>
+                              </div>
+                            )}
+                            {log.entityId && (
+                              <span className="text-xs text-gray-400">
+                                ID: <span className="font-mono">{log.entityId}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Expanded details */}
+                      {expandedLogId === log.id && (log.before || log.after) && (
+                        <div className="px-6 pb-6 pt-2 bg-gray-50/50 dark:bg-gray-800/20">
+                          <div className="ml-11 grid gap-4 md:grid-cols-2">
+                            {log.before && (
+                              <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                                <div className="mb-3 flex items-center justify-between">
+                                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Original Data</p>
+                                  <span className="rounded bg-red-50 px-2 py-0.5 text-[10px] text-red-600">Old State</span>
+                                </div>
+                                <pre className="overflow-auto text-[11px] font-mono text-gray-600 dark:text-gray-400 max-h-60 leading-relaxed">
+                                  {JSON.stringify(log.before, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            {log.after && (
+                              <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                                <div className="mb-3 flex items-center justify-between">
+                                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Modified Data</p>
+                                  <span className="rounded bg-green-50 px-2 py-0.5 text-[10px] text-green-600">New State</span>
+                                </div>
+                                <pre className="overflow-auto text-[11px] font-mono text-gray-600 dark:text-gray-400 max-h-60 leading-relaxed">
+                                  {JSON.stringify(log.after, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  ))
+                ) : (
+                  <div className="p-12 text-center text-gray-500">
+                    <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <p className="mt-4">No activity logs match your current filters or searching.</p>
+                    <button 
+                      onClick={() => { setLogSearch(""); setLogActionFilter("all"); }}
+                      className="mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Reset filters
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

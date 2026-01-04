@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { POSOverviewCards } from "./_components/pos-overview-cards";
 import { useSalesStore } from "@/stores/salesStore";
 import { useStockStore } from "@/stores/stockStore";
@@ -17,65 +17,176 @@ function CardsSkeleton() {
   );
 }
 
-// Sales Summary Card (replaces PaymentsOverview)
-function SalesSummaryChart() {
-  const { sales, getTodaysSales } = useSalesStore();
-  const todayStats = getTodaysSales();
-  
-  // Get last 7 days sales
-  const last7Days = useMemo(() => {
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const today = new Date();
-    const data = [];
-    
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dayName = days[date.getDay()];
-      const dayStr = date.toISOString().split("T")[0];
-      
-      const daySales = sales.filter(s => s.createdAt.split("T")[0] === dayStr);
-      const total = daySales.reduce((sum, s) => sum + s.grandTotal, 0);
-      
-      data.push({ day: dayName, amount: total, count: daySales.length });
-    }
-    return data;
-  }, [sales]);
+// Sales Summary Card with Period Tabs
+type TimeFrame = "weekly" | "monthly" | "quarterly" | "yearly";
 
-  const totalWeekSales = last7Days.reduce((sum, d) => sum + d.amount, 0);
-  const maxAmount = Math.max(...last7Days.map(d => d.amount), 1);
+function SalesSummaryChart() {
+  const { sales, getTodaysSales, getThisMonthSales } = useSalesStore();
+  const [timeFrame, setTimeFrame] = useState<TimeFrame>("weekly");
+  const todayStats = getTodaysSales();
+  const monthStats = getThisMonthSales();
+  
+  // Generate chart data based on timeframe
+  const chartData = useMemo(() => {
+    const today = new Date();
+    const data: { label: string; amount: number; isHighlight?: boolean }[] = [];
+    
+    if (timeFrame === "weekly") {
+      // Last 7 days
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dayStr = date.toISOString().split("T")[0];
+        const daySales = sales.filter(s => s.createdAt.split("T")[0] === dayStr);
+        const total = daySales.reduce((sum, s) => sum + s.grandTotal, 0);
+        data.push({ label: days[date.getDay()], amount: total, isHighlight: i === 0 });
+      }
+    } else if (timeFrame === "monthly") {
+      // Last 4 weeks
+      for (let i = 3; i >= 0; i--) {
+        const weekEnd = new Date(today);
+        weekEnd.setDate(weekEnd.getDate() - (i * 7));
+        const weekStart = new Date(weekEnd);
+        weekStart.setDate(weekStart.getDate() - 6);
+        
+        const weekSales = sales.filter(s => {
+          const saleDate = new Date(s.createdAt);
+          return saleDate >= weekStart && saleDate <= weekEnd;
+        });
+        const total = weekSales.reduce((sum, s) => sum + s.grandTotal, 0);
+        data.push({ label: `Week ${4 - i}`, amount: total, isHighlight: i === 0 });
+      }
+    } else if (timeFrame === "quarterly") {
+      // Last 3 months
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      for (let i = 2; i >= 0; i--) {
+        const monthDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const monthSales = sales.filter(s => {
+          const d = new Date(s.createdAt);
+          return d.getMonth() === monthDate.getMonth() && d.getFullYear() === monthDate.getFullYear();
+        });
+        const total = monthSales.reduce((sum, s) => sum + s.grandTotal, 0);
+        data.push({ label: months[monthDate.getMonth()], amount: total, isHighlight: i === 0 });
+      }
+    } else {
+      // Yearly - last 12 months
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      for (let i = 11; i >= 0; i--) {
+        const monthDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const monthSales = sales.filter(s => {
+          const d = new Date(s.createdAt);
+          return d.getMonth() === monthDate.getMonth() && d.getFullYear() === monthDate.getFullYear();
+        });
+        const total = monthSales.reduce((sum, s) => sum + s.grandTotal, 0);
+        data.push({ label: months[monthDate.getMonth()], amount: total, isHighlight: i === 0 });
+      }
+    }
+    
+    return data;
+  }, [sales, timeFrame]);
+
+  const totalPeriodSales = chartData.reduce((sum, d) => sum + d.amount, 0);
+  const maxAmount = Math.max(...chartData.map(d => d.amount), 1);
+  const hasData = totalPeriodSales > 0;
+
+  const tabs: { key: TimeFrame; label: string }[] = [
+    { key: "weekly", label: "Weekly" },
+    { key: "monthly", label: "Monthly" },
+    { key: "quarterly", label: "Quarterly" },
+    { key: "yearly", label: "Yearly" },
+  ];
 
   return (
     <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-dark dark:text-white">Weekly Sales</h3>
-        <span className="text-sm text-gray-500 dark:text-gray-400">Last 7 days</span>
+      {/* Header with Tabs */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-lg font-semibold text-dark dark:text-white">Sales Overview</h3>
+        <div className="flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setTimeFrame(tab.key)}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                timeFrame === tab.key
+                  ? "bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-400"
+                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
       
       {/* Bar Chart */}
-      <div className="mb-4 flex h-40 items-end justify-between gap-2">
-        {last7Days.map((day, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center gap-1">
-            <div className="relative w-full flex-1">
+      <div className="mb-4 h-48">
+        <div className="flex h-full items-end gap-1">
+          {chartData.map((item, i) => {
+            const heightPercent = hasData 
+              ? Math.max((item.amount / maxAmount) * 100, item.amount > 0 ? 10 : 5) 
+              : 10;
+            return (
               <div 
-                className="absolute bottom-0 w-full rounded-t-md bg-gradient-to-t from-blue-500 to-indigo-500 transition-all duration-300"
-                style={{ height: `${Math.max((day.amount / maxAmount) * 100, 5)}%` }}
-              />
-            </div>
-            <span className="text-xs text-gray-500 dark:text-gray-400">{day.day}</span>
-          </div>
-        ))}
+                key={i} 
+                className="group relative flex flex-1 flex-col items-center"
+                style={{ height: "100%" }}
+              >
+                {/* Bar Container */}
+                <div className="relative flex-1 w-full flex items-end">
+                  {/* Tooltip */}
+                  <div className="absolute -top-10 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg group-hover:block">
+                    {formatCurrency(item.amount)}
+                    <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-gray-900" />
+                  </div>
+                  {/* Bar */}
+                  <div 
+                    className={`w-full rounded-t-md transition-all duration-500 ease-out ${
+                      item.isHighlight 
+                        ? "bg-gradient-to-t from-green-500 to-emerald-400" 
+                        : item.amount > 0 
+                          ? "bg-gradient-to-t from-blue-500 to-indigo-400"
+                          : "bg-gray-200 dark:bg-gray-700"
+                    }`}
+                    style={{ height: `${heightPercent}%` }}
+                  />
+                </div>
+                {/* Label */}
+                <span className={`mt-2 text-xs ${
+                  item.isHighlight 
+                    ? "font-semibold text-green-600 dark:text-green-400" 
+                    : "text-gray-500 dark:text-gray-400"
+                }`}>
+                  {item.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
+      {/* No Data Message */}
+      {!hasData && (
+        <div className="mb-2 text-center">
+          <p className="text-sm text-gray-400 dark:text-gray-500">No sales data for this period</p>
+        </div>
+      )}
+
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+      <div className="grid grid-cols-3 gap-4 border-t border-gray-200 pt-4 dark:border-gray-700">
         <div className="text-center">
-          <p className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalWeekSales)}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Total Sales</p>
+          <p className="text-lg font-bold text-green-600 dark:text-green-400">{formatCurrency(todayStats.total)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Today</p>
         </div>
         <div className="text-center">
-          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(todayStats.total)}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Today</p>
+          <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(totalPeriodSales)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {timeFrame === "weekly" ? "This Week" : timeFrame === "monthly" ? "Last 4 Weeks" : timeFrame === "quarterly" ? "Last 3 Months" : "This Year"}
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">{formatCurrency(monthStats.total)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">This Month</p>
         </div>
       </div>
     </div>

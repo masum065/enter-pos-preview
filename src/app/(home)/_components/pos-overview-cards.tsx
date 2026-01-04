@@ -173,7 +173,7 @@ export function POSOverviewCards() {
         // Add products
         mockData.products.forEach((p) => productStore.addProduct({
           modelName: p.modelName, brand: p.brand, category: p.category, description: p.description,
-          specifications: p.specifications, defaultSalePrice: p.defaultSalePrice, warrantyMonths: p.warrantyMonths,
+          specifications: p.specifications, defaultSalePrice: p.defaultSalePrice, warranty: p.warranty,
         }));
       }
       

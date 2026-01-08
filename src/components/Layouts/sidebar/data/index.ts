@@ -80,6 +80,20 @@ export const NAV_DATA = [
           },
         ],
       },
+      {
+        title: "Suppliers",
+        icon: Icons.SuppliersIcon,
+        items: [
+          {
+            title: "Supplier List",
+            url: "/suppliers",
+          },
+          {
+            title: "New Purchase",
+            url: "/purchases/new",
+          },
+        ],
+      },
     ],
   },
   {

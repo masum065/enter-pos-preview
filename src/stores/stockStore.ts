@@ -11,6 +11,7 @@ export interface StockItem {
   imei?: string; // For mobile phones
   productId: string;
   purchasePrice: number;
+  supplierId?: string;
   supplierName?: string;
   purchaseDate: string;
   status: StockStatus;

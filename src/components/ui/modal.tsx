@@ -160,6 +160,7 @@ interface ModalFooterProps {
   confirmText?: string;
   isLoading?: boolean;
   confirmDisabled?: boolean;
+  confirmVariant?: "primary" | "danger" | "success";
 }
 
 export function ModalFooter({
@@ -169,7 +170,14 @@ export function ModalFooter({
   confirmText = "Confirm",
   isLoading = false,
   confirmDisabled = false,
+  confirmVariant = "primary",
 }: ModalFooterProps) {
+  const variantClasses = {
+    primary: "border-primary bg-primary",
+    danger: "border-red-600 bg-red-600",
+    success: "border-green-600 bg-green-600",
+  };
+
   return (
     <div className="-mx-2.5 flex flex-wrap gap-y-4 pt-4">
       {onCancel && (
@@ -189,7 +197,10 @@ export function ModalFooter({
             type="button"
             onClick={onConfirm}
             disabled={isLoading || confirmDisabled}
-            className="block w-full rounded-[7px] border border-primary bg-primary p-[11px] text-center font-medium text-white transition hover:bg-opacity-90 disabled:opacity-50"
+            className={cn(
+              "block w-full rounded-[7px] border p-[11px] text-center font-medium text-white transition hover:bg-opacity-90 disabled:opacity-50",
+              variantClasses[confirmVariant]
+            )}
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">

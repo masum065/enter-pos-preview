@@ -7,3 +7,5 @@ export * from "./stockStore";
 export * from "./salesStore";
 export * from "./serviceStore";
 export * from "./expenseStore";
+export * from "./supplierStore";
+export * from "./purchaseStore";

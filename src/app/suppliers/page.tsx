@@ -19,11 +19,10 @@ function SupplierModal({
   onSave: (data: Partial<Supplier>) => void;
 }) {
   const [formData, setFormData] = useState({
-    name: "",
+    companyName: "",
     phone: "",
     email: "",
     address: "",
-    companyName: "",
     notes: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -32,15 +31,14 @@ function SupplierModal({
     if (isOpen) {
       if (supplier) {
         setFormData({
-          name: supplier.name,
+          companyName: supplier.companyName,
           phone: supplier.phone,
           email: supplier.email || "",
           address: supplier.address || "",
-          companyName: supplier.companyName || "",
           notes: supplier.notes || "",
         });
       } else {
-        setFormData({ name: "", phone: "", email: "", address: "", companyName: "", notes: "" });
+        setFormData({ companyName: "", phone: "", email: "", address: "", notes: "" });
       }
       setErrors({});
     }
@@ -48,7 +46,7 @@ function SupplierModal({
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.name.trim()) newErrors.name = "Name is required";
+    if (!formData.companyName.trim()) newErrors.companyName = "Company name is required";
     if (!formData.phone.trim()) newErrors.phone = "Phone is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -57,11 +55,10 @@ function SupplierModal({
   const handleSubmit = () => {
     if (!validate()) return;
     onSave({
-      name: formData.name.trim(),
+      companyName: formData.companyName.trim(),
       phone: formData.phone.trim(),
       email: formData.email.trim() || undefined,
       address: formData.address.trim() || undefined,
-      companyName: formData.companyName.trim() || undefined,
       notes: formData.notes.trim() || undefined,
     });
     onClose();
@@ -70,34 +67,20 @@ function SupplierModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={supplier ? "Edit Supplier" : "Add Supplier"} size="md">
       <div className="space-y-4 text-left">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className={`w-full rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${
-                errors.name ? "border-red-500" : "border-gray-300 dark:border-gray-700"
-              }`}
-              placeholder="Supplier name"
-            />
-            {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Company Name
-            </label>
-            <input
-              type="text"
-              value={formData.companyName}
-              onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              placeholder="Company name"
-            />
-          </div>
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Company Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={formData.companyName}
+            onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+            className={`w-full rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${
+              errors.companyName ? "border-red-500" : "border-gray-300 dark:border-gray-700"
+            }`}
+            placeholder="Company/Supplier name"
+          />
+          {errors.companyName && <p className="mt-1 text-sm text-red-500">{errors.companyName}</p>}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -196,8 +179,7 @@ function PaymentModal({
       <div className="space-y-4 text-left">
         <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
           <p className="text-sm text-gray-600 dark:text-gray-400">Paying to</p>
-          <p className="text-lg font-semibold text-gray-900 dark:text-white">{supplier.name}</p>
-          <p className="text-sm text-gray-500">{supplier.companyName}</p>
+          <p className="text-lg font-semibold text-gray-900 dark:text-white">{supplier.companyName || 'Unnamed Supplier'}</p>
           <div className="mt-2 flex justify-between">
             <span className="text-sm text-gray-600 dark:text-gray-400">Current Balance</span>
             <span className={`font-bold ${supplier.balance > 0 ? "text-red-600" : "text-green-600"}`}>
@@ -267,9 +249,8 @@ export default function SuppliersPage() {
     const q = searchQuery.toLowerCase();
     return suppliers.filter(
       (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.phone.includes(q) ||
-        (s.companyName && s.companyName.toLowerCase().includes(q))
+        s.companyName.toLowerCase().includes(q) ||
+        s.phone.includes(q)
     );
   }, [suppliers, searchQuery]);
 
@@ -314,15 +295,6 @@ export default function SuppliersPage() {
           <p className="text-gray-600 dark:text-gray-400">Manage your suppliers and their ledger</p>
         </div>
         <div className="flex gap-3">
-          <Link
-            href="/purchases/new"
-            className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-4 py-2 text-blue-600 hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-900/20"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            New Purchase
-          </Link>
           <button
             onClick={() => {
               setSelectedSupplier(null);
@@ -426,13 +398,10 @@ export default function SuppliersPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-lg font-bold text-white">
-                          {supplier.name.charAt(0).toUpperCase()}
+                          {supplier.companyName?.charAt(0).toUpperCase() || 'S'}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{supplier.name}</p>
-                          {supplier.companyName && (
-                            <p className="text-sm text-gray-500">{supplier.companyName}</p>
-                          )}
+                          <p className="font-medium text-gray-900 dark:text-white">{supplier.companyName || 'Unnamed Supplier'}</p>
                         </div>
                       </div>
                     </td>
@@ -545,7 +514,7 @@ export default function SuppliersPage() {
         size="sm"
       >
         <p className="text-gray-600 dark:text-gray-400">
-          Are you sure you want to delete <strong>{selectedSupplier?.name}</strong>? This will also delete all transaction history for this supplier.
+          Are you sure you want to delete <strong>{selectedSupplier?.companyName}</strong>? This will also delete all transaction history for this supplier.
         </p>
         <ModalFooter
           onCancel={() => setShowDeleteConfirm(false)}

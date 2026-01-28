@@ -3,7 +3,6 @@
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSupplierStore, Supplier, SupplierTransaction } from "@/stores/supplierStore";
-import { usePurchaseStore } from "@/stores/purchaseStore";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import Link from "next/link";
@@ -37,7 +36,7 @@ function PaymentModal({
       <div className="space-y-4 text-left">
         <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
           <p className="text-sm text-gray-600 dark:text-gray-400">Paying to</p>
-          <p className="text-lg font-semibold text-gray-900 dark:text-white">{supplier.name}</p>
+          <p className="text-lg font-semibold text-gray-900 dark:text-white">{supplier.companyName || 'Unnamed Supplier'}</p>
           <div className="mt-2 flex justify-between">
             <span className="text-sm text-gray-600 dark:text-gray-400">Current Balance</span>
             <span className={`font-bold ${supplier.balance > 0 ? "text-red-600" : "text-green-600"}`}>
@@ -91,8 +90,8 @@ function PaymentModal({
 
 function getTransactionBadge(type: SupplierTransaction["type"]) {
   switch (type) {
-    case "purchase":
-      return { color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", label: "Purchase" };
+    case "stock_add":
+      return { color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", label: "Stock Add" };
     case "payment":
       return { color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", label: "Payment" };
     case "return":
@@ -109,7 +108,6 @@ function SupplierLedgerContent() {
   const supplierId = searchParams.get("id");
 
   const { getSupplierById, getTransactionsBySupplier, recordPayment } = useSupplierStore();
-  const { getPurchasesBySupplier } = usePurchaseStore();
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -127,11 +125,6 @@ function SupplierLedgerContent() {
     if (!supplierId) return [];
     return getTransactionsBySupplier(supplierId);
   }, [supplierId, getTransactionsBySupplier]);
-
-  const purchases = useMemo(() => {
-    if (!supplierId) return [];
-    return getPurchasesBySupplier(supplierId);
-  }, [supplierId, getPurchasesBySupplier]);
 
   const handlePayment = (amount: number, reference?: string) => {
     if (supplier) {
@@ -172,23 +165,13 @@ function SupplierLedgerContent() {
             </svg>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{supplier.name}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{supplier.companyName || 'Unnamed Supplier'}</h1>
             <p className="text-gray-600 dark:text-gray-400">
-              {supplier.companyName && `${supplier.companyName} • `}
               {supplier.phone}
             </p>
           </div>
         </div>
         <div className="flex gap-3">
-          <Link
-            href={`/purchases/new?supplier=${supplier.id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-4 py-2 text-blue-600 hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-900/20"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Purchase
-          </Link>
           {supplier.balance > 0 && (
             <button
               onClick={() => setShowPaymentModal(true)}
@@ -204,7 +187,7 @@ function SupplierLedgerContent() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Total Purchases</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(supplier.totalPurchases)}</p>
@@ -221,10 +204,6 @@ function SupplierLedgerContent() {
               {supplier.balance > 0 ? "(Payable)" : supplier.balance < 0 ? "(Advance)" : ""}
             </span>
           </p>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
-          <p className="text-sm text-gray-600 dark:text-gray-400">Total Orders</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{purchases.length}</p>
         </div>
       </div>
 
@@ -299,66 +278,6 @@ function SupplierLedgerContent() {
         </div>
       </div>
 
-      {/* Recent Purchases */}
-      {purchases.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-          <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Purchase Orders</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Order #</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Date</th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">Items</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-white">Total</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-white">Paid</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-white">Due</th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {purchases.map((purchase) => (
-                  <tr key={purchase.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                    <td className="px-6 py-4 font-mono text-sm font-medium text-blue-600 dark:text-blue-400">
-                      {purchase.purchaseNumber}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                      {formatDate(purchase.purchaseDate)}
-                    </td>
-                    <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-white">
-                      {purchase.items.length}
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(purchase.totalAmount)}
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm text-green-600 dark:text-green-400">
-                      {formatCurrency(purchase.paidAmount)}
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm text-red-600 dark:text-red-400">
-                      {formatCurrency(purchase.dueAmount)}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          purchase.status === "paid"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : purchase.status === "partial"
-                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                        }`}
-                      >
-                        {purchase.status === "paid" ? "Paid" : purchase.status === "partial" ? "Partial" : "Pending"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* Payment Modal */}
       <PaymentModal

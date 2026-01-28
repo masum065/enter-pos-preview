@@ -3,11 +3,10 @@ import { persist } from "zustand/middleware";
 
 export interface Supplier {
   id: string;
-  name: string;
+  companyName: string; // Primary identifier (required)
   phone: string;
   email?: string;
   address?: string;
-  companyName?: string;
   notes?: string;
   balance: number; // Positive = we owe them (payable), Negative = they owe us (receivable)
   totalPurchases: number;
@@ -19,10 +18,10 @@ export interface Supplier {
 export interface SupplierTransaction {
   id: string;
   supplierId: string;
-  type: "purchase" | "payment" | "return" | "adjustment";
+  type: "stock_add" | "payment" | "return" | "adjustment";
   amount: number; // Positive = increases payable, Negative = decreases payable
   description: string;
-  reference?: string; // Purchase ID, Payment ref, etc.
+  reference?: string; // Stock serial, Payment ref, etc.
   balanceAfter: number;
   createdBy: string;
   createdAt: string;
@@ -106,9 +105,8 @@ export const useSupplierStore = create<SupplierState>()(
         const q = query.toLowerCase();
         return get().suppliers.filter(
           (s) =>
-            s.name.toLowerCase().includes(q) ||
-            s.phone.includes(q) ||
-            (s.companyName && s.companyName.toLowerCase().includes(q))
+            s.companyName?.toLowerCase().includes(q) ||
+            s.phone?.includes(q)
         );
       },
 
@@ -131,7 +129,7 @@ export const useSupplierStore = create<SupplierState>()(
           updatedAt: new Date().toISOString(),
         };
 
-        if (data.type === "purchase") {
+        if (data.type === "stock_add") {
           updates.totalPurchases = supplier.totalPurchases + Math.abs(data.amount);
         } else if (data.type === "payment") {
           updates.totalPaid = supplier.totalPaid + Math.abs(data.amount);

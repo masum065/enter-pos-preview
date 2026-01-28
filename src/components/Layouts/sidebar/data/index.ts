@@ -88,10 +88,6 @@ export const NAV_DATA = [
             title: "Supplier List",
             url: "/suppliers",
           },
-          {
-            title: "New Purchase",
-            url: "/purchases/new",
-          },
         ],
       },
     ],

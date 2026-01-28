@@ -15,7 +15,8 @@ export type ExpenseCategory =
   | "Office Supplies"
   | "Marketing"
   | "Maintenance"
-  | "Miscellaneous";
+  | "Miscellaneous"
+  | "Others";
 
 export interface Expense {
   id: string;
@@ -73,6 +74,7 @@ const DEFAULT_CATEGORIES: ExpenseCategory[] = [
   "Marketing",
   "Maintenance",
   "Miscellaneous",
+  "Others",
 ];
 
 const isToday = (dateStr: string): boolean => {

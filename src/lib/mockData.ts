@@ -378,6 +378,7 @@ const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "Marketing",
   "Maintenance",
   "Miscellaneous",
+  "Others",
 ];
 
 const EXPENSE_DESCRIPTIONS: Record<ExpenseCategory, string[]> = {
@@ -392,6 +393,7 @@ const EXPENSE_DESCRIPTIONS: Record<ExpenseCategory, string[]> = {
   "Marketing": ["Facebook ads", "Banner printing", "Promotional items"],
   "Maintenance": ["AC repair", "Shop maintenance", "Equipment repair"],
   "Miscellaneous": ["Miscellaneous expense", "Petty cash", "Emergency expense"],
+  "Others": ["Other expense", "Uncategorized"],
 };
 
 export const generateMockExpenses = (count: number = 40): Expense[] => {

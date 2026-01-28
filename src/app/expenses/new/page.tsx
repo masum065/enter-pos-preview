@@ -69,19 +69,14 @@ export default function NewExpensePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Add Expense</h1>
-          <p className="text-gray-600 dark:text-gray-400">Record a new business expense</p>
-        </div>
-        <Link href="/expenses" className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-700 dark:text-gray-300">
-          Cancel
-        </Link>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Add Expense</h1>
+        <p className="text-gray-600 dark:text-gray-400">Record a new business expense</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-2xl space-y-6">
+      <form onSubmit={handleSubmit} className="max-w-4xl space-y-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             {/* Date */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Date</label>
@@ -90,6 +85,18 @@ export default function NewExpensePage() {
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+            </div>
+
+            {/* Receipt/Reference */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Receipt/Reference</label>
+              <input
+                type="text"
+                value={formData.receipt}
+                onChange={(e) => setFormData({ ...formData, receipt: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                placeholder="Receipt number or reference"
               />
             </div>
 
@@ -190,17 +197,7 @@ export default function NewExpensePage() {
             </div>
           </div>
 
-          {/* Receipt/Reference */}
-          <div className="mt-4">
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Receipt/Reference</label>
-            <input
-              type="text"
-              value={formData.receipt}
-              onChange={(e) => setFormData({ ...formData, receipt: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              placeholder="Receipt number or reference"
-            />
-          </div>
+       
 
           {/* Notes */}
           <div className="mt-4">
@@ -213,19 +210,19 @@ export default function NewExpensePage() {
               placeholder="Additional notes..."
             />
           </div>
-        </div>
 
-        {/* Submit */}
-        <div className="flex justify-end gap-4">
-          <Link href="/expenses" className="rounded-lg border border-gray-300 px-6 py-2.5 text-gray-700 dark:border-gray-700 dark:text-gray-300">
-            Cancel
-          </Link>
-          <button
-            type="submit"
-            className="rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-8 py-2.5 font-medium text-white shadow-lg"
-          >
-            Add Expense
-          </button>
+          {/* Buttons */}
+          <div className="mt-6 grid grid-cols-2 gap-4">
+            <Link href="/expenses" className="rounded-lg border border-gray-300 px-6 py-3 text-center text-gray-700 dark:border-gray-700 dark:text-gray-300">
+              Cancel
+            </Link>
+            <button
+              type="submit"
+              className="rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-8 py-3 font-medium text-white shadow-lg"
+            >
+              Add Expense
+            </button>
+          </div>
         </div>
       </form>
     </div>

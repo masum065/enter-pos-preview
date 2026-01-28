@@ -244,30 +244,6 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-
-          {/* Theme */}
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Appearance</h2>
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">Dark Mode</p>
-                <p className="text-sm text-gray-500">Toggle dark theme</p>
-              </div>
-              <button
-                onClick={settingsStore.toggleTheme}
-                className={`relative h-7 w-14 rounded-full transition-colors ${
-                  settingsStore.theme === "dark" ? "bg-blue-600" : "bg-gray-300"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                    settingsStore.theme === "dark" ? "translate-x-7" : "translate-x-0.5"
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

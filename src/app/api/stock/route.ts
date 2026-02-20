@@ -42,16 +42,16 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .offset(offset);
 
-    // Get total count
-    const totalCount = await db.select().from(stockItems);
+    // Get total count (efficient)
+    const totalCount = await db.select({ count: sql<number>`count(*)` }).from(stockItems);
 
     return NextResponse.json({
       stockItems: items,
       pagination: {
         page,
         limit,
-        total: totalCount.length,
-        totalPages: Math.ceil(totalCount.length / limit),
+        total: Number(totalCount[0].count),
+        totalPages: Math.ceil(Number(totalCount[0].count) / limit),
       },
     });
   } catch (error) {
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     const [newStockItem] = await db
       .insert(stockItems)
-      .values(validatedData)
+      .values({ ...validatedData, createdBy: session.id })
       .returning();
 
     return NextResponse.json(newStockItem, { status: 201 });

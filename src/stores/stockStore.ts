@@ -13,6 +13,8 @@ export interface StockItem {
   purchasePrice: number;
   supplierId?: string;
   supplierName?: string;
+  purchaseSource: "supplier" | "local"; // Track purchase source
+  sellerId?: string; // Customer ID of seller (for local purchases)
   purchaseDate: string;
   status: StockStatus;
   soldAt?: string;

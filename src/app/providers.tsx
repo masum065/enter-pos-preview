@@ -1,6 +1,7 @@
 "use client";
 
 import { SidebarProvider } from "@/components/Layouts/sidebar/sidebar-context";
+import { ReactQueryProvider } from "@/components/ReactQueryProvider";
 import { ThemeProvider } from "next-themes";
 
 import { useEffect } from "react";
@@ -18,8 +19,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [setIP]);
 
   return (
-    <ThemeProvider defaultTheme="light" attribute="class">
-      <SidebarProvider>{children}</SidebarProvider>
-    </ThemeProvider>
+    <ReactQueryProvider>
+      <ThemeProvider defaultTheme="light" attribute="class">
+        <SidebarProvider>{children}</SidebarProvider>
+      </ThemeProvider>
+    </ReactQueryProvider>
   );
 }

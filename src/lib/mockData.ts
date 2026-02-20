@@ -186,6 +186,7 @@ export const generateMockStock = (products: Product[], countPerProduct: number =
         productId: product.id,
         purchasePrice,
         supplierName: randomFrom(SUPPLIERS),
+        purchaseSource: "supplier" as const,
         purchaseDate: createdAt,
         status,
         soldAt: status === "Sold" ? randomDate(30) : undefined,

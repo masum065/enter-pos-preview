@@ -241,12 +241,13 @@ function AddStockContent() {
     if (!validateSingle()) return;
 
     try {
-      const stockItem = addStockItem({
+const stockItem = addStockItem({
         serialNumber: formData.serialNumber.trim(),
         imei: formData.imei.trim() || undefined,
         productId: selectedProduct,
         purchasePrice: formData.purchasePrice,
         supplierId: selectedSupplier?.id || undefined,
+        purchaseSource: "supplier",
         purchaseDate: formData.purchaseDate,
         status: "Available",
         notes: formData.notes.trim() || undefined,
@@ -308,6 +309,7 @@ function AddStockContent() {
       productId: selectedProduct,
       purchasePrice: formData.purchasePrice,
       supplierId: selectedSupplier?.id || undefined,
+      purchaseSource: "supplier" as const,
       purchaseDate: formData.purchaseDate,
       status: "Available" as const,
     }));

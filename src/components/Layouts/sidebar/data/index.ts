@@ -67,6 +67,20 @@ export const NAV_DATA = [
         ],
       },
       {
+        title: "Purchases",
+        icon: Icons.SalesIcon,
+        items: [
+          {
+            title: "New Purchase",
+            url: "/purchases/new",
+          },
+          {
+            title: "Purchase History",
+            url: "/purchases",
+          },
+        ],
+      },
+      {
         title: "Expenses",
         icon: Icons.ExpenseIcon,
         items: [

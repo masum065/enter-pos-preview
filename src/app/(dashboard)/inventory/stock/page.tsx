@@ -7,6 +7,8 @@ import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { generateMockProducts, generateMockStock } from "@/lib/mockData";
 import { Modal } from "@/components/ui/modal";
 import Link from "next/link";
+import { useCustomerStore } from "@/stores/customerStore";
+import { usePurchaseStore } from "@/stores/purchaseStore";
 
 // Searchable Product Select Component
 function ProductSearchSelect({
@@ -164,6 +166,13 @@ function ProductSearchSelect({
   );
 }
 
+// Seller Display Component
+function SellerDisplay({ sellerId }: { sellerId: string }) {
+  const { customers } = useCustomerStore();
+  const seller = customers.find((c) => c.id === sellerId);
+  return <p className="text-sm font-medium text-gray-900 dark:text-white">{seller?.name || "Unknown Customer"}</p>;
+}
+
 // Status filter tabs
 const STATUS_OPTIONS: (StockStatus | "All")[] = ["All", "Available", "Sold", "Service", "Returned", "Damaged"];
 const STOCK_STATUS_OPTIONS: StockStatus[] = ["Available", "Sold", "Service", "Returned", "Damaged"];
@@ -177,6 +186,7 @@ export default function StockPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<StockStatus | "All">("All");
   const [selectedProduct, setSelectedProduct] = useState<string>("All");
+  const [selectedSource, setSelectedSource] = useState<"All" | "supplier" | "local">("All"); // Source filter
   const [isLoading, setIsLoading] = useState(true);
   const [editingStockItem, setEditingStockItem] = useState<StockItem | null>(null);
   const [viewingStockItem, setViewingStockItem] = useState<StockItem | null>(null);
@@ -212,6 +222,7 @@ export default function StockPage() {
             productId: item.productId,
             purchasePrice: item.purchasePrice,
             supplierName: item.supplierName,
+            purchaseSource: item.purchaseSource,
             purchaseDate: item.purchaseDate,
             status: item.status,
             soldAt: item.soldAt,
@@ -244,6 +255,11 @@ export default function StockPage() {
       result = result.filter((s) => s.productId === selectedProduct);
     }
     
+    // Filter by source
+    if (selectedSource !== "All") {
+      result = result.filter((s) => s.purchaseSource === selectedSource);
+    }
+    
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -256,7 +272,7 @@ export default function StockPage() {
     }
     
     return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [stockItems, selectedStatus, selectedProduct, searchQuery, products]);
+  }, [stockItems, selectedStatus, selectedProduct, selectedSource, searchQuery, products]);
 
   // Stats
   const stats = useMemo(() => ({
@@ -371,6 +387,19 @@ export default function StockPage() {
           ))}
         </div>
 
+        {/* Source Filter */}
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={selectedSource}
+            onChange={(e) => setSelectedSource(e.target.value as any)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+          >
+            <option value="All">All Sources</option>
+            <option value="supplier">Supplier</option>
+            <option value="local">Local Purchase</option>
+          </select>
+        </div>
+
         <div className="flex flex-1 gap-4">
           {/* Product Filter */}
           <ProductSearchSelect
@@ -404,7 +433,7 @@ export default function StockPage() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Serial Number</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Product</th>
                 <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white md:table-cell">Purchase Price</th>
-                <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">Supplier</th>
+                <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">Source / Seller</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Status</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
               </tr>
@@ -438,7 +467,23 @@ export default function StockPage() {
                       <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(item.purchasePrice)}</p>
                     </td>
                     <td className="hidden px-6 py-4 lg:table-cell">
-                      <p className="text-gray-600 dark:text-gray-400">{item.supplierName || "-"}</p>
+                      {item.purchaseSource === "local" ? (
+                        <div>
+                          <span className="mb-1 inline-flex rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                            Local Purchase
+                          </span>
+                          {item.sellerId && (
+                            <SellerDisplay sellerId={item.sellerId} />
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="mb-1 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                            Supplier
+                          </span>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">{item.supplierName || "Unknown"}</p>
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusColor(item.status)}`}>
@@ -575,8 +620,14 @@ function StockDetailModal({
             <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(stockItem.purchasePrice)}</p>
           </div>
           <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Supplier</p>
-            <p className="mt-1 font-medium text-gray-900 dark:text-white">{stockItem.supplierName || "Not specified"}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {stockItem.purchaseSource === "local" ? "Seller" : "Supplier"}
+            </p>
+            {stockItem.purchaseSource === "local" && stockItem.sellerId ? (
+              <SellerDisplay sellerId={stockItem.sellerId} />
+            ) : (
+              <p className="mt-1 font-medium text-gray-900 dark:text-white">{stockItem.supplierName || "Not specified"}</p>
+            )}
           </div>
           <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
             <p className="text-sm text-gray-500 dark:text-gray-400">Purchase Date</p>

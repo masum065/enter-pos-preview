@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     const [newProduct] = await db
       .insert(products)
-      .values(validatedData)
+      .values({ ...validatedData, createdBy: session.id })
       .returning();
 
     return NextResponse.json(newProduct, { status: 201 });

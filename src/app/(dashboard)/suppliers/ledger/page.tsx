@@ -2,10 +2,32 @@
 
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { useSupplierStore, Supplier, SupplierTransaction } from "@/stores/supplierStore";
+import { useSupplier } from "@/hooks/useSuppliers";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import Link from "next/link";
+import { apiClient } from "@/lib/api-client";
+
+interface Supplier {
+  id: string;
+  companyName: string;
+  phone: string;
+  balance: string;
+  totalPurchases: string;
+  totalPaid: string;
+  [key: string]: any;
+}
+
+interface SupplierTransaction {
+  id: string;
+  type: string;
+  amount: string;
+  description: string | null;
+  reference: string | null;
+  balanceAfter: string;
+  createdAt: string;
+  [key: string]: any;
+}
 
 // Payment Modal
 function PaymentModal({
@@ -24,7 +46,7 @@ function PaymentModal({
 
   useEffect(() => {
     if (isOpen && supplier) {
-      setAmount(Math.max(0, supplier.balance));
+      setAmount(Math.max(0, parseFloat(supplier.balance)));
       setReference("");
     }
   }, [isOpen, supplier]);
@@ -39,8 +61,8 @@ function PaymentModal({
           <p className="text-lg font-semibold text-gray-900 dark:text-white">{supplier.companyName || 'Unnamed Supplier'}</p>
           <div className="mt-2 flex justify-between">
             <span className="text-sm text-gray-600 dark:text-gray-400">Current Balance</span>
-            <span className={`font-bold ${supplier.balance > 0 ? "text-red-600" : "text-green-600"}`}>
-              {formatCurrency(Math.abs(supplier.balance))}
+            <span className={`font-bold ${parseFloat(supplier.balance) > 0 ? "text-red-600" : "text-green-600"}`}>
+              {formatCurrency(Math.abs(parseFloat(supplier.balance)))}
             </span>
           </div>
         </div>
@@ -88,7 +110,7 @@ function PaymentModal({
   );
 }
 
-function getTransactionBadge(type: SupplierTransaction["type"]) {
+function getTransactionBadge(type: string) {
   switch (type) {
     case "stock_add":
       return { color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", label: "Stock Add" };
@@ -107,32 +129,32 @@ function SupplierLedgerContent() {
   const searchParams = useSearchParams();
   const supplierId = searchParams.get("id");
 
-  const { getSupplierById, getTransactionsBySupplier, recordPayment } = useSupplierStore();
+  const { data: supplierData, isLoading } = useSupplier(supplierId || "");
+  const [transactions, setTransactions] = useState<SupplierTransaction[]>([]);
 
-  const [isLoaded, setIsLoaded] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
+  // Fetch supplier transactions
   useEffect(() => {
-    setIsLoaded(true);
-  }, []);
+    if (supplierId) {
+      apiClient.get<SupplierTransaction[]>(`/api/suppliers/${supplierId}/payments`)
+        .then((data: any) => setTransactions(Array.isArray(data) ? data : data.transactions || []))
+        .catch(() => setTransactions([]));
+    }
+  }, [supplierId]);
 
-  const supplier = useMemo(() => {
-    if (!supplierId) return null;
-    return getSupplierById(supplierId);
-  }, [supplierId, getSupplierById]);
+  const supplier = supplierData as Supplier | null;
 
-  const transactions = useMemo(() => {
-    if (!supplierId) return [];
-    return getTransactionsBySupplier(supplierId);
-  }, [supplierId, getTransactionsBySupplier]);
-
-  const handlePayment = (amount: number, reference?: string) => {
+  const handlePayment = async (amount: number, reference?: string) => {
     if (supplier) {
-      recordPayment(supplier.id, amount, reference);
+      await apiClient.post(`/api/suppliers/${supplier.id}/payments`, { amount, reference });
+      // Refresh transactions
+      const data = await apiClient.get<any>(`/api/suppliers/${supplier.id}/payments`);
+      setTransactions(Array.isArray(data) ? data : data.transactions || []);
     }
   };
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
@@ -172,7 +194,7 @@ function SupplierLedgerContent() {
           </div>
         </div>
         <div className="flex gap-3">
-          {supplier.balance > 0 && (
+          {parseFloat(supplier.balance) > 0 && (
             <button
               onClick={() => setShowPaymentModal(true)}
               className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2 font-medium text-white shadow-lg hover:shadow-xl"
@@ -190,18 +212,18 @@ function SupplierLedgerContent() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Total Purchases</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(supplier.totalPurchases)}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(parseFloat(supplier.totalPurchases))}</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Total Paid</p>
-          <p className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(supplier.totalPaid)}</p>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(parseFloat(supplier.totalPaid))}</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Current Balance</p>
-          <p className={`text-2xl font-bold ${supplier.balance > 0 ? "text-red-600 dark:text-red-400" : supplier.balance < 0 ? "text-blue-600 dark:text-blue-400" : "text-gray-900 dark:text-white"}`}>
-            {formatCurrency(Math.abs(supplier.balance))}
+          <p className={`text-2xl font-bold ${parseFloat(supplier.balance) > 0 ? "text-red-600 dark:text-red-400" : parseFloat(supplier.balance) < 0 ? "text-blue-600 dark:text-blue-400" : "text-gray-900 dark:text-white"}`}>
+            {formatCurrency(Math.abs(parseFloat(supplier.balance)))}
             <span className="ml-2 text-sm font-normal">
-              {supplier.balance > 0 ? "(Payable)" : supplier.balance < 0 ? "(Advance)" : ""}
+              {parseFloat(supplier.balance) > 0 ? "(Payable)" : parseFloat(supplier.balance) < 0 ? "(Advance)" : ""}
             </span>
           </p>
         </div>
@@ -234,8 +256,8 @@ function SupplierLedgerContent() {
               ) : (
                 transactions.map((txn) => {
                   const badge = getTransactionBadge(txn.type);
-                  const isDebit = txn.amount > 0; // Purchases increase what we owe (debit)
-                  const isCredit = txn.amount < 0; // Payments decrease what we owe (credit)
+                  const isDebit = parseFloat(txn.amount) > 0;
+                  const isCredit = parseFloat(txn.amount) < 0;
                   return (
                     <tr key={txn.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                       <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900 dark:text-white">
@@ -254,20 +276,20 @@ function SupplierLedgerContent() {
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                         {isDebit ? (
-                          <span className="text-red-600 dark:text-red-400">{formatCurrency(txn.amount)}</span>
+                          <span className="text-red-600 dark:text-red-400">{formatCurrency(parseFloat(txn.amount))}</span>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                         {isCredit ? (
-                          <span className="text-green-600 dark:text-green-400">{formatCurrency(Math.abs(txn.amount))}</span>
+                          <span className="text-green-600 dark:text-green-400">{formatCurrency(Math.abs(parseFloat(txn.amount)))}</span>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-bold text-gray-900 dark:text-white">
-                        {formatCurrency(txn.balanceAfter)}
+                        {formatCurrency(parseFloat(txn.balanceAfter))}
                       </td>
                     </tr>
                   );

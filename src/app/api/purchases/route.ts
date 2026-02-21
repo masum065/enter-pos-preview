@@ -43,8 +43,20 @@ export async function GET(request: NextRequest) {
 
     const totalCount = await db.select({ count: sql<number>`count(*)` }).from(purchaseInvoices);
 
+    // Aggregate stats (from ALL data, not paginated)
+    const [purchaseAgg] = await db.select({
+      totalAmount: sql<string>`COALESCE(SUM(${purchaseInvoices.purchasePrice}), 0)`,
+      totalPaid: sql<string>`COALESCE(SUM(${purchaseInvoices.paidAmount}), 0)`,
+    }).from(purchaseInvoices);
+
     return NextResponse.json({
       purchases: allPurchases,
+      stats: {
+        totalPurchases: Number(totalCount[0].count),
+        totalAmount: Number(purchaseAgg.totalAmount),
+        totalPaid: Number(purchaseAgg.totalPaid),
+        totalDue: Number(purchaseAgg.totalAmount) - Number(purchaseAgg.totalPaid),
+      },
       pagination: {
         page,
         limit,
@@ -96,7 +108,7 @@ export async function POST(request: NextRequest) {
           purchaseSource: "local",
           sellerId: validatedData.sellerId,
           purchaseDate: validatedData.purchaseDate,
-          status: "available",
+          status: "Available",
           createdBy: session.id,
         })
         .returning();

@@ -1,23 +1,52 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useServiceStore, ServiceRecord, ServiceStatus } from "@/stores/serviceStore";
+import { useState, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useServices, useUpdateServiceStatus } from "@/hooks/useServices";
+import { apiClient } from "@/lib/api-client";
+import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import Link from "next/link";
+
+interface ServiceRecord {
+  id: string;
+  serviceNumber: string;
+  customerName: string;
+  customerPhone: string;
+  deviceBrand: string;
+  deviceModel: string;
+  problemDescription: string;
+  status: string;
+  paymentStatus: string;
+  totalCost: string;
+  dueAmount: string;
+  receivedDate: string;
+  expectedDeliveryDate: string | null;
+  createdAt: string;
+  [key: string]: any;
+}
+
+type ServiceStatus = "Received" | "Diagnosing" | "Waiting for Parts" | "In Progress" | "Completed" | "Delivered";
 
 const STATUS_OPTIONS: (ServiceStatus | "All")[] = [
   "All", "Received", "Diagnosing", "Waiting for Parts", "In Progress", "Completed", "Delivered"
 ];
 
-export default function ServicesPage() {
-  const { services, updateServiceStatus, getPendingServicesCount } = useServiceStore();
+function ServicesPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const page = parseInt(searchParams.get("page") || "1");
+  const setPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 1) params.delete("page"); else params.set("page", String(p));
+    router.push(`?${params.toString()}`);
+  };
+  const { data: servicesData, isLoading } = useServices({ page, limit: 20 });
+  const services: ServiceRecord[] = (servicesData?.services || []) as any[];
+  const pagination = (servicesData as any)?.pagination;
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ServiceStatus | "All">("All");
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
   // Filtered services
   const filteredServices = useMemo(() => {
@@ -41,21 +70,24 @@ export default function ServicesPage() {
     return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [services, statusFilter, searchQuery]);
 
-  // Status counts
-  const statusCounts = useMemo(() => {
+  // Status counts from API (all data, not just current page)
+  const apiStats = (servicesData as any)?.stats;
+  const statusCounts: Record<string, number> = apiStats?.statusCounts || (() => {
     const counts: Record<string, number> = { All: services.length };
     STATUS_OPTIONS.slice(1).forEach((status) => {
       counts[status] = services.filter((s) => s.status === status).length;
     });
     return counts;
-  }, [services]);
+  })();
 
   // Quick status update
-  const handleStatusChange = (serviceId: string, newStatus: ServiceStatus) => {
-    updateServiceStatus(serviceId, newStatus);
+  const handleStatusChange = async (serviceId: string, newStatus: ServiceStatus) => {
+    await apiClient.patch(`/api/services/${serviceId}`, { action: "updateStatus", status: newStatus });
   };
 
-  if (!isLoaded) {
+  const pendingCount = apiStats?.pendingCount ?? services.filter(s => s.status !== "Completed" && s.status !== "Delivered").length;
+
+  if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"></div>
@@ -86,7 +118,7 @@ export default function ServicesPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 p-5 text-white shadow-lg">
           <p className="text-sm text-purple-100">Pending Services</p>
-          <p className="mt-1 text-3xl font-bold">{getPendingServicesCount()}</p>
+          <p className="mt-1 text-3xl font-bold">{pendingCount}</p>
         </div>
         <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Received</p>
@@ -108,7 +140,7 @@ export default function ServicesPage() {
           {STATUS_OPTIONS.slice(0, 5).map((status) => (
             <button
               key={status}
-              onClick={() => setStatusFilter(status)}
+              onClick={() => { setStatusFilter(status); setPage(1); }}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                 statusFilter === status
                   ? "bg-purple-600 text-white"
@@ -127,7 +159,7 @@ export default function ServicesPage() {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             placeholder="Search services..."
             className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
@@ -183,9 +215,9 @@ export default function ServicesPage() {
 
                   <div className="text-right">
                     <p className="text-sm text-gray-500">Total Cost</p>
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(service.totalCost)}</p>
-                    {service.dueAmount > 0 && (
-                      <p className="text-sm text-red-600">Due: {formatCurrency(service.dueAmount)}</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(parseFloat(service.totalCost))}</p>
+                    {parseFloat(service.dueAmount) > 0 && (
+                      <p className="text-sm text-red-600">Due: {formatCurrency(parseFloat(service.dueAmount))}</p>
                     )}
                   </div>
 
@@ -205,6 +237,23 @@ export default function ServicesPage() {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+        />
+      )}
     </div>
+  );
+}
+
+export default function ServicesPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[400px] items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"></div></div>}>
+      <ServicesPageContent />
+    </Suspense>
   );
 }

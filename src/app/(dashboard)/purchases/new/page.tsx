@@ -1,22 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useProductStore } from "@/stores/productStore";
-import { useStockStore } from "@/stores/stockStore";
-import { usePurchaseStore } from "@/stores/purchaseStore";
-import { useCustomerStore } from "@/stores/customerStore";
-import { PaymentMethod } from "@/stores/salesStore";
+import { useProducts } from "@/hooks/useProducts";
+import { useCustomers } from "@/hooks/useCustomers";
+import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
+
+type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer";
 
 export default function PurchaseProductPage() {
   const router = useRouter();
-  const { products } = useProductStore();
-  const { addStockItem, checkDuplicateSerial } = useStockStore();
-  const { addPurchase } = usePurchaseStore();
-  const { customers, searchCustomers } = useCustomerStore();
+  const { data: productsData } = useProducts();
+  const { data: customersData } = useCustomers();
+  const products = productsData?.products || [];
+  const customers = customersData?.customers || [];
 
-  const [isLoaded, setIsLoaded] = useState(false);
+
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [selectedSeller, setSelectedSeller] = useState<any>(null);
   const [sellerSearch, setSellerSearch] = useState("");
@@ -37,21 +37,25 @@ export default function PurchaseProductPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [purchaseInvoice, setPurchaseInvoice] = useState<any>(null);
 
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
-  const filteredSellers = sellerSearch.length >= 2
-    ? searchCustomers(sellerSearch)
-    : sellerSearch.length > 0 ? [] : customers.slice(0, 10);
+  const filteredSellers = useMemo(() => {
+    if (sellerSearch.length >= 2) {
+      const q = sellerSearch.toLowerCase();
+      return customers.filter((c: any) => c.name.toLowerCase().includes(q) || c.phone?.includes(q));
+    }
+    return sellerSearch.length > 0 ? [] : customers.slice(0, 10);
+  }, [sellerSearch, customers]);
 
-  const filteredProducts = productSearch.length >= 2
-    ? products.filter((p) =>
+  const filteredProducts = useMemo(() => {
+    if (productSearch.length >= 2) {
+      return products.filter((p: any) =>
         p.modelName.toLowerCase().includes(productSearch.toLowerCase()) ||
         p.brand.toLowerCase().includes(productSearch.toLowerCase()) ||
         `${p.brand} ${p.modelName}`.toLowerCase().includes(productSearch.toLowerCase())
-      ).slice(0, 10)
-    : productSearch.length > 0 ? [] : products.slice(0, 10);
+      ).slice(0, 10);
+    }
+    return productSearch.length > 0 ? [] : products.slice(0, 10);
+  }, [productSearch, products]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -59,9 +63,6 @@ export default function PurchaseProductPage() {
     if (!selectedSeller) newErrors.seller = "Please select a seller";
     if (!selectedProduct) newErrors.product = "Please select a product";
     if (!formData.serialNumber.trim()) newErrors.serialNumber = "Serial number is required";
-    if (checkDuplicateSerial(formData.serialNumber.trim())) {
-      newErrors.serialNumber = "This serial number already exists";
-    }
     if (formData.purchasePrice <= 0) newErrors.purchasePrice = "Purchase price must be greater than 0";
     if (formData.paidAmount < 0) newErrors.paidAmount = "Paid amount cannot be negative";
     
@@ -69,7 +70,7 @@ export default function PurchaseProductPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -77,36 +78,23 @@ export default function PurchaseProductPage() {
       const product = selectedProduct;
       if (!product) return;
 
-      // Create stock item
-      const stockItem = addStockItem({
+      // Create purchase via API
+      const invoice = await apiClient.post("/api/purchases", {
         serialNumber: formData.serialNumber.trim(),
         imei: formData.imei.trim() || undefined,
         productId: selectedProduct.id,
         purchasePrice: formData.purchasePrice,
         purchaseSource: "local",
         sellerId: selectedSeller.id,
-        purchaseDate: formData.purchaseDate,
-        status: "Available",
-        notes: formData.notes.trim() || undefined,
-      });
-
-      // Create purchase invoice
-      const invoice = addPurchase({
-        purchaseDate: formData.purchaseDate,
-        sellerId: selectedSeller.id,
         sellerName: selectedSeller.name,
         sellerPhone: selectedSeller.phone,
-        productId: product.id,
-        productName: product.modelName,
-        serialNumber: formData.serialNumber.trim(),
-        imei: formData.imei.trim() || undefined,
-        purchasePrice: formData.purchasePrice,
+        productName: `${product.brand} ${product.modelName}`,
+        purchaseDate: formData.purchaseDate,
         paymentMethod: formData.paymentMethod,
         paidAmount: formData.paidAmount,
         notes: formData.notes.trim() || undefined,
-        stockItemId: stockItem.id,
         createdBy: "admin",
-      });
+      }) as any;
 
       setPurchaseInvoice(invoice);
     } catch (error) {
@@ -136,13 +124,6 @@ export default function PurchaseProductPage() {
     window.print();
   };
 
-  if (!isLoaded) {
-    return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"></div>
-      </div>
-    );
-  }
 
   // Show invoice after purchase
   if (purchaseInvoice) {

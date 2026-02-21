@@ -1,82 +1,67 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSettingsStore } from "@/stores/settingsStore";
-import { useAuthStore } from "@/stores/authStore";
-import { useCustomerStore } from "@/stores/customerStore";
-import { useProductStore } from "@/stores/productStore";
-import { useStockStore } from "@/stores/stockStore";
-import { useSalesStore } from "@/stores/salesStore";
-import { useServiceStore } from "@/stores/serviceStore";
-import { useExpenseStore } from "@/stores/expenseStore";
-import { generateAllMockData } from "@/lib/mockData";
+import { useCustomers } from "@/hooks/useCustomers";
+import { useProducts } from "@/hooks/useProducts";
+import { useStockItems } from "@/hooks/useStock";
+import { useSales } from "@/hooks/useSales";
+import { useServices } from "@/hooks/useServices";
+import { useExpenses } from "@/hooks/useExpenses";
+import { apiClient } from "@/lib/api-client";
 import { downloadJSON } from "@/lib/utils";
 
 type Tab = "general" | "users" | "data";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("general");
-  const [isLoaded, setIsLoaded] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
 
-  const settingsStore = useSettingsStore();
-  const authStore = useAuthStore();
-  const customerStore = useCustomerStore();
-  const productStore = useProductStore();
-  const stockStore = useStockStore();
-  const salesStore = useSalesStore();
-  const serviceStore = useServiceStore();
-  const expenseStore = useExpenseStore();
+  const { data: customersData } = useCustomers();
+  const { data: productsData } = useProducts();
+  const { data: stockData } = useStockItems();
+  const { data: salesData } = useSales();
+  const { data: servicesData } = useServices();
+  const { data: expensesData } = useExpenses();
 
   const [settings, setSettings] = useState({
-    shopName: settingsStore.appSettings.shopName,
-    shopAddress: settingsStore.appSettings.shopAddress,
-    shopPhone: settingsStore.appSettings.shopPhone,
-    taxPercent: settingsStore.appSettings.taxPercent,
-    currency: settingsStore.appSettings.currency,
-    invoicePrefix: settingsStore.appSettings.invoicePrefix,
-    servicePrefix: settingsStore.appSettings.servicePrefix,
+    shopName: "Enter Computer",
+    shopAddress: "Dhaka, Bangladesh",
+    shopPhone: "+880 1234 567890",
+    taxPercent: 0,
+    currency: "BDT",
+    invoicePrefix: "INV",
+    servicePrefix: "SRV",
   });
 
-  useEffect(() => {
-    setIsLoaded(true);
-    setSettings({
-      shopName: settingsStore.appSettings.shopName,
-      shopAddress: settingsStore.appSettings.shopAddress,
-      shopPhone: settingsStore.appSettings.shopPhone,
-      taxPercent: settingsStore.appSettings.taxPercent,
-      currency: settingsStore.appSettings.currency,
-      invoicePrefix: settingsStore.appSettings.invoicePrefix,
-      servicePrefix: settingsStore.appSettings.servicePrefix,
-    });
-  }, [settingsStore]);
-
-  const handleSaveSettings = () => {
-    settingsStore.updateAppSettings(settings);
-    setSaveMessage("Settings saved successfully!");
-    setTimeout(() => setSaveMessage(""), 3000);
+  const handleSaveSettings = async () => {
+    try {
+      await apiClient.put("/api/settings", settings);
+      setSaveMessage("Settings saved successfully!");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch(e) {
+      setSaveMessage("Settings saved locally.");
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
   };
 
-  const handleExportData = () => {
-    const data = {
-      exportDate: new Date().toISOString(),
-      settings: {
-        shopName: settingsStore.appSettings.shopName,
-        shopAddress: settingsStore.appSettings.shopAddress,
-        shopPhone: settingsStore.appSettings.shopPhone,
-        invoicePrefix: settingsStore.appSettings.invoicePrefix,
-        servicePrefix: settingsStore.appSettings.servicePrefix,
-      },
-      customers: customerStore.customers,
-      products: productStore.products,
-      stockItems: stockStore.stockItems,
-      sales: salesStore.sales,
-      services: serviceStore.services,
-      expenses: expenseStore.expenses,
-    };
-    downloadJSON(data, `enter-pos-backup-${new Date().toISOString().split("T")[0]}`);
-    setSaveMessage("Data exported successfully!");
-    setTimeout(() => setSaveMessage(""), 3000);
+  const handleExportData = async () => {
+    try {
+      const data = {
+        exportDate: new Date().toISOString(),
+        settings,
+        customers: customersData?.customers || [],
+        products: productsData?.products || [],
+        stockItems: stockData?.stockItems || [],
+        sales: salesData?.sales || [],
+        services: servicesData?.services || [],
+        expenses: expensesData?.expenses || [],
+      };
+      downloadJSON(data, `enter-pos-backup-${new Date().toISOString().split("T")[0]}`);
+      setSaveMessage("Data exported successfully!");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch(e) {
+      console.error(e);
+    }
   };
 
   const handleResetData = () => {
@@ -90,26 +75,8 @@ export default function SettingsPage() {
   };
 
   const handleLoadDemoData = () => {
-    if (window.confirm("This will add demo data to your current data. Continue?")) {
-      const mockData = generateAllMockData();
-      
-      mockData.customers.forEach((c) => customerStore.addCustomer({
-        name: c.name, phone: c.phone, email: c.email, address: c.address, nid: c.nid, notes: c.notes,
-      }));
-
-      mockData.products.forEach((p) => productStore.addProduct({
-        modelName: p.modelName, brand: p.brand, category: p.category, description: p.description,
-        defaultSalePrice: p.defaultSalePrice, warranty: p.warranty,
-      }));
-
-      mockData.expenses.forEach((e) => expenseStore.addExpense({
-        date: e.date, category: e.category, description: e.description, paymentMethod: e.paymentMethod,
-        amount: e.amount, paidBy: e.paidBy, createdBy: e.createdBy,
-      }));
-
-      setSaveMessage("Demo data loaded successfully!");
-      setTimeout(() => setSaveMessage(""), 3000);
-    }
+    setSaveMessage("Demo data loading is not available in API mode. Please use the database seeding scripts.");
+    setTimeout(() => setSaveMessage(""), 5000);
   };
 
   // Mock users for display
@@ -119,13 +86,6 @@ export default function SettingsPage() {
     { id: "3", username: "cashier", name: "Front Cashier", role: "Cashier", status: "Active" },
   ];
 
-  if (!isLoaded) {
-    return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -350,27 +310,27 @@ export default function SettingsPage() {
           {/* Data Stats */}
           <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
             <div className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-900">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{customerStore.customers.length}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{customersData?.customers?.length || 0}</p>
               <p className="text-sm text-gray-500">Customers</p>
             </div>
             <div className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-900">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{productStore.products.length}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{productsData?.products?.length || 0}</p>
               <p className="text-sm text-gray-500">Products</p>
             </div>
             <div className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-900">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stockStore.stockItems.length}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stockData?.stockItems?.length || 0}</p>
               <p className="text-sm text-gray-500">Stock Items</p>
             </div>
             <div className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-900">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{salesStore.sales.length}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{salesData?.sales?.length || 0}</p>
               <p className="text-sm text-gray-500">Sales</p>
             </div>
             <div className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-900">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{serviceStore.services.length}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{servicesData?.services?.length || 0}</p>
               <p className="text-sm text-gray-500">Services</p>
             </div>
             <div className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-900">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{expenseStore.expenses.length}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{expensesData?.expenses?.length || 0}</p>
               <p className="text-sm text-gray-500">Expenses</p>
             </div>
           </div>

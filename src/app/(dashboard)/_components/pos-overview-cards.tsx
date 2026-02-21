@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
-import { useSalesStore } from "@/stores/salesStore";
-import { useServiceStore } from "@/stores/serviceStore";
-import { useStockStore } from "@/stores/stockStore";
-import { useExpenseStore } from "@/stores/expenseStore";
-import { useCustomerStore } from "@/stores/customerStore";
-import { generateAllMockData } from "@/lib/mockData";
-import { useProductStore } from "@/stores/productStore";
+import { useSales } from "@/hooks/useSales";
+import { useServices } from "@/hooks/useServices";
+import { useStockItems } from "@/hooks/useStock";
+import { useExpenses } from "@/hooks/useExpenses";
 
 // Icon Components
 function SalesIcon() {
@@ -149,51 +146,68 @@ function OverviewCard({
 }
 
 export function POSOverviewCards() {
-  const salesStore = useSalesStore();
-  const serviceStore = useServiceStore();
-  const stockStore = useStockStore();
-  const expenseStore = useExpenseStore();
-  const customerStore = useCustomerStore();
-  const productStore = useProductStore();
+  const { data: salesData, isLoading: salesLoading } = useSales();
+  const { data: servicesData, isLoading: servicesLoading } = useServices();
+  const { data: stockData, isLoading: stockLoading } = useStockItems();
+  const { data: expensesData, isLoading: expensesLoading } = useExpenses();
 
-  const [isLoaded, setIsLoaded] = useState(false);
+  const sales: any[] = salesData?.sales || [];
+  const services: any[] = servicesData?.services || [];
+  const stockItems: any[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);
+  const expenses: any[] = expensesData?.expenses || [];
 
-  // Initialize mock data if stores are empty
-  useEffect(() => {
-    const initData = async () => {
-      // Generate mock data if empty
-      if (customerStore.customers.length === 0) {
-        const mockData = generateAllMockData();
-        
-        // Add customers
-        mockData.customers.forEach((c) => customerStore.addCustomer({
-          name: c.name, phone: c.phone, email: c.email, address: c.address, nid: c.nid, notes: c.notes,
-        }));
+  // Use API-level stats when available, fallback to local calculation with parseFloat
+  const apiSalesStats = (salesData as any)?.stats;
+  const apiStockStats = (stockData as any)?.stats;
+  const apiExpensesStats = (expensesData as any)?.stats;
+  const apiServicesStats = (servicesData as any)?.stats;
 
-        // Add products
-        mockData.products.forEach((p) => productStore.addProduct({
-          modelName: p.modelName, brand: p.brand, category: p.category, description: p.description,
-          specifications: p.specifications, defaultSalePrice: p.defaultSalePrice, warranty: p.warranty,
-        }));
-      }
-      
-      setIsLoaded(true);
-    };
+  // Today's sales — from local since API doesn't have today filter
+  const todaysSales = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const todaySales = sales.filter((s: any) => s.createdAt?.startsWith(today));
+    return { total: todaySales.reduce((sum: number, s: any) => sum + parseFloat(String(s.grandTotal || 0)), 0), count: todaySales.length };
+  }, [sales]);
 
-    initData();
-  }, []);
+  // This month profit — from local since API doesn't have month-specific profit
+  const thisMonthProfit = useMemo(() => {
+    const now = new Date();
+    return sales.filter((s: any) => {
+      const d = new Date(s.createdAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).reduce((sum: number, s: any) => sum + parseFloat(String(s.totalProfit || 0)), 0);
+  }, [sales]);
 
-  const todaysSales = salesStore.getTodaysSales();
-  const thisMonthSales = salesStore.getThisMonthSales();
-  const todaysProfit = salesStore.getTodaysProfit();
-  const thisMonthProfit = salesStore.getThisMonthProfit();
-  const totalDue = salesStore.getTotalDue();
-  const pendingServices = serviceStore.getPendingServicesCount();
-  const availableStock = stockStore.getAvailableStockCount();
-  const stockValue = stockStore.getTotalStockValue();
-  const thisMonthExpenses = expenseStore.getThisMonthExpenses();
+  const thisMonthSalesCount = useMemo(() => {
+    const now = new Date();
+    return sales.filter((s: any) => {
+      const d = new Date(s.createdAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+  }, [sales]);
 
-  if (!isLoaded) {
+  // Use API stats where possible
+  const totalDue = apiSalesStats?.totalDue ?? sales.reduce((sum: number, s: any) => sum + parseFloat(s.dueAmount || 0), 0);
+  const dueCount = apiSalesStats?.dueCount ?? sales.filter((s: any) => parseFloat(s.dueAmount || 0) > 0).length;
+
+  const pendingServices = apiServicesStats?.pendingCount ?? 
+    services.filter((s: any) => s.status !== "Completed" && s.status !== "Delivered").length;
+
+  const availableStock = apiStockStats?.available ?? stockItems.filter((s: any) => s.status === "Available").length;
+  const stockValue = apiStockStats?.stockValue ?? 
+    stockItems.filter((s: any) => s.status === "Available").reduce((sum: number, s: any) => sum + parseFloat(s.purchasePrice || 0), 0);
+
+  const thisMonthExpenses = apiExpensesStats?.thisMonthAmount ?? (() => {
+    const now = new Date();
+    return expenses.filter((e: any) => {
+      const d = new Date(e.date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).reduce((sum: number, e: any) => sum + parseFloat(e.amount || 0), 0);
+  })();
+
+  const isLoading = salesLoading || servicesLoading || stockLoading || expensesLoading;
+
+  if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 2xl:gap-7.5">
         {[1, 2, 3, 4].map((i) => (
@@ -210,31 +224,25 @@ export function POSOverviewCards() {
         value={formatCurrency(todaysSales.total)}
         subValue={`${todaysSales.count} invoices`}
         Icon={SalesIcon}
-        trend={12}
-        trendLabel="vs yesterday"
       />
 
       <OverviewCard
         label="This Month Profit"
         value={formatCurrency(thisMonthProfit)}
-        subValue={`${thisMonthSales.count} total sales`}
+        subValue={`${thisMonthSalesCount} total sales`}
         Icon={ProfitIcon}
-        trend={8}
-        trendLabel="vs last month"
       />
 
       <OverviewCard
         label="Total Due"
         value={formatCurrency(totalDue)}
-        subValue={`${salesStore.getSalesWithDue().length} pending`}
+        subValue={`${dueCount} pending`}
         Icon={DueIcon}
-        trend={totalDue > 0 ? -5 : 0}
       />
 
       <OverviewCard
         label="Pending Services"
         value={pendingServices.toString()}
-        subValue={`${serviceStore.getServicesWithDue().length} unpaid`}
         Icon={ServiceIcon}
       />
 
@@ -250,8 +258,8 @@ export function POSOverviewCards() {
         value={formatCurrency(thisMonthExpenses)}
         subValue="All categories"
         Icon={ExpenseIcon}
-        trend={-3}
       />
     </div>
   );
 }
+

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sales, saleItems, payments, stockItems, products, activityLogs } from "@/db/schema";
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { createSaleSchema } from "@/lib/validations/sales";
 
@@ -60,8 +60,26 @@ export async function GET(request: NextRequest) {
     // Get total count
     const totalCount = await db.select({ count: sql<number>`count(*)` }).from(sales);
 
+    // Aggregate stats (from ALL data, not paginated)
+    const [salesAgg] = await db.select({
+      totalAmount: sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
+      totalProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
+      totalDue: sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
+    }).from(sales);
+
+    const [dueStats] = await db.select({
+      count: sql<number>`count(*)`,
+    }).from(sales).where(sql`${sales.dueAmount} > 0`);
+
     return NextResponse.json({
       sales: allSales,
+      stats: {
+        total: Number(totalCount[0].count),
+        totalAmount: Number(salesAgg.totalAmount),
+        totalProfit: Number(salesAgg.totalProfit),
+        totalDue: Number(salesAgg.totalDue),
+        dueCount: Number(dueStats.count),
+      },
       pagination: {
         page,
         limit,
@@ -100,7 +118,7 @@ export async function POST(request: NextRequest) {
         })
         .from(stockItems)
         .leftJoin(products, eq(stockItems.productId, products.id))
-        .where(sql`${stockItems.id} = ANY(${stockItemIds})`);
+        .where(inArray(stockItems.id, stockItemIds));
 
       // Validate all stock items exist and are available
       if (stockItemsData.length !== validatedData.items.length) {
@@ -108,7 +126,7 @@ export async function POST(request: NextRequest) {
       }
 
       for (const { stockItem } of stockItemsData) {
-        if (stockItem.status !== "available") {
+        if (stockItem.status !== "Available" && stockItem.status !== "available") {
           throw new Error(`Stock item ${stockItem.serialNumber} is not available`);
         }
       }
@@ -227,11 +245,11 @@ export async function POST(request: NextRequest) {
       await tx
         .update(stockItems)
         .set({
-          status: "sold",
+          status: "Sold",
           saleId: newSale.id,
           soldAt: new Date(),
         })
-        .where(sql`${stockItems.id} = ANY(${stockItemIds})`);
+        .where(inArray(stockItems.id, stockItemIds));
 
       // 8. Create activity log
       await tx.insert(activityLogs).values({

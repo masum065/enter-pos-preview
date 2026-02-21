@@ -1,10 +1,28 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useSupplierStore, Supplier } from "@/stores/supplierStore";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier } from "@/hooks/useSuppliers";
+import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, formatPhone } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import Link from "next/link";
+import { apiClient } from "@/lib/api-client";
+
+interface Supplier {
+  id: string;
+  companyName: string;
+  contactPerson: string | null;
+  phone: string;
+  email: string | null;
+  address: string | null;
+  notes: string | null;
+  balance: string;
+  totalPurchases: string;
+  totalPaid: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // Add/Edit Supplier Modal
 function SupplierModal({
@@ -167,7 +185,7 @@ function PaymentModal({
 
   useEffect(() => {
     if (isOpen && supplier) {
-      setAmount(Math.max(0, supplier.balance));
+      setAmount(Math.max(0, parseFloat(supplier.balance)));
       setReference("");
     }
   }, [isOpen, supplier]);
@@ -182,8 +200,8 @@ function PaymentModal({
           <p className="text-lg font-semibold text-gray-900 dark:text-white">{supplier.companyName || 'Unnamed Supplier'}</p>
           <div className="mt-2 flex justify-between">
             <span className="text-sm text-gray-600 dark:text-gray-400">Current Balance</span>
-            <span className={`font-bold ${supplier.balance > 0 ? "text-red-600" : "text-green-600"}`}>
-              {formatCurrency(Math.abs(supplier.balance))} {supplier.balance > 0 ? "(Payable)" : "(Advance)"}
+            <span className={`font-bold ${parseFloat(supplier.balance) > 0 ? "text-red-600" : "text-green-600"}`}>
+              {formatCurrency(Math.abs(parseFloat(supplier.balance)))} {parseFloat(supplier.balance) > 0 ? "(Payable)" : "(Advance)"}
             </span>
           </div>
         </div>
@@ -231,18 +249,28 @@ function PaymentModal({
   );
 }
 
-export default function SuppliersPage() {
-  const { suppliers, addSupplier, updateSupplier, deleteSupplier, recordPayment, getTotalPayable } = useSupplierStore();
-  const [isLoaded, setIsLoaded] = useState(false);
+function SuppliersPageContent() {
+  const createSupplier = useCreateSupplier();
+  const updateSupplierMutation = useUpdateSupplier();
+  const deleteSupplierMutation = useDeleteSupplier();
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const page = parseInt(searchParams.get("page") || "1");
+  const setPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 1) params.delete("page"); else params.set("page", String(p));
+    router.push(`?${params.toString()}`);
+  };
+  const { data: suppliersData, isLoading } = useSuppliers({ page, limit: 20 });
+  const suppliers: Supplier[] = (suppliersData?.suppliers || []) as any[];
+  const pagination = (suppliersData as any)?.pagination;
+
   const [searchQuery, setSearchQuery] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
   const filteredSuppliers = useMemo(() => {
     if (!searchQuery) return suppliers;
@@ -254,31 +282,36 @@ export default function SuppliersPage() {
     );
   }, [suppliers, searchQuery]);
 
-  const totalPayable = useMemo(() => getTotalPayable(), [suppliers]);
+  // Stats from API (all data, not just current page)
+  const apiStats = (suppliersData as any)?.stats;
+  const totalPayable = apiStats?.totalPayable || suppliers.reduce((sum, s) => sum + Math.max(0, parseFloat(s.balance)), 0);
 
   const handleSave = (data: Partial<Supplier>) => {
     if (selectedSupplier) {
-      updateSupplier(selectedSupplier.id, data);
+      updateSupplierMutation.mutate({ id: selectedSupplier.id, data: data as any });
     } else {
-      addSupplier(data as Omit<Supplier, "id" | "balance" | "totalPurchases" | "totalPaid" | "createdAt" | "updatedAt">);
+      createSupplier.mutate(data as any);
     }
   };
 
   const handleDelete = () => {
     if (selectedSupplier) {
-      deleteSupplier(selectedSupplier.id);
-      setShowDeleteConfirm(false);
-      setSelectedSupplier(null);
+      deleteSupplierMutation.mutate(selectedSupplier.id, {
+        onSuccess: () => {
+          setShowDeleteConfirm(false);
+          setSelectedSupplier(null);
+        },
+      });
     }
   };
 
-  const handlePayment = (amount: number, reference?: string) => {
+  const handlePayment = async (amount: number, reference?: string) => {
     if (selectedSupplier) {
-      recordPayment(selectedSupplier.id, amount, reference);
+      await apiClient.post(`/api/suppliers/${selectedSupplier.id}/payments`, { amount, reference });
     }
   };
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
@@ -321,7 +354,7 @@ export default function SuppliersPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Suppliers</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{suppliers.length}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{apiStats?.total || suppliers.length}</p>
             </div>
           </div>
         </div>
@@ -350,7 +383,7 @@ export default function SuppliersPage() {
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">With Due Balance</p>
               <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                {suppliers.filter((s) => s.balance > 0).length}
+                {suppliers.filter((s) => parseFloat(s.balance) > 0).length}
               </p>
             </div>
           </div>
@@ -366,7 +399,7 @@ export default function SuppliersPage() {
           type="text"
           placeholder="Search by name, phone, or company..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
           className="w-full rounded-lg border border-gray-300 py-3 pl-12 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
         />
       </div>
@@ -410,25 +443,25 @@ export default function SuppliersPage() {
                       {supplier.email && <p className="text-sm text-gray-500">{supplier.email}</p>}
                     </td>
                     <td className="px-6 py-4 text-right font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(supplier.totalPurchases)}
+                      {formatCurrency(parseFloat(supplier.totalPurchases))}
                     </td>
                     <td className="px-6 py-4 text-right font-medium text-green-600 dark:text-green-400">
-                      {formatCurrency(supplier.totalPaid)}
+                      {formatCurrency(parseFloat(supplier.totalPaid))}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${
-                          supplier.balance > 0
+                          parseFloat(supplier.balance) > 0
                             ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                            : supplier.balance < 0
+                            : parseFloat(supplier.balance) < 0
                             ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                             : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
                         }`}
                       >
-                        {supplier.balance > 0
-                          ? `${formatCurrency(supplier.balance)} Due`
-                          : supplier.balance < 0
-                          ? `${formatCurrency(Math.abs(supplier.balance))} Advance`
+                        {parseFloat(supplier.balance) > 0
+                          ? `${formatCurrency(parseFloat(supplier.balance))} Due`
+                          : parseFloat(supplier.balance) < 0
+                          ? `${formatCurrency(Math.abs(parseFloat(supplier.balance)))} Advance`
                           : "Clear"}
                       </span>
                     </td>
@@ -443,7 +476,7 @@ export default function SuppliersPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </Link>
-                        {supplier.balance > 0 && (
+                        {parseFloat(supplier.balance) > 0 && (
                           <button
                             onClick={() => {
                               setSelectedSupplier(supplier);
@@ -524,6 +557,23 @@ export default function SuppliersPage() {
           confirmVariant="danger"
         />
       </Modal>
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+        />
+      )}
     </div>
+  );
+}
+
+export default function SuppliersPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[400px] items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div></div>}>
+      <SuppliersPageContent />
+    </Suspense>
   );
 }

@@ -37,8 +37,21 @@ export async function GET(request: NextRequest) {
 
     const totalCount = await db.select({ count: sql<number>`count(*)` }).from(suppliers);
 
+    // Aggregate stats (from ALL data)
+    const [suppAgg] = await db.select({
+      totalPayable: sql<string>`COALESCE(SUM(GREATEST(${suppliers.balance}, 0)), 0)`,
+      totalPurchases: sql<string>`COALESCE(SUM(${suppliers.totalPurchases}), 0)`,
+      totalPaid: sql<string>`COALESCE(SUM(${suppliers.totalPaid}), 0)`,
+    }).from(suppliers);
+
     return NextResponse.json({
       suppliers: allSuppliers,
+      stats: {
+        total: Number(totalCount[0].count),
+        totalPayable: Number(suppAgg.totalPayable),
+        totalPurchases: Number(suppAgg.totalPurchases),
+        totalPaid: Number(suppAgg.totalPaid),
+      },
       pagination: {
         page,
         limit,

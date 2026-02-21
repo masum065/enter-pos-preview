@@ -1,13 +1,26 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useCustomerStore, Customer } from "@/stores/customerStore";
-import { useSalesStore } from "@/stores/salesStore";
+import { useState, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useCustomers, useDeleteCustomer } from "@/hooks/useCustomers";
+import { Pagination } from "@/components/ui/pagination";
 import { formatDate, formatPhone, formatCurrency } from "@/lib/utils";
-import { generateMockCustomers } from "@/lib/mockData";
 import { AddCustomerModal, EditCustomerModal } from "@/components/customers/customer-modals";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import Link from "next/link";
+
+interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  nid?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: any;
+}
 
 // Customer Detail Modal Component
 function CustomerDetailModal({
@@ -19,16 +32,10 @@ function CustomerDetailModal({
   onClose: () => void;
   onEdit: () => void;
 }) {
-  const { getSalesByCustomer } = useSalesStore();
-  const customerSales = getSalesByCustomer(customer.id);
-
-  // Calculate stats
+  // No sales data available yet from API, show empty stats
   const stats = useMemo(() => {
-    const totalPurchases = customerSales.length;
-    const totalSpent = customerSales.reduce((sum, s) => sum + s.grandTotal, 0);
-    const totalDue = customerSales.reduce((sum, s) => sum + s.dueAmount, 0);
-    return { totalPurchases, totalSpent, totalDue };
-  }, [customerSales]);
+    return { totalPurchases: 0, totalSpent: 0, totalDue: 0 };
+  }, []);
 
   return (
     <Modal isOpen={true} onClose={onClose} title="Customer Details" size="lg">
@@ -96,40 +103,11 @@ function CustomerDetailModal({
         {/* Purchase History */}
         <div>
           <h4 className="mb-3 font-semibold text-gray-900 dark:text-white">
-            Purchase History ({customerSales.length})
+            Purchase History (0)
           </h4>
-          {customerSales.length === 0 ? (
-            <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 text-center dark:border-gray-700">
-              <p className="text-gray-500 dark:text-gray-400">No purchase history yet</p>
-            </div>
-          ) : (
-            <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
-              <table className="w-full">
-                <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Invoice</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Date</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Amount</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Due</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {customerSales.map((sale) => (
-                    <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                      <td className="px-4 py-3 font-mono text-sm text-blue-600 dark:text-blue-400">{sale.invoiceNumber}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{formatDate(sale.invoiceDate)}</td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(sale.grandTotal)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={sale.dueAmount > 0 ? "font-medium text-red-600 dark:text-red-400" : "text-gray-400"}>
-                          {sale.dueAmount > 0 ? formatCurrency(sale.dueAmount) : "-"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 text-center dark:border-gray-700">
+            <p className="text-gray-500 dark:text-gray-400">No purchase history yet</p>
+          </div>
         </div>
 
         {/* Actions */}
@@ -163,13 +141,20 @@ function CustomerDetailModal({
   );
 }
 
-export default function CustomersPage() {
-  const {
-    customers,
-    addCustomer,
-    deleteCustomer,
-    searchCustomers,
-  } = useCustomerStore();
+function CustomersPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const page = parseInt(searchParams.get("page") || "1");
+  const setPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 1) params.delete("page"); else params.set("page", String(p));
+    router.push(`?${params.toString()}`);
+  };
+  const { data: customersData, isLoading } = useCustomers({ page, limit: 20 });
+  const deleteCustomerMutation = useDeleteCustomer();
+
+  const customers: Customer[] = (customersData?.customers || []) as any[];
+  const pagination = (customersData as any)?.pagination;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -177,37 +162,28 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize mock data on first load if empty
-  useEffect(() => {
-    if (customers.length === 0) {
-      const mockCustomers = generateMockCustomers(50);
-      mockCustomers.forEach((customer) => {
-        addCustomer({
-          name: customer.name,
-          phone: customer.phone,
-          email: customer.email,
-          address: customer.address,
-          nid: customer.nid,
-          notes: customer.notes,
-        });
-      });
-    }
-    setIsLoading(false);
-  }, []);
-
-  // Filtered customers
+  // Filtered customers (client-side search on current page)
   const filteredCustomers = useMemo(() => {
     if (!searchQuery.trim()) return customers;
-    return searchCustomers(searchQuery);
-  }, [customers, searchQuery, searchCustomers]);
+    const query = searchQuery.toLowerCase();
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      c.phone.includes(query) ||
+      (c.email && c.email.toLowerCase().includes(query))
+    );
+  }, [customers, searchQuery]);
+
+  const totalCustomers = pagination?.total || customers.length;
 
   const handleDeleteCustomer = () => {
     if (deletingCustomer) {
-      deleteCustomer(deletingCustomer.id);
-      setDeletingCustomer(null);
-      setShowDeleteModal(false);
+      deleteCustomerMutation.mutate(deletingCustomer.id, {
+        onSuccess: () => {
+          setDeletingCustomer(null);
+          setShowDeleteModal(false);
+        },
+      });
     }
   };
 
@@ -244,7 +220,7 @@ export default function CustomersPage() {
             Customers
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Manage your customer database ({customers.length} total)
+            Manage your customer database ({totalCustomers} total)
           </p>
         </div>
         <button
@@ -286,7 +262,7 @@ export default function CustomersPage() {
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
           placeholder="Search by name, phone, email..."
           className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-gray-900 placeholder-gray-500 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
         />
@@ -295,7 +271,7 @@ export default function CustomersPage() {
       {/* Results count */}
       {searchQuery && (
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Found {filteredCustomers.length} customers
+          Found {totalCustomers} customers
         </p>
       )}
 
@@ -487,6 +463,23 @@ export default function CustomersPage() {
           confirmText="Delete"
         />
       </Modal>
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+        />
+      )}
     </div>
+  );
+}
+
+export default function CustomersPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[400px] items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div></div>}>
+      <CustomersPageContent />
+    </Suspense>
   );
 }

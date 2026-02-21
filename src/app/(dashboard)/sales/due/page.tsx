@@ -1,9 +1,24 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useSalesStore, Sale, PaymentMethod } from "@/stores/salesStore";
+import { useState, useMemo } from "react";
+import { useSales } from "@/hooks/useSales";
+import { apiClient } from "@/lib/api-client";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
+
+type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer";
+
+interface Sale {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  customerName: string;
+  customerPhone: string;
+  grandTotal: number;
+  paidAmount: number;
+  dueAmount: number;
+  [key: string]: any;
+}
 
 // Payment Modal Component using reusable Modal
 function PaymentModal({
@@ -125,30 +140,31 @@ function PaymentModal({
 }
 
 export default function DueCollectionPage() {
-  const { sales, addPayment, getSalesWithDue } = useSalesStore();
+  const { data: salesData, isLoading } = useSales();
+  const allSales: Sale[] = (salesData?.sales || []) as any[];
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
   const salesWithDue = useMemo(() => {
-    return getSalesWithDue().sort((a, b) => b.dueAmount - a.dueAmount);
-  }, [sales, getSalesWithDue]);
+    return allSales.filter(s => (s.dueAmount || 0) > 0).sort((a, b) => b.dueAmount - a.dueAmount);
+  }, [allSales]);
 
   const totalDue = useMemo(() => {
     return salesWithDue.reduce((sum, s) => sum + s.dueAmount, 0);
   }, [salesWithDue]);
 
-  const handlePayment = (method: PaymentMethod, amount: number) => {
+  const handlePayment = async (method: PaymentMethod, amount: number) => {
     if (selectedSale) {
-      addPayment(selectedSale.id, { method, amount });
-      setSelectedSale(null);
+      try {
+        await apiClient.post(`/api/sales/${selectedSale.id}/payments`, { method, amount });
+        setSelectedSale(null);
+        // The useSales hook will refetch automatically
+      } catch (error) {
+        console.error("Payment failed:", error);
+      }
     }
   };
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>

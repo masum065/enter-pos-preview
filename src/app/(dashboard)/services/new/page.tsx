@@ -1,17 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useServiceStore, ServiceStatus } from "@/stores/serviceStore";
-import { useCustomerStore, Customer } from "@/stores/customerStore";
+import { useCreateService } from "@/hooks/useServices";
+import { useCustomers } from "@/hooks/useCustomers";
 import Link from "next/link";
+
+interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  [key: string]: any;
+}
 
 export default function NewServicePage() {
   const router = useRouter();
-  const serviceStore = useServiceStore();
-  const customerStore = useCustomerStore();
+  const createServiceMutation = useCreateService();
+  const { data: customersData } = useCustomers();
+  const customers: Customer[] = (customersData?.customers || []) as any[];
 
-  const [isLoaded, setIsLoaded] = useState(false);
+
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
@@ -31,14 +39,12 @@ export default function NewServicePage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
-  // Search customers
-  const filteredCustomers = customerSearch.trim()
-    ? customerStore.searchCustomers(customerSearch).slice(0, 5)
-    : customerStore.customers.slice(0, 5);
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customers.slice(0, 5);
+    const q = customerSearch.toLowerCase();
+    return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 5);
+  }, [customerSearch, customers]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -58,7 +64,7 @@ export default function NewServicePage() {
     const expectedDate = new Date();
     expectedDate.setDate(expectedDate.getDate() + formData.expectedDays);
 
-    serviceStore.createService({
+    createServiceMutation.mutate({
       customerId: selectedCustomer.id,
       customerName: selectedCustomer.name,
       customerPhone: selectedCustomer.phone,
@@ -80,18 +86,11 @@ export default function NewServicePage() {
       dueAmount: totalCost,
       notes: formData.notes || undefined,
       createdBy: "admin",
+    } as any, {
+      onSuccess: () => router.push("/services"),
     });
-
-    router.push("/services");
   };
 
-  if (!isLoaded) {
-    return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

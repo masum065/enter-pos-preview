@@ -1,10 +1,25 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Sale } from "@/stores/salesStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
+
+interface Sale {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  customerName: string;
+  customerPhone: string;
+  items: any[];
+  payments: any[];
+  subtotal: number;
+  discountAmount: number;
+  grandTotal: number;
+  paidAmount: number;
+  dueAmount: number;
+  status: string;
+  [key: string]: any;
+}
 
 interface InvoicePrintProps {
   sale: Sale;
@@ -14,7 +29,11 @@ interface InvoicePrintProps {
 
 export function InvoicePrintModal({ sale, isOpen, onClose }: InvoicePrintProps) {
   const printRef = useRef<HTMLDivElement>(null);
-  const { appSettings } = useSettingsStore();
+  const appSettings = {
+    shopName: "Enter Computer",
+    shopAddress: "Dhaka, Bangladesh",
+    shopPhone: "+880 1234 567890",
+  };
 
   const handlePrint = () => {
     if (!printRef.current) return;
@@ -144,7 +163,7 @@ export function InvoicePrintModal({ sale, isOpen, onClose }: InvoicePrintProps) 
               </tr>
             </thead>
             <tbody>
-              {sale.items.map((item, idx) => (
+              {(sale.items || []).map((item, idx) => (
                 <tr key={idx}>
                   <td className="border-b border-gray-200 px-3 py-3 text-gray-900">{item.productName}</td>
                   <td className="serial border-b border-gray-200 px-3 py-3 font-mono text-sm text-gray-600">{item.serialNumber}</td>
@@ -174,10 +193,10 @@ export function InvoicePrintModal({ sale, isOpen, onClose }: InvoicePrintProps) 
           </div>
 
           {/* Payments */}
-          {sale.payments.length > 0 && (
+          {(sale.payments || []).length > 0 && (
             <div className="payments mt-6 rounded-lg bg-green-50 p-5">
               <div className="section-title mb-3 text-sm font-semibold uppercase text-gray-500">Payments Received</div>
-              {sale.payments.map((payment, idx) => (
+              {(sale.payments || []).map((payment, idx) => (
                 <div key={idx} className="payment-item flex justify-between py-1">
                   <span className="text-gray-700">{payment.method}</span>
                   <span className="font-semibold text-green-700">{formatCurrency(payment.amount)}</span>

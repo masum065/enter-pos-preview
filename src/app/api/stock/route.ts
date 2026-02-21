@@ -45,8 +45,24 @@ export async function GET(request: NextRequest) {
     // Get total count (efficient)
     const totalCount = await db.select({ count: sql<number>`count(*)` }).from(stockItems);
 
+    // Aggregate stats (from ALL data, not paginated)
+    const [availableStats] = await db.select({
+      count: sql<number>`count(*)`,
+      value: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}), 0)`,
+    }).from(stockItems).where(eq(stockItems.status, 'Available'));
+
+    const [soldStats] = await db.select({
+      count: sql<number>`count(*)`,
+    }).from(stockItems).where(eq(stockItems.status, 'Sold'));
+
     return NextResponse.json({
       stockItems: items,
+      stats: {
+        total: Number(totalCount[0].count),
+        available: Number(availableStats.count),
+        sold: Number(soldStats.count),
+        stockValue: Number(availableStats.value),
+      },
       pagination: {
         page,
         limit,

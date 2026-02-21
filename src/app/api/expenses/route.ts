@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     const totalCount = await db.select({ count: sql<number>`count(*)` }).from(expenses);
 
-    // Category breakdown
+    // Category breakdown (from ALL data, not paginated)
     const breakdown = await db
       .select({
         category: expenses.category,
@@ -48,9 +48,31 @@ export async function GET(request: NextRequest) {
       .groupBy(expenses.category)
       .orderBy(sql`SUM(${expenses.amount}) DESC`);
 
+    // Aggregate stats (from ALL data)
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [totalStats] = await db.select({
+      total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+    }).from(expenses);
+
+    const [monthStats] = await db.select({
+      total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+    }).from(expenses).where(gte(expenses.date, monthStart));
+
+    const [todayStats] = await db.select({
+      total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+    }).from(expenses).where(gte(expenses.date, todayStart));
+
     return NextResponse.json({
       expenses: allExpenses,
       categoryBreakdown: breakdown,
+      stats: {
+        totalAmount: Number(totalStats.total),
+        thisMonthAmount: Number(monthStats.total),
+        todayAmount: Number(todayStats.total),
+      },
       pagination: {
         page, limit,
         total: Number(totalCount[0].count),

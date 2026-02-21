@@ -2,11 +2,30 @@
 
 import { useState, useEffect, Suspense, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useStockStore } from "@/stores/stockStore";
-import { useProductStore, Product } from "@/stores/productStore";
-import { useSupplierStore, Supplier } from "@/stores/supplierStore";
+import { useProducts } from "@/hooks/useProducts";
+import { useSuppliers } from "@/hooks/useSuppliers";
+import { apiClient } from "@/lib/api-client";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
+
+interface Product {
+  id: string;
+  modelName: string;
+  brand: string;
+  category: string;
+  defaultSalePrice: string;
+  description: string | null;
+  [key: string]: any;
+}
+
+interface Supplier {
+  id: string;
+  companyName: string;
+  contactPerson: string;
+  phone: string;
+  balance: string;
+  [key: string]: any;
+}
 
 const MIN_SEARCH_LENGTH = 2;
 
@@ -18,20 +37,24 @@ function SupplierCombobox({
   selectedSupplier: Supplier | null;
   onSelect: (supplier: Supplier | null) => void;
 }) {
-  const { suppliers, searchSuppliers } = useSupplierStore();
+  const { data: suppliersData } = useSuppliers();
+  const suppliers: Supplier[] = (suppliersData?.suppliers || []) as any[];
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Only search when 2+ characters
   const shouldSearch = query.trim().length >= MIN_SEARCH_LENGTH;
 
-  // Filtered suppliers
   const filteredSuppliers = useMemo(() => {
     if (!shouldSearch) return [];
-    return searchSuppliers(query).slice(0, 10);
-  }, [query, shouldSearch, searchSuppliers]);
+    const q = query.toLowerCase();
+    return suppliers.filter(s => 
+      s.companyName?.toLowerCase().includes(q) || 
+      s.contactPerson?.toLowerCase().includes(q) ||
+      s.phone?.toLowerCase().includes(q)
+    ).slice(0, 10);
+  }, [query, shouldSearch, suppliers]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -184,9 +207,8 @@ export default function AddStockPage() {
 function AddStockContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { addStockItem, addBulkStock, checkDuplicateSerial } = useStockStore();
-  const { products } = useProductStore();
-  const { suppliers, addTransaction } = useSupplierStore();
+  const { data: productsData } = useProducts();
+  const products: Product[] = (productsData?.products || []) as any[];
 
   // Get productId from URL if provided
   const preSelectedProductId = searchParams.get("productId") || "";
@@ -213,9 +235,9 @@ function AddStockContent() {
     if (preSelectedProductId && formData.purchasePrice === 0) {
       const product = products.find((p) => p.id === preSelectedProductId);
       if (product) {
-        setFormData((prev) => ({
+      setFormData((prev) => ({
           ...prev,
-          purchasePrice: Math.round(product.defaultSalePrice * 0.85),
+          purchasePrice: Math.round(parseFloat(product.defaultSalePrice) * 0.85),
         }));
       }
     }
@@ -226,45 +248,30 @@ function AddStockContent() {
     
     if (!selectedProduct) newErrors.product = "Please select a product";
     if (!formData.serialNumber.trim()) newErrors.serialNumber = "Serial number is required";
-    if (formData.serialNumber && checkDuplicateSerial(formData.serialNumber)) {
-      newErrors.serialNumber = "This serial number already exists";
-    }
     if (formData.purchasePrice <= 0) newErrors.purchasePrice = "Purchase price must be greater than 0";
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSingleSubmit = (e: React.FormEvent) => {
+  const handleSingleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateSingle()) return;
 
     try {
-const stockItem = addStockItem({
+      await apiClient.post("/api/stock", {
         serialNumber: formData.serialNumber.trim(),
         imei: formData.imei.trim() || undefined,
         productId: selectedProduct,
         purchasePrice: formData.purchasePrice,
         supplierId: selectedSupplier?.id || undefined,
+        supplierName: selectedSupplier?.companyName || undefined,
         purchaseSource: "supplier",
         purchaseDate: formData.purchaseDate,
         status: "Available",
         notes: formData.notes.trim() || undefined,
       });
-
-      // Create supplier transaction if supplier is selected
-      if (selectedSupplier) {
-        const product = products.find((p) => p.id === selectedProduct);
-        addTransaction({
-          supplierId: selectedSupplier.id,
-          type: "stock_add",
-          amount: formData.purchasePrice,
-          description: `Stock added: ${product?.brand} ${product?.modelName} (${formData.serialNumber})`,
-          reference: stockItem.serialNumber,
-          createdBy: "admin",
-        });
-      }
 
       setSuccessMessage("Stock item added successfully!");
       setFormData({
@@ -281,7 +288,7 @@ const stockItem = addStockItem({
     }
   };
 
-  const handleBulkSubmit = (e: React.FormEvent) => {
+  const handleBulkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedProduct) {
@@ -309,30 +316,19 @@ const stockItem = addStockItem({
       productId: selectedProduct,
       purchasePrice: formData.purchasePrice,
       supplierId: selectedSupplier?.id || undefined,
+      supplierName: selectedSupplier?.companyName || undefined,
       purchaseSource: "supplier" as const,
       purchaseDate: formData.purchaseDate,
       status: "Available" as const,
     }));
 
-    const added = addBulkStock(items);
-    
-    // Create supplier transaction if supplier is selected
-    if (selectedSupplier && added.length > 0) {
-      const product = products.find((p) => p.id === selectedProduct);
-      const totalAmount = formData.purchasePrice * added.length;
-      addTransaction({
-        supplierId: selectedSupplier.id,
-        type: "stock_add",
-        amount: totalAmount,
-        description: `Bulk stock added: ${added.length} x ${product?.brand} ${product?.modelName}`,
-        reference: `Bulk: ${added.length} items`,
-        createdBy: "admin",
-      });
+    try {
+      const result = await apiClient.post("/api/stock/bulk", { items }) as any;
+      setSuccessMessage(`${result?.added || serials.length} items added successfully!`);
+      setBulkSerials("");
+    } catch (error) {
+      setErrors({ submit: (error as Error).message });
     }
-    
-    setSuccessMessage(`${added.length} of ${serials.length} items added successfully!`);
-    setBulkSerials("");
-    
     setTimeout(() => setSuccessMessage(""), 5000);
   };
 
@@ -411,9 +407,9 @@ const stockItem = addStockItem({
                 setSelectedProduct(productId);
                 const product = products.find((p) => p.id === productId);
                 if (product && formData.purchasePrice === 0) {
-                  setFormData((prev) => ({
+                setFormData((prev) => ({
                     ...prev,
-                    purchasePrice: Math.round(product.defaultSalePrice * 0.85),
+                    purchasePrice: Math.round(parseFloat(product.defaultSalePrice) * 0.85),
                   }));
                 }
               }}
@@ -428,7 +424,7 @@ const stockItem = addStockItem({
                 {selectedProductDetails.brand} {selectedProductDetails.modelName}
               </p>
               <p className="text-sm text-blue-700 dark:text-blue-400">
-                {selectedProductDetails.description} • Sale Price: {formatCurrency(selectedProductDetails.defaultSalePrice)}
+              Sale Price: {formatCurrency(parseFloat(selectedProductDetails.defaultSalePrice))}
               </p>
             </div>
           )}
@@ -670,7 +666,7 @@ function ProductSearchSelect({
                 {selectedProduct.brand} {selectedProduct.modelName}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Sale Price: {formatCurrency(selectedProduct.defaultSalePrice)}
+                Sale Price: {formatCurrency(parseFloat(selectedProduct.defaultSalePrice))}
               </p>
             </div>
           </div>
@@ -734,7 +730,7 @@ function ProductSearchSelect({
                     <p className="font-medium text-gray-900 dark:text-white">
                       {product.brand} {product.modelName}
                     </p>
-                    <p className="text-sm text-gray-500">{product.category} • {formatCurrency(product.defaultSalePrice)}</p>
+                    <p className="text-sm text-gray-500">{product.category} • {formatCurrency(parseFloat(product.defaultSalePrice))}</p>
                   </div>
                 </button>
               ))}

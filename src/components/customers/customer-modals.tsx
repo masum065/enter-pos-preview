@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useCustomerStore, Customer } from "@/stores/customerStore";
+import { useCreateCustomer, useUpdateCustomer } from "@/hooks/useCustomers";
 import { isValidBDPhone } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 
 interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCustomerAdded?: (customer: Customer) => void;
+  onCustomerAdded?: (customer: any) => void;
   defaultName?: string;
   defaultPhone?: string;
 }
@@ -20,7 +20,7 @@ export function AddCustomerModal({
   defaultName = "",
   defaultPhone = "",
 }: AddCustomerModalProps) {
-  const { addCustomer } = useCustomerStore();
+  const createCustomer = useCreateCustomer();
   const [formData, setFormData] = useState({
     name: defaultName,
     phone: defaultPhone,
@@ -74,18 +74,20 @@ export function AddCustomerModal({
   const handleSubmit = () => {
     if (!validate()) return;
 
-    const newCustomer = addCustomer({
+    createCustomer.mutate({
       name: formData.name.trim(),
       phone: formData.phone.trim(),
       email: formData.email.trim() || undefined,
       address: formData.address.trim() || undefined,
       nid: formData.nid.trim() || undefined,
       notes: formData.notes.trim() || undefined,
+    }, {
+      onSuccess: (newCustomer) => {
+        resetForm();
+        onCustomerAdded?.(newCustomer);
+        onClose();
+      },
     });
-
-    resetForm();
-    onCustomerAdded?.(newCustomer);
-    onClose();
   };
 
   const handleClose = () => {
@@ -202,8 +204,8 @@ export function AddCustomerModal({
 interface EditCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  customer: Customer | null;
-  onCustomerUpdated?: (customer: Customer) => void;
+  customer: any | null;
+  onCustomerUpdated?: (customer: any) => void;
 }
 
 export function EditCustomerModal({
@@ -212,7 +214,7 @@ export function EditCustomerModal({
   customer,
   onCustomerUpdated,
 }: EditCustomerModalProps) {
-  const { updateCustomer } = useCustomerStore();
+  const updateCustomer = useUpdateCustomer();
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -267,16 +269,19 @@ export function EditCustomerModal({
   const handleSubmit = () => {
     if (!customer || !validate()) return;
 
-    updateCustomer(customer.id, {
-      name: formData.name.trim(),
-      phone: formData.phone.trim(),
-      email: formData.email.trim() || undefined,
-      address: formData.address.trim() || undefined,
-      nid: formData.nid.trim() || undefined,
-      notes: formData.notes.trim() || undefined,
+    updateCustomer.mutate({
+      id: customer.id,
+      data: {
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim() || undefined,
+        address: formData.address.trim() || undefined,
+        nid: formData.nid.trim() || undefined,
+        notes: formData.notes.trim() || undefined,
+      },
+    }, {
+      onSuccess: () => onClose(),
     });
-
-    onClose();
   };
 
   // Initialize form when customer changes or modal opens

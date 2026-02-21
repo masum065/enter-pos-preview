@@ -1,12 +1,64 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useSalesStore, Sale, SaleItem, PaymentMethod } from "@/stores/salesStore";
-import { useStockStore } from "@/stores/stockStore";
+import { useState, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useSales } from "@/hooks/useSales";
+import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { PrintInvoiceButton, InvoicePrintModal } from "@/components/invoice/invoice-print";
 import { Modal } from "@/components/ui/modal";
+import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
+
+interface SaleItem {
+  id: string;
+  productName: string;
+  serialNumber: string;
+  amount: number;
+  stockItemId: string;
+  isReturned?: boolean;
+  [key: string]: any;
+}
+
+interface SalePayment {
+  method: string;
+  amount: number;
+  paidAt: string;
+  [key: string]: any;
+}
+
+interface SaleReturn {
+  createdAt: string;
+  refundAmount: number;
+  reason: string;
+  returnedItems: any[];
+  [key: string]: any;
+}
+
+interface Sale {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  customerName: string;
+  customerPhone: string;
+  items: SaleItem[];
+  payments: SalePayment[];
+  returns?: SaleReturn[];
+  subtotal: number;
+  discountAmount: number;
+  grandTotal: number;
+  paidAmount: number;
+  dueAmount: number;
+  totalProfit: number;
+  totalReturned?: number;
+  status: string;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  [key: string]: any;
+}
+
+type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer";
 
 // Return Modal Component
 function ReturnModal({
@@ -18,14 +70,12 @@ function ReturnModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const { processReturn } = useSalesStore();
-  const { markAsAvailable } = useStockStore();
-  
-  const availableItems = sale.items.filter((item) => !item.isReturned);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [refundMethod, setRefundMethod] = useState<PaymentMethod>("Cash");
   const [reason, setReason] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const availableItems = sale.items.filter((item) => !item.isReturned);
 
   const selectedTotal = useMemo(() => {
     return availableItems
@@ -57,24 +107,16 @@ function ReturnModal({
     setIsProcessing(true);
 
     try {
-      // Process the return in sales store
-      const result = processReturn(sale.id, {
+      // Process the return via API
+      await apiClient.post(`/api/sales/${sale.id}/returns`, {
         itemIds: selectedItems,
         refundMethod,
         refundAmount: selectedTotal,
         reason,
-        processedBy: "Admin", // TODO: Get from auth
+        processedBy: "Admin",
       });
-
-      if (result) {
-        // Mark stock items as available again
-        const itemsToReturn = sale.items.filter((item) => selectedItems.includes(item.id));
-        for (const item of itemsToReturn) {
-          markAsAvailable(item.stockItemId);
-        }
-        
-        onSuccess();
-      }
+      
+      onSuccess();
     } catch (error) {
       console.error("Return failed:", error);
       alert("Failed to process return");
@@ -452,19 +494,25 @@ function SaleDetailModal({
   );
 }
 
-export default function SalesPage() {
-  const { sales, getRecentSales, getSalesWithDue } = useSalesStore();
+function SalesPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const page = parseInt(searchParams.get("page") || "1");
+  const setPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 1) params.delete("page"); else params.set("page", String(p));
+    router.push(`?${params.toString()}`);
+  };
+  const { data: salesData, isLoading } = useSales({ page, limit: 20 });
+  const sales: Sale[] = (salesData?.sales || []) as any[];
+  const pagination = (salesData as any)?.pagination;
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "partial" | "pending" | "returned">("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
-  const [isLoaded, setIsLoaded] = useState(false);
   const [viewingSale, setViewingSale] = useState<Sale | null>(null);
   const [printingSale, setPrintingSale] = useState<Sale | null>(null);
   const [returningSale, setReturningSale] = useState<Sale | null>(null);
-
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
   // Filter sales
   const filteredSales = useMemo(() => {
@@ -516,23 +564,39 @@ export default function SalesPage() {
   }, [sales, statusFilter, dateFilter, searchQuery]);
 
   // Stats
-  const stats = useMemo(() => ({
-    total: sales.length,
-    totalAmount: sales.reduce((sum, s) => sum + s.grandTotal, 0),
-    totalProfit: sales.reduce((sum, s) => sum + s.totalProfit, 0),
-    totalDue: sales.reduce((sum, s) => sum + s.dueAmount, 0),
-    dueCount: sales.filter((s) => s.dueAmount > 0).length,
+  // Stats from API (all data, not just current page)
+  const apiStats = (salesData as any)?.stats;
+  const stats = {
+    total: apiStats?.total || sales.length,
+    totalAmount: apiStats?.totalAmount || sales.reduce((sum, s) => sum + s.grandTotal, 0),
+    totalProfit: apiStats?.totalProfit || sales.reduce((sum, s) => sum + s.totalProfit, 0),
+    totalDue: apiStats?.totalDue || sales.reduce((sum, s) => sum + s.dueAmount, 0),
+    dueCount: apiStats?.dueCount || sales.filter((s) => s.dueAmount > 0).length,
     returnedCount: sales.filter((s) => s.status === "returned" || s.status === "partially_returned").length,
-  }), [sales]);
+  };
 
-  const handleViewSale = (sale: Sale) => {
-    setViewingSale(sale);
+  const handleViewSale = async (sale: Sale) => {
+    try {
+      const fullSale = await apiClient.get(`/api/sales/${sale.id}`);
+      setViewingSale(fullSale as Sale);
+    } catch {
+      setViewingSale(sale);
+    }
   };
 
   const handlePrintFromDetail = () => {
     if (viewingSale) {
       setPrintingSale(viewingSale);
       setViewingSale(null);
+    }
+  };
+
+  const handlePrintSale = async (sale: Sale) => {
+    try {
+      const fullSale = await apiClient.get(`/api/sales/${sale.id}`);
+      setPrintingSale(fullSale as Sale);
+    } catch {
+      setPrintingSale(sale);
     }
   };
 
@@ -548,7 +612,7 @@ export default function SalesPage() {
     // Optionally show a toast
   };
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
@@ -608,7 +672,7 @@ export default function SalesPage() {
           {(["all", "completed", "partial", "pending", "returned"] as const).map((status) => (
             <button
               key={status}
-              onClick={() => setStatusFilter(status)}
+              onClick={() => { setStatusFilter(status); setPage(1); }}
               className={`rounded-full px-4 py-2 text-sm font-medium capitalize transition-all ${
                 statusFilter === status
                   ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
@@ -623,7 +687,7 @@ export default function SalesPage() {
         {/* Date Filter */}
         <select
           value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
+          onChange={(e) => { setDateFilter(e.target.value as typeof dateFilter); setPage(1); }}
           className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
         >
           <option value="all">All Time</option>
@@ -640,7 +704,7 @@ export default function SalesPage() {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             placeholder="Search by invoice, customer..."
             className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
@@ -731,7 +795,7 @@ export default function SalesPage() {
       {/* Results count */}
       {filteredSales.length > 0 && (
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Showing {filteredSales.length} of {sales.length} invoices
+          Showing {filteredSales.length} of {pagination?.total || sales.length} invoices
         </p>
       )}
 
@@ -762,6 +826,23 @@ export default function SalesPage() {
           onSuccess={handleReturnSuccess}
         />
       )}
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+        />
+      )}
     </div>
+  );
+}
+
+export default function SalesPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[400px] items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div></div>}>
+      <SalesPageContent />
+    </Suspense>
   );
 }

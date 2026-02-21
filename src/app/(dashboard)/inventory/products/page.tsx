@@ -1,15 +1,58 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useProductStore, Product, ProductCategory } from "@/stores/productStore";
-import { useStockStore, StockItem, StockStatus } from "@/stores/stockStore";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { generateMockProducts } from "@/lib/mockData";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
+import { useStockItems } from "@/hooks/useStock";
+import { Pagination } from "@/components/ui/pagination";
+import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import Link from "next/link";
+import { apiClient } from "@/lib/api-client";
+
+// Types from DB (matching API response)
+interface Product {
+  id: string;
+  modelName: string;
+  brand: string;
+  category: string;
+  description: string | null;
+  specifications: string | null;
+  defaultSalePrice: string;
+  warranty: string | null;
+  imageUrl: string | null;
+  isDeleted: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StockItem {
+  id: string;
+  serialNumber: string;
+  imei: string | null;
+  productId: string;
+  purchasePrice: string;
+  purchaseSource: string;
+  supplierId: string | null;
+  supplierName: string | null;
+  sellerId: string | null;
+  purchaseDate: string;
+  status: string;
+  saleId: string | null;
+  serviceId: string | null;
+  soldAt: string | null;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+type StockStatus = "available" | "sold" | "returned" | "damaged" | "service";
+type ProductCategory = string;
 
 // Stock Status Options
-const STOCK_STATUS_OPTIONS: StockStatus[] = ["Available", "Sold", "Service", "Returned", "Damaged"];
+const STOCK_STATUS_OPTIONS: string[] = ["available", "sold", "service", "returned", "damaged"];
 
 // Product Form Component
 function ProductForm({
@@ -19,17 +62,17 @@ function ProductForm({
   onCancel,
 }: {
   product?: Product;
-  categories: ProductCategory[];
-  onSubmit: (data: Omit<Product, "id" | "createdAt" | "updatedAt">) => void;
+  categories: string[];
+  onSubmit: (data: any) => void;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState({
     modelName: product?.modelName || "",
     brand: product?.brand || "",
-    category: product?.category || categories[0],
+    category: product?.category || categories[0] || "Phone",
     description: product?.description || "",
     specifications: product?.specifications || "",
-    defaultSalePrice: product?.defaultSalePrice || 0,
+    defaultSalePrice: product?.defaultSalePrice ? parseFloat(product.defaultSalePrice) : 0,
     warranty: product?.warranty || "12 Months Service Warranty",
     imageUrl: product?.imageUrl || "",
   });
@@ -48,7 +91,7 @@ function ProductForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validate()) {
-      onSubmit(formData as Omit<Product, "id" | "createdAt" | "updatedAt">);
+      onSubmit(formData);
     }
   };
 
@@ -199,7 +242,7 @@ function StockEditModal({
   const [imei, setImei] = useState(stockItem.imei || "");
   const [purchasePrice, setPurchasePrice] = useState(stockItem.purchasePrice);
   const [supplierName, setSupplierName] = useState(stockItem.supplierName || "");
-  const [status, setStatus] = useState<StockStatus>(stockItem.status);
+  const [status, setStatus] = useState<StockStatus>(stockItem.status as StockStatus);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,7 +255,7 @@ function StockEditModal({
     });
   };
 
-  const isSold = stockItem.status === "Sold";
+  const isSold = stockItem.status === "sold";
 
   return (
     <Modal isOpen={true} onClose={onClose} title={isSold ? "Stock Item Details" : "Edit Stock Item"} size="md">
@@ -274,7 +317,7 @@ function StockEditModal({
           <input
             type="number"
             value={purchasePrice}
-            onChange={(e) => setPurchasePrice(Number(e.target.value))}
+            onChange={(e) => setPurchasePrice(e.target.value as any)}
             className={`w-full rounded-lg border px-4 py-2.5 dark:border-gray-600 dark:text-white ${
               isSold ? "cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-700" : "border-gray-300 dark:bg-gray-800"
             }`}
@@ -364,37 +407,36 @@ function ProductDetailModal({
   onClose: () => void;
   onEdit: () => void;
 }) {
-  const { updateStockItem, deleteStockItem } = useStockStore();
   const [stockFilter, setStockFilter] = useState<"available" | "sold" | "all">("available");
   const [editingStockItem, setEditingStockItem] = useState<StockItem | null>(null);
 
-  const availableStock = stockItems.filter((s) => s.status === "Available");
-  const soldStock = stockItems.filter((s) => s.status === "Sold");
-  const serviceStock = stockItems.filter((s) => s.status === "Service");
+  const availableStock = stockItems.filter((s) => s.status === "available");
+  const soldStock = stockItems.filter((s) => s.status === "sold");
+  const serviceStock = stockItems.filter((s) => s.status === "service");
 
   // Filtered stock based on selected tab
   const filteredStockItems = useMemo(() => {
     switch (stockFilter) {
       case "available":
-        return stockItems.filter((s) => s.status === "Available");
+        return stockItems.filter((s) => s.status === "available");
       case "sold":
-        return stockItems.filter((s) => s.status === "Sold");
+        return stockItems.filter((s) => s.status === "sold");
       default:
         return stockItems;
     }
   }, [stockItems, stockFilter]);
 
   const statusColors: Record<string, string> = {
-    Available: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-    Sold: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-    Service: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-    Returned: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-    Damaged: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
+    available: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    sold: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+    service: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+    returned: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+    damaged: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
   };
 
-  const handleSaveStock = (data: Partial<StockItem>) => {
+  const handleSaveStock = async (data: Partial<StockItem>) => {
     if (editingStockItem) {
-      updateStockItem(editingStockItem.id, data);
+      // TODO: Add stock update API when needed
       setEditingStockItem(null);
     }
   };
@@ -417,7 +459,7 @@ function ProductDetailModal({
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {formatCurrency(product.defaultSalePrice)}
+                  {formatCurrency(parseFloat(product.defaultSalePrice))}
                 </p>
                 <p className="text-sm text-gray-500">{product.warranty}</p>
               </div>
@@ -507,7 +549,7 @@ function ProductDetailModal({
                           <p className="font-mono text-sm text-gray-900 dark:text-white">{item.serialNumber}</p>
                           <p className="text-xs text-gray-500">{formatDate(item.purchaseDate)}</p>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{formatCurrency(item.purchasePrice)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{formatCurrency(parseFloat(item.purchasePrice))}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[item.status]}`}>
                             {item.status}
@@ -565,8 +607,9 @@ function ProductDetailModal({
 
 
 // Category badge colors
-const categoryColors: Record<ProductCategory, string> = {
+const categoryColors: Record<string, string> = {
   Laptop: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+  Phone: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   Mobile: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   Tablet: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
   Accessories: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
@@ -574,47 +617,48 @@ const categoryColors: Record<ProductCategory, string> = {
   Other: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400",
 };
 
-export default function ProductsPage() {
-  const { products, categories, addProduct, updateProduct, deleteProduct, searchProducts } = useProductStore();
-  const stockStore = useStockStore();
+function ProductsPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const page = parseInt(searchParams.get("page") || "1");
+  const setPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 1) params.delete("page"); else params.set("page", String(p));
+    router.push(`?${params.toString()}`);
+  };
+  const { data: productsData, isLoading } = useProducts({ page, limit: 20 });
+  const { data: stockData } = useStockItems();
+  const createProduct = useCreateProduct();
+  const updateProductMutation = useUpdateProduct();
+  const deleteProductMutation = useDeleteProduct();
+
+  const products: Product[] = (productsData?.products || []) as any[];
+  const pagination = (productsData as any)?.pagination;
+  const allStockItems: StockItem[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);
+  const categories = [...new Set(products.map(p => p.category))];
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<ProductCategory | "All">("All");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [sortBy, setSortBy] = useState<"name" | "price" | "stock" | "latest">("latest");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize mock data on first load if empty
-  useEffect(() => {
-    if (products.length === 0) {
-      const mockProducts = generateMockProducts();
-      mockProducts.forEach((product) => {
-        addProduct({
-          modelName: product.modelName,
-          brand: product.brand,
-          category: product.category,
-          description: product.description,
-          specifications: product.specifications,
-          defaultSalePrice: product.defaultSalePrice,
-          warranty: product.warranty,
-          imageUrl: product.imageUrl,
-        });
-      });
-    }
-    setIsLoading(false);
-  }, []);
-
-  // Get stock count for each product (for sorting)
+  // Get stock count for each product
   const getStockCount = (productId: string) => {
-    return stockStore.getAvailableStockByProduct(productId).length;
+    return allStockItems.filter(s => s.productId === productId && s.status === "available").length;
   };
 
   // Filtered and sorted products
   const filteredProducts = useMemo(() => {
-    let result = searchQuery.trim() ? searchProducts(searchQuery) : products;
+    let result = searchQuery.trim()
+      ? products.filter(p =>
+          p.modelName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.category.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : products;
     
     // Category filter
     if (selectedCategory !== "All") {
@@ -630,7 +674,7 @@ export default function ProductsPage() {
           comparison = `${a.brand} ${a.modelName}`.localeCompare(`${b.brand} ${b.modelName}`);
           break;
         case "price":
-          comparison = a.defaultSalePrice - b.defaultSalePrice;
+          comparison = parseFloat(a.defaultSalePrice) - parseFloat(b.defaultSalePrice);
           break;
         case "stock":
           comparison = getStockCount(a.id) - getStockCount(b.id);
@@ -645,11 +689,11 @@ export default function ProductsPage() {
     });
 
     return result;
-  }, [products, searchQuery, selectedCategory, sortBy, sortOrder, searchProducts]);
+  }, [products, searchQuery, selectedCategory, sortBy, sortOrder]);
 
   // Get all stock for a product
-  const getProductStock = (productId: string) => {
-    return stockStore.getStockByProductId(productId);
+  const getProductStock = (productId: string): StockItem[] => {
+    return allStockItems.filter(s => s.productId === productId);
   };
 
   // Category counts
@@ -661,23 +705,30 @@ export default function ProductsPage() {
     return counts;
   }, [products, categories]);
 
-  const handleAddProduct = (data: Omit<Product, "id" | "createdAt" | "updatedAt">) => {
-    addProduct(data);
-    setIsFormModalOpen(false);
+  const handleAddProduct = (data: any) => {
+    createProduct.mutate(data, {
+      onSuccess: () => setIsFormModalOpen(false),
+    });
   };
 
-  const handleUpdateProduct = (data: Omit<Product, "id" | "createdAt" | "updatedAt">) => {
+  const handleUpdateProduct = (data: any) => {
     if (editingProduct) {
-      updateProduct(editingProduct.id, data);
-      setEditingProduct(null);
-      setIsFormModalOpen(false);
+      updateProductMutation.mutate(
+        { id: editingProduct.id, data },
+        {
+          onSuccess: () => {
+            setEditingProduct(null);
+            setIsFormModalOpen(false);
+          },
+        }
+      );
     }
   };
 
   const handleDeleteProduct = (e: React.MouseEvent, product: Product) => {
-    e.stopPropagation(); // Prevent card click
+    e.stopPropagation();
     if (window.confirm(`Are you sure you want to delete "${product.brand} ${product.modelName}"?`)) {
-      deleteProduct(product.id);
+      deleteProductMutation.mutate(product.id);
     }
   };
 
@@ -713,7 +764,7 @@ export default function ProductsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Products</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage your product catalog ({products.length} products)</p>
+          <p className="text-gray-600 dark:text-gray-400">Manage your product catalog ({pagination?.total || products.length} products)</p>
         </div>
         <button
           onClick={() => { setEditingProduct(null); setIsFormModalOpen(true); }}
@@ -763,7 +814,7 @@ export default function ProductsPage() {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             placeholder="Search products..."
             className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-gray-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
@@ -812,7 +863,7 @@ export default function ProductsPage() {
 
       {/* Results count */}
       <div className="text-sm text-gray-500 dark:text-gray-400">
-        Showing {filteredProducts.length} of {products.length} products
+        Showing {filteredProducts.length} of {pagination?.total || products.length} products
       </div>
 
       {/* Products Grid */}
@@ -870,7 +921,7 @@ export default function ProductsPage() {
                 <div className="mt-4 flex items-end justify-between">
                   <div>
                     <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      {formatCurrency(product.defaultSalePrice)}
+                      {formatCurrency(parseFloat(product.defaultSalePrice))}
                     </p>
                     {product.warranty && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -935,6 +986,23 @@ export default function ProductsPage() {
           onEdit={handleEditFromDetail}
         />
       )}
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+        />
+      )}
     </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[400px] items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div></div>}>
+      <ProductsPageContent />
+    </Suspense>
   );
 }

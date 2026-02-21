@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useExpenseStore, ExpenseCategory } from "@/stores/expenseStore";
-import { PaymentMethod } from "@/stores/salesStore";
+import { useCreateExpense } from "@/hooks/useExpenses";
 import Link from "next/link";
+
+type ExpenseCategory = "Rent" | "Utilities" | "Salary" | "Transport" | "Food" | "Repairs" | "Marketing" | "Supplies" | "Miscellaneous";
+type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer";
+
+const CATEGORIES: ExpenseCategory[] = ["Rent", "Utilities", "Salary", "Transport", "Food", "Repairs", "Marketing", "Supplies", "Miscellaneous"];
 
 export default function NewExpensePage() {
   const router = useRouter();
-  const { addExpense, categories } = useExpenseStore();
-  const [isLoaded, setIsLoaded] = useState(false);
+  const createExpenseMutation = useCreateExpense();
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -24,9 +27,6 @@ export default function NewExpensePage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -40,7 +40,7 @@ export default function NewExpensePage() {
     e.preventDefault();
     if (!validate()) return;
 
-    addExpense({
+    createExpenseMutation.mutate({
       date: formData.date,
       category: formData.category,
       description: formData.description,
@@ -50,21 +50,14 @@ export default function NewExpensePage() {
       receipt: formData.receipt || undefined,
       notes: formData.notes || undefined,
       createdBy: "admin",
+    } as any, {
+      onSuccess: () => router.push("/expenses"),
     });
-
-    router.push("/expenses");
   };
 
   // Quick amount buttons
   const quickAmounts = [100, 500, 1000, 2000, 5000, 10000];
 
-  if (!isLoaded) {
-    return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -108,7 +101,7 @@ export default function NewExpensePage() {
                 onChange={(e) => setFormData({ ...formData, category: e.target.value as ExpenseCategory })}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               >
-                {categories.map((cat) => (
+                {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>

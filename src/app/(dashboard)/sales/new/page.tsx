@@ -2,14 +2,63 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useSalesStore, Sale, SaleItem, PaymentMethod, calculateSaleItem, calculateSaleTotals } from "@/stores/salesStore";
-import { useCustomerStore, Customer } from "@/stores/customerStore";
-import { useProductStore } from "@/stores/productStore";
-import { useStockStore, StockItem } from "@/stores/stockStore";
+import { useCustomers } from "@/hooks/useCustomers";
+import { useProducts } from "@/hooks/useProducts";
+import { useStockItems } from "@/hooks/useStock";
+import { apiClient } from "@/lib/api-client";
 import { formatCurrency } from "@/lib/utils";
 import { AddCustomerModal } from "@/components/customers/customer-modals";
 import { InvoicePrintModal } from "@/components/invoice/invoice-print";
 import Link from "next/link";
+
+type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer";
+
+interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  [key: string]: any;
+}
+
+interface Product {
+  id: string;
+  modelName: string;
+  brand: string;
+  category: string;
+  defaultSalePrice: string;
+  warranty: string;
+  [key: string]: any;
+}
+
+interface StockItem {
+  id: string;
+  serialNumber: string;
+  productId: string;
+  purchasePrice: string;
+  status: string;
+  [key: string]: any;
+}
+
+interface SaleItem {
+  id: string;
+  productId: string;
+  stockItemId: string;
+  serialNumber: string;
+  productName: string;
+  warranty: string;
+  quantity: number;
+  salePrice: number;
+  purchasePrice: number;
+  discount: number;
+  amount: number;
+  profit: number;
+}
+
+interface Sale {
+  id: string;
+  invoiceNumber: string;
+  [key: string]: any;
+}
 
 type Step = 1 | 2 | 3;
 
@@ -25,20 +74,20 @@ function CustomerCombobox({
   onSelect: (customer: Customer | null) => void;
   onAddNew: (searchQuery: string) => void;
 }) {
-  const { customers, searchCustomers } = useCustomerStore();
+  const { data: customersData } = useCustomers();
+  const customers: Customer[] = (customersData?.customers || []) as any[];
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Only search when 3+ characters
   const shouldSearch = query.trim().length >= MIN_SEARCH_LENGTH;
 
-  // Filtered customers
   const filteredCustomers = useMemo(() => {
     if (!shouldSearch) return [];
-    return searchCustomers(query).slice(0, 10);
-  }, [query, shouldSearch, searchCustomers]);
+    const q = query.toLowerCase();
+    return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone?.includes(q)).slice(0, 10);
+  }, [query, shouldSearch, customers]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -208,19 +257,29 @@ function SerialCombobox({
   onSelectSerial: (stockItem: StockItem) => void;
   addedSerials: string[];
 }) {
-  const stockStore = useStockStore();
-  const productStore = useProductStore();
+  const { data: stockData } = useStockItems();
+  const { data: productsData } = useProducts();
+  // Stock data returns StockItemWithProduct[] → flatten to StockItem[]
+  const rawStockItems = stockData?.stockItems || [];
+  const allStockItems: StockItem[] = rawStockItems.map((s: any) => ({
+    id: s.stockItem?.id || s.id,
+    serialNumber: s.stockItem?.serialNumber || s.serialNumber,
+    productId: s.stockItem?.productId || s.productId,
+    purchasePrice: s.stockItem?.purchasePrice || s.purchasePrice,
+    status: s.stockItem?.status || s.status,
+    ...(s.stockItem || s),
+  }));
+  const allProducts: Product[] = (productsData?.products || []) as any[];
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Get available stock items
   const availableStock = useMemo(() => {
-    return stockStore.stockItems.filter(
+    return allStockItems.filter(
       (item) => item.status === "Available" && !addedSerials.includes(item.serialNumber)
     );
-  }, [stockStore.stockItems, addedSerials]);
+  }, [allStockItems, addedSerials]);
 
   // Filter by query (min 3 chars)
   const shouldSearch = query.trim().length >= MIN_SEARCH_LENGTH;
@@ -230,10 +289,8 @@ function SerialCombobox({
     const q = query.toUpperCase();
     return availableStock
       .filter((item) => {
-        // Search by serial number
         if (item.serialNumber.includes(q)) return true;
-        // Search by product name
-        const product = productStore.products.find((p) => p.id === item.productId);
+        const product = allProducts.find((p) => p.id === item.productId);
         if (product) {
           const productName = `${product.brand} ${product.modelName}`.toUpperCase();
           if (productName.includes(q)) return true;
@@ -241,7 +298,7 @@ function SerialCombobox({
         return false;
       })
       .slice(0, 10);
-  }, [query, shouldSearch, availableStock, productStore.products]);
+  }, [query, shouldSearch, availableStock, allProducts]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -267,7 +324,7 @@ function SerialCombobox({
   };
 
   const getProductName = (productId: string) => {
-    const product = productStore.products.find((p) => p.id === productId);
+    const product = allProducts.find((p) => p.id === productId);
     return product ? `${product.brand} ${product.modelName}` : "Unknown Product";
   };
 
@@ -371,12 +428,10 @@ function SerialCombobox({
 
 export default function NewSalePage() {
   const router = useRouter();
-  const salesStore = useSalesStore();
-  const productStore = useProductStore();
-  const stockStore = useStockStore();
+  const { data: productsData } = useProducts();
+  const products: Product[] = (productsData?.products || []) as any[];
 
   const [step, setStep] = useState<Step>(1);
-  const [isLoaded, setIsLoaded] = useState(false);
 
   // Step 1: Customer
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -397,18 +452,17 @@ export default function NewSalePage() {
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
 
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
   // Handle new customer added
   const handleCustomerAdded = (customer: Customer) => {
     setSelectedCustomer(customer);
   };
 
-  // Calculate totals
   const totals = useMemo(() => {
-    return calculateSaleTotals(saleItems, discount, 0);
+    const subtotal = saleItems.reduce((sum, item) => sum + item.amount, 0);
+    const grandTotal = subtotal - discount;
+    const totalProfit = saleItems.reduce((sum, item) => sum + item.profit, 0) - discount;
+    return { subtotal, grandTotal, totalProfit };
   }, [saleItems, discount]);
 
   // Calculate remaining amount
@@ -420,11 +474,13 @@ export default function NewSalePage() {
 
   // Add item from stock selection
   const handleAddFromStock = (stockItem: StockItem) => {
-    const product = productStore.products.find((p) => p.id === stockItem.productId);
+    const product = products.find((p) => p.id === stockItem.productId);
     if (!product) return;
 
-    const salePrice = product.defaultSalePrice;
-    const { amount, profit } = calculateSaleItem(salePrice, stockItem.purchasePrice, 0);
+    const salePrice = parseFloat(product.defaultSalePrice);
+    const purchasePrice = parseFloat(stockItem.purchasePrice as string) || 0;
+    const amount = salePrice;
+    const profit = salePrice - purchasePrice;
 
     const newItem: SaleItem = {
       id: `item_${Date.now()}`,
@@ -432,10 +488,10 @@ export default function NewSalePage() {
       stockItemId: stockItem.id,
       serialNumber: stockItem.serialNumber,
       productName: `${product.brand} ${product.modelName}`,
-      warranty: product.warranty,
+      warranty: product.warranty || '',
       quantity: 1,
       salePrice,
-      purchasePrice: stockItem.purchasePrice,
+      purchasePrice,
       discount: 0,
       amount,
       profit,
@@ -450,14 +506,14 @@ export default function NewSalePage() {
   };
 
   // Update item price
-  const handleUpdatePrice = (itemId: string, newPrice: number) => {
+  const handleUpdatePrice = (itemId: string, newSalePrice: number) => {
     setSaleItems(
       saleItems.map((item) => {
         if (item.id !== itemId) return item;
 
-        // Allow any price but calculate proper profit (can be negative)
-        const { amount, profit } = calculateSaleItem(newPrice, item.purchasePrice, item.discount);
-        return { ...item, salePrice: newPrice, amount, profit };
+        const newAmount = newSalePrice - item.discount;
+        const newProfit = newAmount - item.purchasePrice;
+        return { ...item, salePrice: newSalePrice, amount: newAmount, profit: newProfit };
       })
     );
   };
@@ -484,43 +540,42 @@ export default function NewSalePage() {
   };
 
   // Submit sale
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedCustomer) return;
     if (saleItems.length === 0) return;
 
-    // Create sale
-    const sale = salesStore.createSale({
-      invoiceDate: new Date().toISOString(),
-      customerId: selectedCustomer.id,
-      customerName: selectedCustomer.name,
-      customerPhone: selectedCustomer.phone,
-      items: saleItems,
-      subtotal: totals.subtotal,
-      discountAmount: discount,
-      taxPercent: 0,
-      taxAmount: 0,
-      grandTotal: totals.grandTotal,
-      payments: payments.map((p, i) => ({
-        id: `pay_${Date.now()}_${i}`,
-        ...p,
-        paidAt: new Date().toISOString(),
-      })),
-      paidAmount: paidTotal,
-      dueAmount: remaining > 0 ? remaining : 0,
-      totalProfit: totals.totalProfit,
-      status: remaining <= 0 ? "completed" : paidTotal > 0 ? "partial" : "pending",
-      notes,
-      createdBy: "admin",
-    });
+    try {
+      const saleData = {
+        invoiceDate: new Date().toISOString(),
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
+        customerPhone: selectedCustomer.phone,
+        items: saleItems,
+        subtotal: totals.subtotal,
+        discountAmount: discount,
+        taxPercent: 0,
+        taxAmount: 0,
+        grandTotal: totals.grandTotal,
+        payments: payments.map((p, i) => ({
+          id: `pay_${Date.now()}_${i}`,
+          ...p,
+          paidAt: new Date().toISOString(),
+        })),
+        paidAmount: paidTotal,
+        dueAmount: remaining > 0 ? remaining : 0,
+        totalProfit: totals.totalProfit,
+        status: remaining <= 0 ? "completed" : paidTotal > 0 ? "partial" : "pending",
+        notes,
+        createdBy: "admin",
+      };
 
-    // Mark stock items as sold
-    saleItems.forEach((item) => {
-      stockStore.markAsSold(item.stockItemId, sale.id);
-    });
+      const sale = await apiClient.post("/api/sales", saleData) as Sale;
 
-    // Show print modal with completed sale
-    setCompletedSale(sale);
-    setShowPrintModal(true);
+      setCompletedSale(sale);
+      setShowPrintModal(true);
+    } catch (error) {
+      console.error("Error creating sale:", error);
+    }
   };
 
   // Handle closing print modal and redirecting
@@ -529,7 +584,7 @@ export default function NewSalePage() {
     router.push("/sales");
   };
 
-  if (!isLoaded) {
+  if (false) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
@@ -839,7 +894,7 @@ export default function NewSalePage() {
       {/* Print Invoice Modal */}
       {completedSale && (
         <InvoicePrintModal
-          sale={completedSale}
+          sale={completedSale as any}
           isOpen={showPrintModal}
           onClose={handleClosePrintModal}
         />

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useSalesStore } from "@/stores/salesStore";
-import { useServiceStore } from "@/stores/serviceStore";
-import { useExpenseStore } from "@/stores/expenseStore";
-import { useStockStore } from "@/stores/stockStore";
-import { useCustomerStore } from "@/stores/customerStore";
-import { useActivityLogStore } from "@/stores/activityLogStore";
+import { useSales } from "@/hooks/useSales";
+import { useServices } from "@/hooks/useServices";
+import { useExpenses } from "@/hooks/useExpenses";
+import { useStockItems } from "@/hooks/useStock";
+import { useCustomers } from "@/hooks/useCustomers";
 import { formatCurrency, formatDate, downloadCSV } from "@/lib/utils";
 
 type ReportType = "sales" | "profit" | "inventory" | "service" | "expense" | "activity";
@@ -19,22 +18,26 @@ export default function ReportsPage() {
   const [logSearch, setLogSearch] = useState("");
   const [logActionFilter, setLogActionFilter] = useState<string>("all");
 
-  const salesStore = useSalesStore();
-  const serviceStore = useServiceStore();
-  const expenseStore = useExpenseStore();
-  const stockStore = useStockStore();
-  const customerStore = useCustomerStore();
-  const logStore = useActivityLogStore();
+  const { data: salesData } = useSales();
+  const { data: servicesData } = useServices();
+  const { data: expensesData } = useExpenses();
+  const { data: stockData } = useStockItems();
+  const { data: customersData } = useCustomers();
+
+  const salesList = (salesData as any)?.sales || [];
+  const servicesList = (servicesData as any)?.services || [];
+  const expensesList = (expensesData as any)?.expenses || [];
+  const stockItemsList = (stockData as any)?.stockItems || [];
 
   useEffect(() => {
     setIsLoaded(true);
   }, []);
 
   // Date filtering helper
-  const filterByDate = <T extends { createdAt?: string; invoiceDate?: string; date?: string; timestamp?: string }>(
-    items: T[],
-    dateField: keyof T
-  ): T[] => {
+  const filterByDate = (
+    items: any[],
+    dateField: string
+  ): any[] => {
     if (dateRange === "all") return items;
     
     const now = new Date();
@@ -60,64 +63,74 @@ export default function ReportsPage() {
 
   // Sales Report Data
   const salesReport = useMemo(() => {
-    const filtered = filterByDate(salesStore.sales, "invoiceDate");
+    const filtered = filterByDate(salesList, "invoiceDate");
     return {
       totalSales: filtered.length,
-      totalRevenue: filtered.reduce((sum, s) => sum + s.grandTotal, 0),
-      totalProfit: filtered.reduce((sum, s) => sum + s.totalProfit, 0),
-      totalDue: filtered.reduce((sum, s) => sum + s.dueAmount, 0),
-      avgOrderValue: filtered.length > 0 ? Math.round(filtered.reduce((sum, s) => sum + s.grandTotal, 0) / filtered.length) : 0,
+      totalRevenue: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.grandTotal) || 0), 0),
+      totalProfit: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.totalProfit) || 0), 0),
+      totalDue: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.dueAmount) || 0), 0),
+      avgOrderValue: filtered.length > 0 ? Math.round(filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.grandTotal) || 0), 0) / filtered.length) : 0,
       items: filtered.slice(0, 10),
     };
-  }, [salesStore.sales, dateRange]);
+  }, [salesList, dateRange]);
 
   // Inventory Report Data
   const inventoryReport = useMemo(() => {
-    const available = stockStore.stockItems.filter((s) => s.status === "Available");
-    const sold = stockStore.stockItems.filter((s) => s.status === "Sold");
-    const service = stockStore.stockItems.filter((s) => s.status === "Service");
+    // stockItemsList is StockItemWithProduct[] -> flatten
+    const flatStock = stockItemsList.map((s: any) => s.stockItem || s);
+    const available = flatStock.filter((s: any) => s.status === "Available");
+    const sold = flatStock.filter((s: any) => s.status === "Sold");
+    const service = flatStock.filter((s: any) => s.status === "Service");
     return {
-      totalItems: stockStore.stockItems.length,
+      totalItems: flatStock.length,
       available: available.length,
       sold: sold.length,
       inService: service.length,
-      stockValue: available.reduce((sum, s) => sum + s.purchasePrice, 0),
+      stockValue: available.reduce((sum: number, s: any) => sum + (parseFloat(s.purchasePrice) || 0), 0),
     };
-  }, [stockStore.stockItems]);
+  }, [stockItemsList]);
 
   // Service Report Data
   const serviceReport = useMemo(() => {
-    const filtered = filterByDate(serviceStore.services, "createdAt");
-    const completed = filtered.filter((s) => s.status === "Completed" || s.status === "Delivered");
+    const filtered = filterByDate(servicesList, "createdAt");
+    const completed = filtered.filter((s: any) => s.status === "Completed" || s.status === "Delivered");
     return {
       totalServices: filtered.length,
       completed: completed.length,
       pending: filtered.length - completed.length,
-      totalRevenue: filtered.reduce((sum, s) => sum + s.totalCost, 0),
-      totalDue: filtered.reduce((sum, s) => sum + s.dueAmount, 0),
+      totalRevenue: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.totalCost) || 0), 0),
+      totalDue: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.dueAmount) || 0), 0),
     };
-  }, [serviceStore.services, dateRange]);
+  }, [servicesList, dateRange]);
 
   // Expense Report Data
   const expenseReport = useMemo(() => {
-    const filtered = filterByDate(expenseStore.expenses, "date");
-    const byCategory = expenseStore.getCategoryBreakdown();
+    const filtered = filterByDate(expensesList, "date");
+    // Build category breakdown from expenses
+    const categoryMap: Record<string, number> = {};
+    filtered.forEach((e: any) => {
+      const cat = e.category || 'Other';
+      categoryMap[cat] = (categoryMap[cat] || 0) + (parseFloat(e.amount) || 0);
+    });
+    const byCategory = Object.entries(categoryMap)
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => b.total - a.total);
     return {
       totalExpenses: filtered.length,
-      totalAmount: filtered.reduce((sum, e) => sum + e.amount, 0),
-      avgExpense: filtered.length > 0 ? Math.round(filtered.reduce((sum, e) => sum + e.amount, 0) / filtered.length) : 0,
+      totalAmount: filtered.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0),
+      avgExpense: filtered.length > 0 ? Math.round(filtered.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0) / filtered.length) : 0,
       topCategories: byCategory.slice(0, 5),
     };
-  }, [expenseStore.expenses, dateRange]);
+  }, [expensesList, dateRange]);
 
   // Profit Report Data
   const profitReport = useMemo(() => {
-    const salesFiltered = filterByDate(salesStore.sales, "invoiceDate");
-    const expenseFiltered = filterByDate(expenseStore.expenses, "date");
+    const salesFiltered = filterByDate(salesList, "invoiceDate");
+    const expenseFiltered = filterByDate(expensesList, "date");
     
-    const totalRevenue = salesFiltered.reduce((sum, s) => sum + s.grandTotal, 0);
-    const totalProfit = salesFiltered.reduce((sum, s) => sum + s.totalProfit, 0);
-    const totalExpenses = expenseFiltered.reduce((sum, e) => sum + e.amount, 0);
+    const totalRevenue = salesFiltered.reduce((sum: number, s: any) => sum + (parseFloat(s.grandTotal) || 0), 0);
+    const totalProfit = salesFiltered.reduce((sum: number, s: any) => sum + (parseFloat(s.totalProfit) || 0), 0);
+    const totalExpenses = expenseFiltered.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
     const netProfit = totalProfit - totalExpenses;
     
     return {
@@ -127,12 +140,12 @@ export default function ReportsPage() {
       netProfit,
       profitMargin: totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0,
     };
-  }, [salesStore.sales, expenseStore.expenses, dateRange]);
+  }, [salesList, expensesList, dateRange]);
 
   // Export handlers
   const handleExport = () => {
     if (selectedReport === "sales") {
-      const data = salesStore.sales.map((s) => ({
+      const data = salesList.map((s: any) => ({
         Invoice: s.invoiceNumber,
         Date: formatDate(s.invoiceDate),
         Customer: s.customerName,
@@ -144,7 +157,7 @@ export default function ReportsPage() {
       }));
       downloadCSV(data, `sales-report-${new Date().toISOString().split("T")[0]}`);
     } else if (selectedReport === "expense") {
-      const data = expenseStore.expenses.map((e) => ({
+      const data = expensesList.map((e: any) => ({
         Number: e.expenseNumber,
         Date: formatDate(e.date),
         Category: e.category,
@@ -153,45 +166,17 @@ export default function ReportsPage() {
         Method: e.paymentMethod,
         PaidBy: e.paidBy,
       }));
+      downloadCSV(data, `expense-report-${new Date().toISOString().split("T")[0]}`);
     } else if (selectedReport === "activity") {
-      const filtered = filterByDate(logStore.logs, "timestamp");
-      const data = filtered.map((l) => ({
-        Time: formatDate(l.timestamp, "datetime"),
-        Action: l.action,
-        User: l.userName,
-        Role: l.userRole || "N/A",
-        IP_Address: l.ipAddress || "Unknown",
-        Details: l.details,
-        EntityID: l.entityId || "N/A",
-      }));
-      downloadCSV(data, `activity-logs-${new Date().toISOString().split("T")[0]}`);
+      // Activity logs not yet available from API
     }
   };
 
   const handleClearLogs = () => {
-    if (window.confirm("Are you sure you want to permanently clear all activity logs? This action cannot be undone.")) {
-      logStore.clearLogs();
-    }
+    // Not needed in API mode
   };
 
-  const filteredLogs = useMemo(() => {
-    let logs = filterByDate(logStore.logs, "timestamp");
-    
-    if (logActionFilter !== "all") {
-      logs = logs.filter(l => l.action === logActionFilter);
-    }
-    
-    if (logSearch) {
-      const query = logSearch.toLowerCase();
-      logs = logs.filter(l => 
-        l.details.toLowerCase().includes(query) || 
-        l.userName.toLowerCase().includes(query) ||
-        l.action.toLowerCase().includes(query)
-      );
-    }
-    
-    return logs;
-  }, [logStore.logs, dateRange, logSearch, logActionFilter]);
+  const filteredLogs: any[] = [];
 
 
   if (!isLoaded) {

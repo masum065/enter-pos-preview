@@ -1,14 +1,43 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useStockStore, StockItem, StockStatus } from "@/stores/stockStore";
-import { useProductStore, Product } from "@/stores/productStore";
+import { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useStockItems, useUpdateStockStatus } from "@/hooks/useStock";
+import { useProducts } from "@/hooks/useProducts";
+import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
-import { generateMockProducts, generateMockStock } from "@/lib/mockData";
 import { Modal } from "@/components/ui/modal";
 import Link from "next/link";
-import { useCustomerStore } from "@/stores/customerStore";
-import { usePurchaseStore } from "@/stores/purchaseStore";
+import { apiClient } from "@/lib/api-client";
+
+interface Product {
+  id: string;
+  modelName: string;
+  brand: string;
+  category: string;
+  defaultSalePrice: string;
+  description: string | null;
+  [key: string]: any;
+}
+
+interface StockItem {
+  id: string;
+  serialNumber: string;
+  imei: string | null;
+  productId: string;
+  purchasePrice: string;
+  supplierName: string | null;
+  purchaseSource: string;
+  purchaseDate: string;
+  status: string;
+  soldAt: string | null;
+  sellerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: any;
+}
+
+type StockStatus = "Available" | "Sold" | "Service" | "Returned" | "Damaged";
 
 // Searchable Product Select Component
 function ProductSearchSelect({
@@ -168,72 +197,36 @@ function ProductSearchSelect({
 
 // Seller Display Component
 function SellerDisplay({ sellerId }: { sellerId: string }) {
-  const { customers } = useCustomerStore();
-  const seller = customers.find((c) => c.id === sellerId);
-  return <p className="text-sm font-medium text-gray-900 dark:text-white">{seller?.name || "Unknown Customer"}</p>;
+  return <p className="text-sm font-medium text-gray-900 dark:text-white">Seller</p>;
 }
 
 // Status filter tabs
 const STATUS_OPTIONS: (StockStatus | "All")[] = ["All", "Available", "Sold", "Service", "Returned", "Damaged"];
 const STOCK_STATUS_OPTIONS: StockStatus[] = ["Available", "Sold", "Service", "Returned", "Damaged"];
 
-export default function StockPage() {
-  const { stockItems, getAvailableStockCount, getSoldStockCount, getTotalStockValue, updateStockItem, deleteStockItem } = useStockStore();
-  const { products, addProduct } = useProductStore();
-  const stockStore = useStockStore();
-  const productStore = useProductStore();
+function StockPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const page = parseInt(searchParams.get("page") || "1");
+  const setPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 1) params.delete("page"); else params.set("page", String(p));
+    router.push(`?${params.toString()}`);
+  };
+  const { data: stockData, isLoading } = useStockItems({ page, limit: 20 });
+  const { data: productsData } = useProducts();
+  const updateStockMutation = useUpdateStockStatus();
+
+  const stockItems: StockItem[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);
+  const products: Product[] = (productsData?.products || []) as any[];
+  const pagination = (stockData as any)?.pagination;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<StockStatus | "All">("All");
   const [selectedProduct, setSelectedProduct] = useState<string>("All");
-  const [selectedSource, setSelectedSource] = useState<"All" | "supplier" | "local">("All"); // Source filter
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedSource, setSelectedSource] = useState<"All" | "supplier" | "local">("All");
   const [editingStockItem, setEditingStockItem] = useState<StockItem | null>(null);
   const [viewingStockItem, setViewingStockItem] = useState<StockItem | null>(null);
-
-  // Initialize mock data
-  useEffect(() => {
-    let loadedProducts = products;
-    
-    if (products.length === 0) {
-      const mockProducts = generateMockProducts();
-      mockProducts.forEach((product) => {
-        productStore.addProduct({
-          modelName: product.modelName,
-          brand: product.brand,
-          category: product.category,
-          description: product.description,
-          specifications: product.specifications,
-          defaultSalePrice: product.defaultSalePrice,
-          warranty: product.warranty,
-          imageUrl: product.imageUrl,
-        });
-      });
-      loadedProducts = productStore.products;
-    }
-
-    if (stockItems.length === 0 && loadedProducts.length > 0) {
-      const mockStock = generateMockStock(loadedProducts, 5);
-      mockStock.forEach((item) => {
-        try {
-          stockStore.addStockItem({
-            serialNumber: item.serialNumber,
-            imei: item.imei,
-            productId: item.productId,
-            purchasePrice: item.purchasePrice,
-            supplierName: item.supplierName,
-            purchaseSource: item.purchaseSource,
-            purchaseDate: item.purchaseDate,
-            status: item.status,
-            soldAt: item.soldAt,
-          });
-        } catch (e) {
-          // Skip duplicates
-        }
-      });
-    }
-    setIsLoading(false);
-  }, []);
 
   // Get product name by ID
   const getProductName = (productId: string): string => {
@@ -245,22 +238,15 @@ export default function StockPage() {
   const filteredStock = useMemo(() => {
     let result = stockItems;
     
-    // Filter by status
     if (selectedStatus !== "All") {
       result = result.filter((s) => s.status === selectedStatus);
     }
-    
-    // Filter by product
     if (selectedProduct !== "All") {
       result = result.filter((s) => s.productId === selectedProduct);
     }
-    
-    // Filter by source
     if (selectedSource !== "All") {
       result = result.filter((s) => s.purchaseSource === selectedSource);
     }
-    
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter((s) => 
@@ -274,13 +260,14 @@ export default function StockPage() {
     return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [stockItems, selectedStatus, selectedProduct, selectedSource, searchQuery, products]);
 
-  // Stats
-  const stats = useMemo(() => ({
-    total: stockItems.length,
-    available: getAvailableStockCount(),
-    sold: getSoldStockCount(),
-    stockValue: getTotalStockValue(),
-  }), [stockItems, getAvailableStockCount, getSoldStockCount, getTotalStockValue]);
+  // Stats from API (all data, not just current page)
+  const apiStats = (stockData as any)?.stats;
+  const stats = {
+    total: apiStats?.total || stockItems.length,
+    available: apiStats?.available || stockItems.filter(s => s.status === "Available").length,
+    sold: apiStats?.sold || stockItems.filter(s => s.status === "Sold").length,
+    stockValue: apiStats?.stockValue || 0,
+  };
 
   if (isLoading) {
     return (
@@ -375,7 +362,7 @@ export default function StockPage() {
           {STATUS_OPTIONS.map((status) => (
             <button
               key={status}
-              onClick={() => setSelectedStatus(status)}
+              onClick={() => { setSelectedStatus(status); setPage(1); }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
                 selectedStatus === status
                   ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
@@ -416,7 +403,7 @@ export default function StockPage() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               placeholder="Search by serial number..."
               className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
@@ -464,7 +451,7 @@ export default function StockPage() {
                       <p className="font-medium text-gray-900 dark:text-white">{getProductName(item.productId)}</p>
                     </td>
                     <td className="hidden px-6 py-4 md:table-cell">
-                      <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(item.purchasePrice)}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(parseFloat(item.purchasePrice))}</p>
                     </td>
                     <td className="hidden px-6 py-4 lg:table-cell">
                       {item.purchaseSource === "local" ? (
@@ -528,7 +515,7 @@ export default function StockPage() {
       {/* Pagination placeholder */}
       {filteredStock.length > 0 && (
         <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-          <p>Showing {filteredStock.length} of {stockItems.length} items</p>
+          <p>Showing {filteredStock.length} of {pagination?.total || stockItems.length} items</p>
         </div>
       )}
 
@@ -539,8 +526,10 @@ export default function StockPage() {
             stockItem={editingStockItem}
             productName={getProductName(editingStockItem.productId)}
             onClose={() => setEditingStockItem(null)}
-            onSave={(data) => {
-              updateStockItem(editingStockItem.id, data);
+            onSave={async (data) => {
+              try {
+                await apiClient.put(`/api/stock/${editingStockItem.id}`, data);
+              } catch (e) { console.error(e); }
               setEditingStockItem(null);
             }}
           />
@@ -559,6 +548,15 @@ export default function StockPage() {
               setViewingStockItem(null);
             }
           }}
+        />
+      )}
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
         />
       )}
     </div>
@@ -617,7 +615,7 @@ function StockDetailModal({
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-green-50 p-4 dark:bg-green-900/20">
             <p className="text-sm text-green-700 dark:text-green-300">Purchase Price</p>
-            <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(stockItem.purchasePrice)}</p>
+            <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(parseFloat(stockItem.purchasePrice))}</p>
           </div>
           <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -641,12 +639,12 @@ function StockDetailModal({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-blue-700 dark:text-blue-300">Default Sale Price</p>
-                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(product.defaultSalePrice)}</p>
+                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(parseFloat(product.defaultSalePrice))}</p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-blue-700 dark:text-blue-300">Estimated Profit</p>
                 <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                  {formatCurrency(product.defaultSalePrice - stockItem.purchasePrice)}
+                  {formatCurrency(parseFloat(product.defaultSalePrice) - parseFloat(stockItem.purchasePrice))}
                 </p>
               </div>
             </div>
@@ -718,7 +716,7 @@ function StockEditForm({
   const [imei, setImei] = useState(stockItem.imei || "");
   const [purchasePrice, setPurchasePrice] = useState(stockItem.purchasePrice);
   const [supplierName, setSupplierName] = useState(stockItem.supplierName || "");
-  const [status, setStatus] = useState<StockStatus>(stockItem.status);
+  const [status, setStatus] = useState<StockStatus>(stockItem.status as StockStatus);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -793,7 +791,7 @@ function StockEditForm({
         <input
           type="number"
           value={purchasePrice}
-          onChange={(e) => setPurchasePrice(Number(e.target.value))}
+          onChange={(e) => setPurchasePrice(e.target.value as any)}
           className={`w-full rounded-lg border px-4 py-2.5 dark:border-gray-600 dark:text-white ${
             isSold ? "cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-700" : "border-gray-300 dark:bg-gray-800"
           }`}
@@ -869,3 +867,11 @@ function StockEditForm({
   );
 }
 
+
+export default function StockPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[400px] items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div></div>}>
+      <StockPageContent />
+    </Suspense>
+  );
+}

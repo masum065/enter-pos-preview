@@ -1,5 +1,5 @@
 import { db } from './index';
-import { users, settings } from './schema';
+import { users, settings, products, customers, suppliers, stockItems, supplierTransactions } from './schema';
 import * as bcrypt from 'bcryptjs';
 
 async function seed() {
@@ -68,6 +68,82 @@ async function seed() {
     ]).onConflictDoNothing();
 
     console.log('✅ Default settings created');
+
+    // =============================================
+    // PRODUCTS (Computer/Phone shop items)
+    // =============================================
+    const productData = [
+      { modelName: 'iPhone 15 Pro Max', brand: 'Apple', category: 'Phone', defaultSalePrice: '189000', warranty: '1 Year', description: '256GB, Natural Titanium' },
+      { modelName: 'Samsung Galaxy S24 Ultra', brand: 'Samsung', category: 'Phone', defaultSalePrice: '159000', warranty: '1 Year', description: '256GB, Titanium Gray' },
+      { modelName: 'HP Pavilion 15', brand: 'HP', category: 'Laptop', defaultSalePrice: '72000', warranty: '2 Years', description: 'i5-13th Gen, 8GB RAM, 512GB SSD' },
+      { modelName: 'Lenovo IdeaPad 3', brand: 'Lenovo', category: 'Laptop', defaultSalePrice: '55000', warranty: '2 Years', description: 'Ryzen 5, 8GB RAM, 256GB SSD' },
+      { modelName: 'Dell Inspiron 14', brand: 'Dell', category: 'Laptop', defaultSalePrice: '68000', warranty: '2 Years', description: 'i5-12th Gen, 16GB RAM, 512GB SSD' },
+      { modelName: 'Xiaomi Redmi Note 13 Pro', brand: 'Xiaomi', category: 'Phone', defaultSalePrice: '32000', warranty: '1 Year', description: '8/256GB, Forest Green' },
+      { modelName: 'AirPods Pro 2', brand: 'Apple', category: 'Accessories', defaultSalePrice: '35000', warranty: '1 Year', description: 'USB-C, Active Noise Cancellation' },
+      { modelName: 'Logitech MX Master 3S', brand: 'Logitech', category: 'Accessories', defaultSalePrice: '12500', warranty: '1 Year', description: 'Wireless Mouse, Graphite' },
+    ];
+
+    const insertedProducts = await db.insert(products).values(productData).onConflictDoNothing().returning();
+    console.log(`✅ ${insertedProducts.length} products created`);
+
+    // =============================================
+    // CUSTOMERS
+    // =============================================
+    const customerData = [
+      { name: 'রহিম উদ্দিন', phone: '01711111111', address: 'মিরপুর, ঢাকা', nid: '1990123456789' },
+      { name: 'করিম হোসেন', phone: '01822222222', address: 'ধানমন্ডি, ঢাকা', nid: '1985987654321' },
+      { name: 'সালমা বেগম', phone: '01933333333', address: 'উত্তরা, ঢাকা' },
+      { name: 'আব্দুল কাদের', phone: '01644444444', address: 'চট্টগ্রাম' },
+      { name: 'ফারহানা আক্তার', phone: '01555555555', address: 'সিলেট', nid: '1995111222333' },
+    ];
+
+    const insertedCustomers = await db.insert(customers).values(customerData).onConflictDoNothing().returning();
+    console.log(`✅ ${insertedCustomers.length} customers created`);
+
+    // =============================================
+    // SUPPLIERS
+    // =============================================
+    const supplierData = [
+      { companyName: 'Tech Galaxy BD', phone: '01700100200', address: 'IDB Bhaban, Agargaon', contactPerson: 'Jahangir Alam', balance: '25000', totalPurchases: '500000', totalPaid: '475000' },
+      { companyName: 'Mobile World Ltd', phone: '01800200300', address: 'Elephant Road, Dhaka', contactPerson: 'Rafiq Islam', balance: '0', totalPurchases: '300000', totalPaid: '300000' },
+      { companyName: 'Computer Source BD', phone: '01900300400', address: 'Multiplan Center, Dhaka', contactPerson: 'Kamal Ahmed', balance: '15000', totalPurchases: '200000', totalPaid: '185000' },
+    ];
+
+    const insertedSuppliers = await db.insert(suppliers).values(supplierData).onConflictDoNothing().returning();
+    console.log(`✅ ${insertedSuppliers.length} suppliers created`);
+
+    // =============================================
+    // STOCK ITEMS
+    // =============================================
+    if (insertedProducts.length > 0 && insertedSuppliers.length > 0) {
+      const adminUser = await db.select().from(users).limit(1);
+      const adminId = adminUser[0]?.id;
+
+      const stockData = [
+        // iPhones from Tech Galaxy
+        { serialNumber: 'APL-IP15PM-001', imei: '351234567890001', productId: insertedProducts[0].id, purchasePrice: '175000', purchaseSource: 'supplier' as const, supplierId: insertedSuppliers[0].id, supplierName: 'Tech Galaxy BD', purchaseDate: new Date('2026-01-15'), status: 'available', createdBy: adminId },
+        { serialNumber: 'APL-IP15PM-002', imei: '351234567890002', productId: insertedProducts[0].id, purchasePrice: '175000', purchaseSource: 'supplier' as const, supplierId: insertedSuppliers[0].id, supplierName: 'Tech Galaxy BD', purchaseDate: new Date('2026-01-15'), status: 'available', createdBy: adminId },
+        // Samsung from Mobile World
+        { serialNumber: 'SAM-S24U-001', imei: '351234567890003', productId: insertedProducts[1].id, purchasePrice: '145000', purchaseSource: 'supplier' as const, supplierId: insertedSuppliers[1].id, supplierName: 'Mobile World Ltd', purchaseDate: new Date('2026-01-20'), status: 'available', createdBy: adminId },
+        { serialNumber: 'SAM-S24U-002', imei: '351234567890004', productId: insertedProducts[1].id, purchasePrice: '145000', purchaseSource: 'supplier' as const, supplierId: insertedSuppliers[1].id, supplierName: 'Mobile World Ltd', purchaseDate: new Date('2026-02-01'), status: 'available', createdBy: adminId },
+        // HP Laptop from Computer Source
+        { serialNumber: 'HP-PAV15-001', productId: insertedProducts[2].id, purchasePrice: '62000', purchaseSource: 'supplier' as const, supplierId: insertedSuppliers[2].id, supplierName: 'Computer Source BD', purchaseDate: new Date('2026-02-05'), status: 'available', createdBy: adminId },
+        // Lenovo
+        { serialNumber: 'LEN-IP3-001', productId: insertedProducts[3].id, purchasePrice: '45000', purchaseSource: 'supplier' as const, supplierId: insertedSuppliers[2].id, supplierName: 'Computer Source BD', purchaseDate: new Date('2026-02-10'), status: 'available', createdBy: adminId },
+        // Dell
+        { serialNumber: 'DEL-INS14-001', productId: insertedProducts[4].id, purchasePrice: '58000', purchaseSource: 'supplier' as const, supplierId: insertedSuppliers[2].id, supplierName: 'Computer Source BD', purchaseDate: new Date('2026-02-10'), status: 'available', createdBy: adminId },
+        // Xiaomi from local purchase
+        { serialNumber: 'XIA-RN13P-001', imei: '351234567890005', productId: insertedProducts[5].id, purchasePrice: '26000', purchaseSource: 'local' as const, sellerId: insertedCustomers[0].id, purchaseDate: new Date('2026-02-12'), status: 'available', createdBy: adminId },
+        // AirPods
+        { serialNumber: 'APL-APP2-001', productId: insertedProducts[6].id, purchasePrice: '29000', purchaseSource: 'supplier' as const, supplierId: insertedSuppliers[0].id, supplierName: 'Tech Galaxy BD', purchaseDate: new Date('2026-02-15'), status: 'available', createdBy: adminId },
+        // Mouse
+        { serialNumber: 'LOG-MXM3S-001', productId: insertedProducts[7].id, purchasePrice: '9500', purchaseSource: 'supplier' as const, supplierId: insertedSuppliers[0].id, supplierName: 'Tech Galaxy BD', purchaseDate: new Date('2026-02-15'), status: 'available', createdBy: adminId },
+      ];
+
+      const insertedStock = await db.insert(stockItems).values(stockData).onConflictDoNothing().returning();
+      console.log(`✅ ${insertedStock.length} stock items created`);
+    }
+
     console.log('🎉 Seeding completed successfully!');
     
     process.exit(0);

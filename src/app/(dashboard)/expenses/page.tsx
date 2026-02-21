@@ -1,71 +1,78 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useExpenseStore, Expense, ExpenseCategory } from "@/stores/expenseStore";
+import { useState, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useExpenses } from "@/hooks/useExpenses";
+import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 
-export default function ExpensesPage() {
-  const { expenses, categories, getTodaysExpenses, getThisMonthExpenses, getCategoryBreakdown } = useExpenseStore();
+interface Expense {
+  id: string;
+  expenseNumber: string;
+  category: string;
+  description: string;
+  amount: string;
+  date: string;
+  paymentMethod: string;
+  paidBy: string;
+  [key: string]: any;
+}
+
+function ExpensesPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const page = parseInt(searchParams.get("page") || "1");
+  const setPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 1) params.delete("page"); else params.set("page", String(p));
+    router.push(`?${params.toString()}`);
+  };
+
+  const { data: expensesData, isLoading } = useExpenses({ page, limit: 20 });
+  const expenses: Expense[] = (expensesData?.expenses || []) as any[];
+  const pagination = (expensesData as any)?.pagination;
+  const apiStats = (expensesData as any)?.stats;
+  const apiCategoryBreakdown = (expensesData as any)?.categoryBreakdown || [];
+
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<ExpenseCategory | "All">("All");
+  const [categoryFilter, setCategoryFilter] = useState<string>("All");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("month");
-  const [isLoaded, setIsLoaded] = useState(false);
 
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
+  const totalExpenses = pagination?.total || expenses.length;
 
-  // Filter expenses
+  // Filter expenses (client-side on current page)
   const filteredExpenses = useMemo(() => {
     let result = [...expenses];
-
-    // Category filter
-    if (categoryFilter !== "All") {
-      result = result.filter((e) => e.category === categoryFilter);
-    }
-
-    // Date filter
+    if (categoryFilter !== "All") result = result.filter((e) => e.category === categoryFilter);
     if (dateFilter !== "all") {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
       result = result.filter((e) => {
         const expenseDate = new Date(e.date);
-        if (dateFilter === "today") {
-          return expenseDate >= today;
-        } else if (dateFilter === "week") {
-          const weekAgo = new Date(today);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return expenseDate >= weekAgo;
-        } else if (dateFilter === "month") {
-          return expenseDate.getMonth() === now.getMonth() && expenseDate.getFullYear() === now.getFullYear();
-        }
+        if (dateFilter === "today") return expenseDate >= today;
+        if (dateFilter === "week") { const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7); return expenseDate >= weekAgo; }
+        if (dateFilter === "month") return expenseDate.getMonth() === now.getMonth() && expenseDate.getFullYear() === now.getFullYear();
         return true;
       });
     }
-
-    // Search
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (e) =>
-          e.expenseNumber.toLowerCase().includes(query) ||
-          e.description.toLowerCase().includes(query) ||
-          e.category.toLowerCase().includes(query)
-      );
+      result = result.filter((e) => e.expenseNumber.toLowerCase().includes(query) || e.description.toLowerCase().includes(query) || e.category.toLowerCase().includes(query));
     }
-
     return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [expenses, categoryFilter, dateFilter, searchQuery]);
 
-  // Total for filtered
-  const filteredTotal = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const filteredTotal = filteredExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
-  // Category breakdown
-  const categoryBreakdown = useMemo(() => getCategoryBreakdown(), [expenses, getCategoryBreakdown]);
+  // Use API-level aggregate stats (not page-level)
+  const thisMonthExpenses = apiStats?.thisMonthAmount || 0;
+  const todaysExpenses = apiStats?.todayAmount || 0;
 
-  if (!isLoaded) {
+  // Use API-level category breakdown (not page-level)
+  const categoryBreakdown = apiCategoryBreakdown.map((c: any) => ({ category: c.category, total: Number(c.total) }));
+
+  if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>
@@ -96,15 +103,15 @@ export default function ExpensesPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl bg-gradient-to-r from-orange-500 to-red-500 p-5 text-white shadow-lg">
           <p className="text-sm text-orange-100">This Month</p>
-          <p className="mt-1 text-3xl font-bold">{formatCurrency(getThisMonthExpenses())}</p>
+          <p className="mt-1 text-3xl font-bold">{formatCurrency(thisMonthExpenses)}</p>
         </div>
         <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Today</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(getTodaysExpenses())}</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(todaysExpenses)}</p>
         </div>
         <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Total Records</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{expenses.length}</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{totalExpenses}</p>
         </div>
         <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Filtered Total</p>
@@ -117,10 +124,10 @@ export default function ExpensesPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
           <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Category Breakdown</h3>
           <div className="flex flex-wrap gap-3">
-            {categoryBreakdown.slice(0, 6).map(({ category, total }) => (
+            {categoryBreakdown.slice(0, 6).map(({ category, total }: { category: string; total: number }) => (
               <button
                 key={category}
-                onClick={() => setCategoryFilter(category)}
+                onClick={() => { setCategoryFilter(category); setPage(1); }}
                 className={`rounded-lg border px-4 py-2 text-sm transition-all ${
                   categoryFilter === category
                     ? "border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
@@ -141,7 +148,7 @@ export default function ExpensesPage() {
           {(["all", "today", "week", "month"] as const).map((filter) => (
             <button
               key={filter}
-              onClick={() => setDateFilter(filter)}
+              onClick={() => { setDateFilter(filter); setPage(1); }}
               className={`rounded-full px-4 py-2 text-sm font-medium capitalize ${
                 dateFilter === filter
                   ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
@@ -155,12 +162,12 @@ export default function ExpensesPage() {
 
         <select
           value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value as ExpenseCategory | "All")}
+          onChange={(e) => { setCategoryFilter(e.target.value as string); setPage(1); }}
           className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
         >
           <option value="All">All Categories</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
+          {categoryBreakdown.map((item: { category: string; total: number }) => (
+            <option key={item.category} value={item.category}>{item.category}</option>
           ))}
         </select>
 
@@ -171,7 +178,7 @@ export default function ExpensesPage() {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             placeholder="Search expenses..."
             className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
@@ -221,7 +228,7 @@ export default function ExpensesPage() {
                       {expense.paymentMethod}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(expense.amount)}</span>
+                      <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(parseFloat(expense.amount))}</span>
                     </td>
                   </tr>
                 ))
@@ -233,9 +240,26 @@ export default function ExpensesPage() {
 
       {filteredExpenses.length > 0 && (
         <p className="text-sm text-gray-500">
-          Showing {filteredExpenses.length} expenses • Total: {formatCurrency(filteredTotal)}
+          Showing {filteredExpenses.length} of {totalExpenses} expenses • Total: {formatCurrency(filteredTotal)}
         </p>
       )}
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+        />
+      )}
     </div>
+  );
+}
+
+export default function ExpensesPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[400px] items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div></div>}>
+      <ExpensesPageContent />
+    </Suspense>
   );
 }

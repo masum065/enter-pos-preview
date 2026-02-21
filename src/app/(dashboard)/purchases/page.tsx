@@ -1,16 +1,46 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { usePurchaseStore, PurchaseInvoice } from "@/stores/purchaseStore";
-import { useCustomerStore } from "@/stores/customerStore";
-import { useProductStore } from "@/stores/productStore";
+import { useState, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useCustomers } from "@/hooks/useCustomers";
+import { usePurchases } from "@/hooks/usePurchases";
+import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 
-export default function PurchaseHistoryPage() {
-  const { purchases } = usePurchaseStore();
-  const { customers } = useCustomerStore();
-  const { products } = useProductStore();
+interface PurchaseInvoice {
+  id: string;
+  invoiceNumber: string;
+  purchaseDate: string;
+  sellerId: string;
+  sellerName: string;
+  sellerPhone: string;
+  productId: string;
+  productName: string;
+  serialNumber: string;
+  imei?: string;
+  purchasePrice: number;
+  paidAmount: number;
+  paymentMethod: string;
+  notes?: string;
+  createdAt: string;
+  [key: string]: any;
+}
+
+function PurchaseHistoryPageContent() {
+  const { data: customersData } = useCustomers();
+  const customers = customersData?.customers || [];
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const page = parseInt(searchParams.get("page") || "1");
+  const setPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 1) params.delete("page"); else params.set("page", String(p));
+    router.push(`?${params.toString()}`);
+  };
+  const { data: purchasesData, isLoading } = usePurchases({ page, limit: 20 });
+  const purchases: PurchaseInvoice[] = ((purchasesData as any)?.purchases || []) as any[];
+  const pagination = (purchasesData as any)?.pagination;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSeller, setSelectedSeller] = useState<string>("All");
@@ -23,11 +53,7 @@ export default function PurchaseHistoryPage() {
     return seller?.name || "Unknown Seller";
   };
 
-  // Get product name by ID
-  const getProductName = (productId: string): string => {
-    const product = products.find((p) => p.id === productId);
-    return product ? `${product.brand} ${product.modelName}` : "Unknown Product";
-  };
+  // Product name is already embedded in purchase data
 
   // Filtered purchases
   const filteredPurchases = useMemo(() => {
@@ -64,15 +90,14 @@ export default function PurchaseHistoryPage() {
     return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [purchases, selectedSeller, selectedPaymentStatus, searchQuery]);
 
-  // Stats
-  const stats = useMemo(() => {
-    const totalPurchases = purchases.length;
-    const totalAmount = purchases.reduce((sum, p) => sum + p.purchasePrice, 0);
-    const totalPaid = purchases.reduce((sum, p) => sum + p.paidAmount, 0);
-    const totalDue = totalAmount - totalPaid;
-
-    return { totalPurchases, totalAmount, totalPaid, totalDue };
-  }, [purchases]);
+  // Stats from API (all data, not just current page)
+  const apiStats = (purchasesData as any)?.stats;
+  const stats = {
+    totalPurchases: apiStats?.totalPurchases || purchases.length,
+    totalAmount: apiStats?.totalAmount || purchases.reduce((sum, p) => sum + p.purchasePrice, 0),
+    totalPaid: apiStats?.totalPaid || purchases.reduce((sum, p) => sum + p.paidAmount, 0),
+    totalDue: apiStats?.totalDue || 0,
+  };
 
   return (
     <div className="space-y-6">
@@ -159,7 +184,7 @@ export default function PurchaseHistoryPage() {
           {(["All", "Paid", "Partial", "Unpaid"] as const).map((status) => (
             <button
               key={status}
-              onClick={() => setSelectedPaymentStatus(status)}
+              onClick={() => { setSelectedPaymentStatus(status); setPage(1); }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
                 selectedPaymentStatus === status
                   ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
@@ -175,7 +200,7 @@ export default function PurchaseHistoryPage() {
           {/* Seller Filter */}
           <select
             value={selectedSeller}
-            onChange={(e) => setSelectedSeller(e.target.value)}
+            onChange={(e) => { setSelectedSeller(e.target.value); setPage(1); }}
             className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:border-purple-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
           >
             <option value="All">All Sellers</option>
@@ -194,7 +219,7 @@ export default function PurchaseHistoryPage() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               placeholder="Search by invoice, serial, seller, or product..."
               className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 text-gray-900 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
@@ -299,7 +324,7 @@ export default function PurchaseHistoryPage() {
       {filteredPurchases.length > 0 && (
         <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
           <p>
-            Showing {filteredPurchases.length} of {purchases.length} purchases
+            Showing {filteredPurchases.length} of {pagination?.total || purchases.length} purchases
           </p>
         </div>
       )}
@@ -402,6 +427,23 @@ export default function PurchaseHistoryPage() {
           </div>
         </div>
       )}
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+        />
+      )}
     </div>
+  );
+}
+
+export default function PurchaseHistoryPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[400px] items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"></div></div>}>
+      <PurchaseHistoryPageContent />
+    </Suspense>
   );
 }

@@ -35,8 +35,31 @@ export async function GET(request: NextRequest) {
 
     const totalCount = await db.select({ count: sql<number>`count(*)` }).from(serviceRecords);
 
+    // Status breakdown (from ALL data, not paginated)
+    const statusBreakdown = await db.select({
+      status: serviceRecords.status,
+      count: sql<number>`count(*)`,
+    }).from(serviceRecords).groupBy(serviceRecords.status);
+
+    const statusCounts: Record<string, number> = { All: Number(totalCount[0].count) };
+    statusBreakdown.forEach((s) => { statusCounts[s.status] = Number(s.count); });
+
+    // Pending = not Completed and not Delivered
+    const [pendingStats] = await db.select({
+      count: sql<number>`count(*)`,
+    }).from(serviceRecords).where(
+      and(
+        sql`${serviceRecords.status} != 'Completed'`,
+        sql`${serviceRecords.status} != 'Delivered'`
+      )
+    );
+
     return NextResponse.json({
       services,
+      stats: {
+        statusCounts,
+        pendingCount: Number(pendingStats.count),
+      },
       pagination: {
         page, limit,
         total: Number(totalCount[0].count),

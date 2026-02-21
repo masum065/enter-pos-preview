@@ -94,8 +94,8 @@ function PurchaseHistoryPageContent() {
   const apiStats = (purchasesData as any)?.stats;
   const stats = {
     totalPurchases: apiStats?.totalPurchases || purchases.length,
-    totalAmount: apiStats?.totalAmount || purchases.reduce((sum, p) => sum + p.purchasePrice, 0),
-    totalPaid: apiStats?.totalPaid || purchases.reduce((sum, p) => sum + p.paidAmount, 0),
+    totalAmount: apiStats?.totalAmount || purchases.reduce((sum, p) => sum + parseFloat(String(p.purchasePrice || 0)), 0),
+    totalPaid: apiStats?.totalPaid || purchases.reduce((sum, p) => sum + parseFloat(String(p.paidAmount || 0)), 0),
     totalDue: apiStats?.totalDue || 0,
   };
 

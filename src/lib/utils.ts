@@ -6,8 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Format currency with Bangladeshi Taka symbol
-export const formatCurrency = (amount: number, symbol: string = "৳"): string => {
-  return `${symbol}${amount.toLocaleString("en-BD")}`;
+export const formatCurrency = (amount: number | string, symbol: string = "৳"): string => {
+  const num = typeof amount === 'string' ? parseFloat(amount) || 0 : (amount || 0);
+  return `${symbol}${num.toLocaleString("en-IN")}`;
 };
 
 // Format date to readable string

@@ -145,11 +145,11 @@ export default function DueCollectionPage() {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
 
   const salesWithDue = useMemo(() => {
-    return allSales.filter(s => (s.dueAmount || 0) > 0).sort((a, b) => b.dueAmount - a.dueAmount);
+    return allSales.filter(s => parseFloat(String(s.dueAmount || 0)) > 0).sort((a, b) => parseFloat(String(b.dueAmount || 0)) - parseFloat(String(a.dueAmount || 0)));
   }, [allSales]);
 
   const totalDue = useMemo(() => {
-    return salesWithDue.reduce((sum, s) => sum + s.dueAmount, 0);
+    return salesWithDue.reduce((sum, s) => sum + parseFloat(String(s.dueAmount || 0)), 0);
   }, [salesWithDue]);
 
   const handlePayment = async (method: PaymentMethod, amount: number) => {

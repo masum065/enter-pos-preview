@@ -568,10 +568,10 @@ function SalesPageContent() {
   const apiStats = (salesData as any)?.stats;
   const stats = {
     total: apiStats?.total || sales.length,
-    totalAmount: apiStats?.totalAmount || sales.reduce((sum, s) => sum + s.grandTotal, 0),
-    totalProfit: apiStats?.totalProfit || sales.reduce((sum, s) => sum + s.totalProfit, 0),
-    totalDue: apiStats?.totalDue || sales.reduce((sum, s) => sum + s.dueAmount, 0),
-    dueCount: apiStats?.dueCount || sales.filter((s) => s.dueAmount > 0).length,
+    totalAmount: apiStats?.totalAmount || sales.reduce((sum, s) => sum + parseFloat(String(s.grandTotal || 0)), 0),
+    totalProfit: apiStats?.totalProfit || sales.reduce((sum, s) => sum + parseFloat(String(s.totalProfit || 0)), 0),
+    totalDue: apiStats?.totalDue || sales.reduce((sum, s) => sum + parseFloat(String(s.dueAmount || 0)), 0),
+    dueCount: apiStats?.dueCount || sales.filter((s) => parseFloat(String(s.dueAmount || 0)) > 0).length,
     returnedCount: sales.filter((s) => s.status === "returned" || s.status === "partially_returned").length,
   };
 

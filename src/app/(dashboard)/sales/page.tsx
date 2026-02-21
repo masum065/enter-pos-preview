@@ -680,79 +680,8 @@ function SalesPageContent() {
       </div>
 
       {/* Filters */}
-      <div className="space-y-3">
-        {/* Row 1: Date Presets + Search */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          {/* Date Filter Presets */}
-          <div className="flex flex-wrap gap-2">
-            {([
-              { key: "today", label: "Today" },
-              { key: "week", label: "This Week" },
-              { key: "month", label: "This Month" },
-              { key: "all", label: "All Time" },
-              { key: "custom", label: "Custom" },
-            ] as const).map((item) => (
-              <button
-                key={item.key}
-                onClick={() => { setDateFilter(item.key); setPage(1); }}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                  dateFilter === item.key
-                    ? "bg-blue-600 text-white shadow-sm dark:bg-blue-500"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Search */}
-          <div className="relative flex-1">
-            <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              placeholder="Search by invoice, customer..."
-              className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-            />
-          </div>
-        </div>
-
-        {/* Row 2: Custom Date Range (shown when custom is selected) */}
-        {dateFilter === "custom" && (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/50 px-4 py-3 dark:border-blue-800 dark:bg-blue-900/20">
-            <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">From:</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-              className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm dark:border-blue-700 dark:bg-gray-800 dark:text-white"
-            />
-            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">To:</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-              className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm dark:border-blue-700 dark:bg-gray-800 dark:text-white"
-            />
-            {(dateFrom || dateTo) && (
-              <button
-                onClick={() => { setDateFrom(""); setDateTo(""); }}
-                className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200 dark:bg-blue-800 dark:text-blue-300 dark:hover:bg-blue-700"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Row 3: Status Filter */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+        {/* Status Filter */}
         <div className="flex flex-wrap gap-2">
           {(["all", "completed", "partial", "pending", "returned"] as const).map((status) => (
             <button
@@ -767,6 +696,52 @@ function SalesPageContent() {
               {status}
             </button>
           ))}
+        </div>
+
+        {/* Date Filter Dropdown */}
+        <select
+          value={dateFilter}
+          onChange={(e) => { setDateFilter(e.target.value as typeof dateFilter); setPage(1); }}
+          className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+        >
+          <option value="today">Today</option>
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+          <option value="all">All Time</option>
+          <option value="custom">Custom Range</option>
+        </select>
+
+        {/* Custom Date Range (inline, shown only when custom selected) */}
+        {dateFilter === "custom" && (
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
+            <span className="text-sm text-gray-500 dark:text-gray-400">to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
+          </div>
+        )}
+
+        {/* Search */}
+        <div className="relative flex-1">
+          <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+            placeholder="Search by invoice, customer..."
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          />
         </div>
       </div>
 

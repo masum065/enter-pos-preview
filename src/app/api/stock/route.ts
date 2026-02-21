@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { stockItems, products } from "@/db/schema";
+import { stockItems, products, suppliers, supplierTransactions, activityLogs } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { stockItemSchema } from "@/lib/validations/inventory";
@@ -95,12 +95,71 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = stockItemSchema.parse(body);
 
-    const [newStockItem] = await db
-      .insert(stockItems)
-      .values({ ...validatedData, createdBy: session.id })
-      .returning();
+    // Use transaction for atomicity (especially when supplier is involved)
+    const result = await db.transaction(async (tx) => {
+      // 1. Insert stock item
+      const [newStockItem] = await tx
+        .insert(stockItems)
+        .values({ ...validatedData, createdBy: session.id })
+        .returning();
 
-    return NextResponse.json(newStockItem, { status: 201 });
+      // 2. If purchased from supplier, update supplier financials
+      if (validatedData.purchaseSource === "supplier" && validatedData.supplierId) {
+        const [supplier] = await tx
+          .select()
+          .from(suppliers)
+          .where(eq(suppliers.id, validatedData.supplierId))
+          .limit(1);
+
+        if (supplier) {
+          const purchaseAmount = parseFloat(String(validatedData.purchasePrice));
+          const currentBalance = parseFloat(supplier.balance);
+          const currentTotalPurchases = parseFloat(supplier.totalPurchases);
+          const newBalance = currentBalance + purchaseAmount; // Purchase increases what we owe
+
+          // Create supplier transaction record (purchase)
+          await tx.insert(supplierTransactions).values({
+            supplierId: validatedData.supplierId,
+            type: "purchase",
+            amount: purchaseAmount.toFixed(2),
+            description: `Stock purchase: ${validatedData.serialNumber}`,
+            reference: newStockItem.id,
+            balanceAfter: newBalance.toFixed(2),
+            createdBy: session.id,
+          });
+
+          // Update supplier balance and totalPurchases
+          await tx
+            .update(suppliers)
+            .set({
+              balance: newBalance.toFixed(2),
+              totalPurchases: (currentTotalPurchases + purchaseAmount).toFixed(2),
+              updatedAt: new Date(),
+            })
+            .where(eq(suppliers.id, validatedData.supplierId));
+        }
+      }
+
+      // 3. Activity log
+      await tx.insert(activityLogs).values({
+        userId: session.id,
+        userName: session.name,
+        userRole: session.role,
+        action: "STOCK_ADD",
+        entityId: newStockItem.id,
+        details: `Added stock: ${validatedData.serialNumber} (${validatedData.purchaseSource})${validatedData.supplierName ? ` from ${validatedData.supplierName}` : ""}`,
+        afterData: {
+          serialNumber: validatedData.serialNumber,
+          purchasePrice: validatedData.purchasePrice,
+          purchaseSource: validatedData.purchaseSource,
+          supplierName: validatedData.supplierName,
+        },
+      });
+
+      return newStockItem;
+    });
+
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Error adding stock:", error);
     

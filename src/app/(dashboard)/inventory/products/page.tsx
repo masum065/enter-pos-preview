@@ -621,12 +621,18 @@ function ProductsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get("page") || "1");
+  const activeSearch = searchParams.get("search") || "";
+  const activeCategory = searchParams.get("category") || "";
   const setPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
     if (p <= 1) params.delete("page"); else params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
-  const { data: productsData, isLoading } = useProducts({ page, limit: 20 });
+  const { data: productsData, isLoading } = useProducts({
+    page, limit: 20,
+    search: activeSearch || undefined,
+    category: activeCategory || undefined,
+  });
   const { data: stockData } = useStockItems();
   const createProduct = useCreateProduct();
   const updateProductMutation = useUpdateProduct();
@@ -634,11 +640,44 @@ function ProductsPageContent() {
 
   const products: Product[] = (productsData?.products || []) as any[];
   const pagination = (productsData as any)?.pagination;
+  const categoryCounts: Record<string, number> = (productsData as any)?.categoryCounts || {};
+  const categories = Object.keys(categoryCounts).filter(k => k !== 'All');
   const allStockItems: StockItem[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);
-  const categories = [...new Set(products.map(p => p.category))];
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  // URL-based search
+  const [searchInput, setSearchInput] = useState(activeSearch);
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const params = new URLSearchParams(searchParams.toString());
+    const query = searchInput.trim();
+    if (query) {
+      params.set("search", query);
+      params.delete("page");
+    } else {
+      params.delete("search");
+    }
+    router.push(`?${params.toString()}`);
+  };
+  const clearSearch = () => {
+    setSearchInput("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
+
+  // URL-based category filter
+  const setCategory = (cat: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (cat === "" || cat === "All") {
+      params.delete("category");
+    } else {
+      params.set("category", cat);
+    }
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
+
   const [sortBy, setSortBy] = useState<"name" | "price" | "stock" | "latest">("latest");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -650,23 +689,9 @@ function ProductsPageContent() {
     return allStockItems.filter(s => s.productId === productId && s.status === "available").length;
   };
 
-  // Filtered and sorted products
-  const filteredProducts = useMemo(() => {
-    let result = searchQuery.trim()
-      ? products.filter(p =>
-          p.modelName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.category.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      : products;
-    
-    // Category filter
-    if (selectedCategory !== "All") {
-      result = result.filter((p) => p.category === selectedCategory);
-    }
-
-    // Sorting
-    result = [...result].sort((a, b) => {
+  // Sorted products (sorting is still client-side, but filtering is server-side)
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => {
       let comparison = 0;
       
       switch (sortBy) {
@@ -687,23 +712,12 @@ function ProductsPageContent() {
 
       return sortOrder === "asc" ? comparison : -comparison;
     });
-
-    return result;
-  }, [products, searchQuery, selectedCategory, sortBy, sortOrder]);
+  }, [products, sortBy, sortOrder]);
 
   // Get all stock for a product
   const getProductStock = (productId: string): StockItem[] => {
     return allStockItems.filter(s => s.productId === productId);
   };
-
-  // Category counts
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { All: products.length };
-    categories.forEach((cat) => {
-      counts[cat] = products.filter((p) => p.category === cat).length;
-    });
-    return counts;
-  }, [products, categories]);
 
   const handleAddProduct = (data: any) => {
     createProduct.mutate(data, {
@@ -780,21 +794,21 @@ function ProductsPageContent() {
       {/* Category Tabs */}
       <div className="flex flex-wrap gap-2">
         <button
-          onClick={() => setSelectedCategory("All")}
+          onClick={() => setCategory("All")}
           className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-            selectedCategory === "All"
+            !activeCategory
               ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
               : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
           }`}
         >
-          All ({categoryCounts.All})
+          All ({categoryCounts.All || 0})
         </button>
         {categories.map((cat) => (
           <button
             key={cat}
-            onClick={() => setSelectedCategory(cat)}
+            onClick={() => setCategory(cat)}
             className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-              selectedCategory === cat
+              activeCategory === cat
                 ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
             }`}
@@ -807,18 +821,24 @@ function ProductsPageContent() {
       {/* Search and Sort */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         {/* Search */}
-        <div className="relative max-w-md flex-1">
+        <form onSubmit={handleSearch} className="relative max-w-md flex-1">
           <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search products..."
-            className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-gray-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-28 text-gray-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
-        </div>
+          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1">
+            {activeSearch && (
+              <button type="button" onClick={clearSearch} className="rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">✕</button>
+            )}
+            <button type="submit" className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">Search</button>
+          </div>
+        </form>
 
         {/* Sort Options */}
         <div className="flex items-center gap-2">
@@ -862,25 +882,27 @@ function ProductsPageContent() {
       </div>
 
       {/* Results count */}
-      <div className="text-sm text-gray-500 dark:text-gray-400">
-        Showing {filteredProducts.length} of {pagination?.total || products.length} products
-      </div>
+      {(activeSearch || activeCategory) && (
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          Found {pagination?.total || products.length} products{activeSearch ? ` for "${activeSearch}"` : ''}{activeCategory ? ` in ${activeCategory}` : ''}
+        </div>
+      )}
 
       {/* Products Grid */}
-      {filteredProducts.length === 0 ? (
+      {sortedProducts.length === 0 ? (
         <div className="flex min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
           <div className="text-center">
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
             </svg>
             <p className="mt-2 text-gray-500 dark:text-gray-400">
-              {searchQuery || selectedCategory !== "All" ? "No products found." : "No products yet."}
+              {activeSearch || activeCategory ? "No products found." : "No products yet."}
             </p>
           </div>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredProducts.map((product) => {
+          {sortedProducts.map((product: Product) => {
             const stockCount = getStockCount(product.id);
             return (
               <div

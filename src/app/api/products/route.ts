@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { products } from "@/db/schema";
-import { eq, like, or, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql, ilike } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { productSchema } from "@/lib/validations/inventory";
 
@@ -17,23 +17,24 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const category = searchParams.get("category") || "";
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
     let queryBuilder = db.select().from(products).$dynamic();
 
-    // Apply filters
+    // Build conditions — ALL must be AND
     const conditions = [];
     
     // Always exclude soft-deleted products
     conditions.push(eq(products.isDeleted, false));
     
     if (search) {
+      const searchTerm = `%${search.trim()}%`;
       conditions.push(
         or(
-          like(products.modelName, `%${search}%`),
-          like(products.brand, `%${search}%`),
-          like(products.category, `%${search}%`)
+          ilike(products.modelName, searchTerm),
+          ilike(products.brand, searchTerm),
+          ilike(products.category, searchTerm)
         )
       );
     }
@@ -41,23 +42,33 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(products.category, category));
     }
 
-    if (conditions.length > 0) {
-      queryBuilder = queryBuilder.where(or(...conditions));
-    }
+    queryBuilder = queryBuilder.where(and(...conditions));
 
     const allProducts = await queryBuilder
       .orderBy(desc(products.createdAt))
       .limit(limit)
       .offset(offset);
 
-    // Efficient count query
-    const totalCount = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(products)
-      .where(eq(products.isDeleted, false));
+    // Count query — apply same conditions
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(products).$dynamic();
+    countQuery = countQuery.where(and(...conditions));
+    const totalCount = await countQuery;
+
+    // Category counts (always non-deleted, ignoring search/category filter)
+    const categoryCounts = await db.select({
+      category: products.category,
+      count: sql<number>`count(*)`,
+    }).from(products)
+      .where(eq(products.isDeleted, false))
+      .groupBy(products.category);
+
+    const totalNonDeleted = categoryCounts.reduce((sum, c) => sum + Number(c.count), 0);
 
     return NextResponse.json({
       products: allProducts,
+      categoryCounts: Object.fromEntries(
+        [['All', totalNonDeleted], ...categoryCounts.map(c => [c.category, Number(c.count)])]
+      ),
       pagination: {
         page,
         limit,

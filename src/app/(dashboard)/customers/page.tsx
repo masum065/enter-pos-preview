@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCustomers, useDeleteCustomer } from "@/hooks/useCustomers";
 import { Pagination } from "@/components/ui/pagination";
@@ -32,10 +32,33 @@ function CustomerDetailModal({
   onClose: () => void;
   onEdit: () => void;
 }) {
-  // No sales data available yet from API, show empty stats
-  const stats = useMemo(() => {
-    return { totalPurchases: 0, totalSpent: 0, totalDue: 0 };
-  }, []);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loadingTx, setLoadingTx] = useState(true);
+
+  // Use real financial data from customer record
+  const stats = useMemo(() => ({
+    totalPurchases: parseFloat(customer.totalPurchases || '0'),
+    totalPaid: parseFloat(customer.totalPaid || '0'),
+    balance: parseFloat(customer.balance || '0'),
+  }), [customer]);
+
+  // Fetch customer transactions
+  useEffect(() => {
+    async function fetchTransactions() {
+      try {
+        const res = await fetch(`/api/customers/${customer.id}/transactions`);
+        if (res.ok) {
+          const data = await res.json();
+          setTransactions(data.transactions || []);
+        }
+      } catch (e) {
+        console.error('Failed to fetch transactions', e);
+      } finally {
+        setLoadingTx(false);
+      }
+    }
+    fetchTransactions();
+  }, [customer.id]);
 
   return (
     <Modal isOpen={true} onClose={onClose} title="Customer Details" size="lg">
@@ -84,30 +107,66 @@ function CustomerDetailModal({
           </div>
         )}
 
-        {/* Purchase Stats */}
+        {/* Financial Stats */}
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-blue-50 p-4 text-center dark:bg-blue-900/20">
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalPurchases}</p>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(stats.totalPurchases)}</p>
             <p className="text-sm text-blue-700 dark:text-blue-300">Total Purchases</p>
           </div>
           <div className="rounded-xl bg-green-50 p-4 text-center dark:bg-green-900/20">
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(stats.totalSpent)}</p>
-            <p className="text-sm text-green-700 dark:text-green-300">Total Spent</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(stats.totalPaid)}</p>
+            <p className="text-sm text-green-700 dark:text-green-300">Total Paid</p>
           </div>
           <div className="rounded-xl bg-red-50 p-4 text-center dark:bg-red-900/20">
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCurrency(stats.totalDue)}</p>
+            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCurrency(stats.balance)}</p>
             <p className="text-sm text-red-700 dark:text-red-300">Outstanding Due</p>
           </div>
         </div>
 
-        {/* Purchase History */}
+        {/* Transaction History */}
         <div>
           <h4 className="mb-3 font-semibold text-gray-900 dark:text-white">
-            Purchase History (0)
+            Transaction History ({transactions.length})
           </h4>
-          <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 text-center dark:border-gray-700">
-            <p className="text-gray-500 dark:text-gray-400">No purchase history yet</p>
-          </div>
+          {loadingTx ? (
+            <div className="flex justify-center py-4">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 text-center dark:border-gray-700">
+              <p className="text-gray-500 dark:text-gray-400">No transaction history yet</p>
+            </div>
+          ) : (
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {transactions.map((tx: any) => (
+                <div key={tx.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 dark:bg-gray-800">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                        tx.type === 'sale' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                        tx.type === 'payment' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                        tx.type === 'return' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                        tx.type === 'purchase' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                        'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                      }`}>
+                        {tx.type}
+                      </span>
+                      {tx.reference && <span className="text-xs text-gray-500">{tx.reference}</span>}
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{tx.description}</p>
+                  </div>
+                  <div className="ml-4 text-right">
+                    <p className={`font-semibold ${
+                      tx.type === 'payment' ? 'text-green-600' : tx.type === 'return' ? 'text-orange-600' : 'text-gray-900 dark:text-white'
+                    }`}>
+                      {tx.type === 'payment' ? '-' : '+'}{formatCurrency(parseFloat(tx.amount))}
+                    </p>
+                    <p className="text-xs text-gray-500">{formatDate(tx.createdAt)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -118,7 +177,7 @@ function CustomerDetailModal({
           >
             Close
           </button>
-          {stats.totalDue > 0 && (
+          {stats.balance > 0 && (
             <Link
               href="/sales/due"
               className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 font-medium text-white hover:bg-orange-700"

@@ -44,6 +44,7 @@ interface ServicesResponse {
 interface ServiceFilters {
   status?: string;
   customerId?: string;
+  search?: string;
   page?: number;
   limit?: number;
 }
@@ -62,6 +63,7 @@ export function useServices(filters: ServiceFilters = {}) {
       const params: Record<string, string> = {};
       if (filters.status) params.status = filters.status;
       if (filters.customerId) params.customerId = filters.customerId;
+      if (filters.search) params.search = filters.search;
       if (filters.page) params.page = String(filters.page);
       if (filters.limit) params.limit = String(filters.limit);
       return apiClient.get<ServicesResponse>("/api/services", params);

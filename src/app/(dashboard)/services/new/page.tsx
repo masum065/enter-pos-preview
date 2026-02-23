@@ -16,7 +16,7 @@ interface Customer {
 export default function NewServicePage() {
   const router = useRouter();
   const createServiceMutation = useCreateService();
-  const { data: customersData } = useCustomers();
+  const { data: customersData } = useCustomers({ limit: 500 });
   const customers: Customer[] = (customersData?.customers || []) as any[];
 
 
@@ -85,7 +85,6 @@ export default function NewServicePage() {
       paidAmount: 0,
       dueAmount: totalCost,
       notes: formData.notes || undefined,
-      createdBy: "admin",
     } as any, {
       onSuccess: () => router.push("/services"),
     });

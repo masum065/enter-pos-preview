@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { serviceRecords, activityLogs } from "@/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql, ilike } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { serviceRecordSchema } from "@/lib/validations/services";
 
@@ -14,34 +14,50 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const customerId = searchParams.get("customerId");
+    const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
-    let queryBuilder = db.select().from(serviceRecords).$dynamic();
-
+    // Build conditions — ALL must be AND
     const conditions = [];
     if (status) conditions.push(eq(serviceRecords.status, status));
     if (customerId) conditions.push(eq(serviceRecords.customerId, customerId));
-
-    if (conditions.length > 0) {
-      queryBuilder = queryBuilder.where(and(...conditions));
+    if (search) {
+      const searchTerm = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(serviceRecords.serviceNumber, searchTerm),
+          ilike(serviceRecords.customerName, searchTerm),
+          ilike(serviceRecords.customerPhone, searchTerm),
+          ilike(serviceRecords.deviceBrand, searchTerm),
+          ilike(serviceRecords.deviceModel, searchTerm),
+        )
+      );
     }
 
-    const services = await queryBuilder
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const services = await db.select().from(serviceRecords)
+      .where(whereClause)
       .orderBy(desc(serviceRecords.createdAt))
       .limit(limit)
       .offset(offset);
 
-    const totalCount = await db.select({ count: sql<number>`count(*)` }).from(serviceRecords);
+    // Filtered count (for pagination)
+    const totalCount = await db.select({ count: sql<number>`count(*)` })
+      .from(serviceRecords)
+      .where(whereClause);
 
-    // Status breakdown (from ALL data, not paginated)
+    // Status breakdown (from ALL data, not filtered)
+    const [totalAll] = await db.select({ count: sql<number>`count(*)` }).from(serviceRecords);
+    
     const statusBreakdown = await db.select({
       status: serviceRecords.status,
       count: sql<number>`count(*)`,
     }).from(serviceRecords).groupBy(serviceRecords.status);
 
-    const statusCounts: Record<string, number> = { All: Number(totalCount[0].count) };
+    const statusCounts: Record<string, number> = { All: Number(totalAll.count) };
     statusBreakdown.forEach((s) => { statusCounts[s.status] = Number(s.count); });
 
     // Pending = not Completed and not Delivered

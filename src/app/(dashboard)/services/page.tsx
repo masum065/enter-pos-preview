@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useServices, useUpdateServiceStatus } from "@/hooks/useServices";
 import { apiClient } from "@/lib/api-client";
@@ -36,39 +36,56 @@ function ServicesPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get("page") || "1");
+  const activeSearch = searchParams.get("search") || "";
+  const activeStatus = searchParams.get("status") || "";
+
   const setPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
     if (p <= 1) params.delete("page"); else params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
-  const { data: servicesData, isLoading } = useServices({ page, limit: 20 });
+
+  const { data: servicesData, isLoading } = useServices({
+    page, limit: 20,
+    search: activeSearch || undefined,
+    status: activeStatus || undefined,
+  });
   const services: ServiceRecord[] = (servicesData?.services || []) as any[];
   const pagination = (servicesData as any)?.pagination;
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ServiceStatus | "All">("All");
-
-  // Filtered services
-  const filteredServices = useMemo(() => {
-    let result = [...services];
-
-    if (statusFilter !== "All") {
-      result = result.filter((s) => s.status === statusFilter);
+  // URL-based search
+  const [searchInput, setSearchInput] = useState(activeSearch);
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const params = new URLSearchParams(searchParams.toString());
+    const query = searchInput.trim();
+    if (query) {
+      params.set("search", query);
+      params.delete("page");
+    } else {
+      params.delete("search");
     }
+    router.push(`?${params.toString()}`);
+  };
+  const clearSearch = () => {
+    setSearchInput("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (s) =>
-          s.serviceNumber.toLowerCase().includes(query) ||
-          s.customerName.toLowerCase().includes(query) ||
-          s.customerPhone.includes(query) ||
-          s.deviceModel.toLowerCase().includes(query)
-      );
+  // URL-based status filter
+  const setStatus = (s: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (s === "All" || s === "") {
+      params.delete("status");
+    } else {
+      params.set("status", s);
     }
-
-    return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [services, statusFilter, searchQuery]);
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
 
   // Status counts from API (all data, not just current page)
   const apiStats = (servicesData as any)?.stats;
@@ -137,12 +154,12 @@ function ServicesPageContent() {
       {/* Filters */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
         <div className="flex flex-wrap gap-2">
-          {STATUS_OPTIONS.slice(0, 5).map((status) => (
+          {STATUS_OPTIONS.map((status) => (
             <button
               key={status}
-              onClick={() => { setStatusFilter(status); setPage(1); }}
+              onClick={() => setStatus(status === "All" ? "" : status)}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
-                statusFilter === status
+                (status === "All" && !activeStatus) || activeStatus === status
                   ? "bg-purple-600 text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
               }`}
@@ -152,28 +169,43 @@ function ServicesPageContent() {
           ))}
         </div>
 
-        <div className="relative flex-1">
+        <form onSubmit={handleSearch} className="relative flex-1">
           <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-            placeholder="Search services..."
-            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by service #, customer, device..."
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-24 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
-        </div>
+          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1">
+            {activeSearch && (
+              <button type="button" onClick={clearSearch} className="rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">✕</button>
+            )}
+            <button type="submit" className="rounded-md bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700">Search</button>
+          </div>
+        </form>
       </div>
+
+      {/* Active Filters Info */}
+      {(activeSearch || activeStatus) && (
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          Found {pagination?.total || services.length} services
+          {activeSearch ? ` matching "${activeSearch}"` : ''}
+          {activeStatus ? ` — Status: ${activeStatus}` : ''}
+        </div>
+      )}
 
       {/* Services List */}
       <div className="space-y-4">
-        {filteredServices.length === 0 ? (
+        {services.length === 0 ? (
           <div className="rounded-xl border-2 border-dashed border-gray-300 p-12 text-center dark:border-gray-700">
-            <p className="text-gray-500">No services found.</p>
+            <p className="text-gray-500">{activeSearch || activeStatus ? "No services found matching filters." : "No services yet."}</p>
           </div>
         ) : (
-          filteredServices.map((service) => (
+          services.map((service) => (
             <div
               key={service.id}
               className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-900"

@@ -11,7 +11,7 @@ type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer";
 
 export default function PurchaseProductPage() {
   const router = useRouter();
-  const { data: productsData } = useProducts();
+  const { data: productsData } = useProducts({ limit: 500 });
   const { data: customersData } = useCustomers();
   const products = productsData?.products || [];
   const customers = customersData?.customers || [];

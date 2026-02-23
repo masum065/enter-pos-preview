@@ -207,7 +207,7 @@ export default function AddStockPage() {
 function AddStockContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: productsData } = useProducts();
+  const { data: productsData } = useProducts({ limit: 500 });
   const products: Product[] = (productsData?.products || []) as any[];
 
   // Get productId from URL if provided

@@ -258,7 +258,7 @@ function SerialCombobox({
   addedSerials: string[];
 }) {
   const { data: stockData } = useStockItems();
-  const { data: productsData } = useProducts();
+  const { data: productsData } = useProducts({ limit: 500 });
   // Stock data returns StockItemWithProduct[] → flatten to StockItem[]
   const rawStockItems = stockData?.stockItems || [];
   const allStockItems: StockItem[] = rawStockItems.map((s: any) => ({
@@ -428,7 +428,7 @@ function SerialCombobox({
 
 export default function NewSalePage() {
   const router = useRouter();
-  const { data: productsData } = useProducts();
+  const { data: productsData } = useProducts({ limit: 500 });
   const products: Product[] = (productsData?.products || []) as any[];
 
   const [step, setStep] = useState<Step>(1);

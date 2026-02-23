@@ -226,7 +226,7 @@ function StockPageContent() {
     source: activeSource || undefined,
     productId: activeProductId || undefined,
   });
-  const { data: productsData } = useProducts();
+  const { data: productsData } = useProducts({ limit: 500 });
   const updateStockMutation = useUpdateStockStatus();
 
   const stockItems: StockItem[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);

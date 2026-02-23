@@ -17,7 +17,7 @@ export default function SettingsPage() {
   const [saveMessage, setSaveMessage] = useState("");
 
   const { data: customersData } = useCustomers();
-  const { data: productsData } = useProducts();
+  const { data: productsData } = useProducts({ limit: 500 });
   const { data: stockData } = useStockItems();
   const { data: salesData } = useSales();
   const { data: servicesData } = useServices();

@@ -145,34 +145,43 @@ function CustomersPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get("page") || "1");
+  const activeSearch = searchParams.get("search") || "";
   const setPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
     if (p <= 1) params.delete("page"); else params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
-  const { data: customersData, isLoading } = useCustomers({ page, limit: 20 });
+  const { data: customersData, isLoading } = useCustomers({ page, limit: 20, search: activeSearch || undefined });
   const deleteCustomerMutation = useDeleteCustomer();
 
   const customers: Customer[] = (customersData?.customers || []) as any[];
   const pagination = (customersData as any)?.pagination;
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState(activeSearch);
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const params = new URLSearchParams(searchParams.toString());
+    const query = searchInput.trim();
+    if (query) {
+      params.set("search", query);
+      params.delete("page");
+    } else {
+      params.delete("search");
+    }
+    router.push(`?${params.toString()}`);
+  };
+  const clearSearch = () => {
+    setSearchInput("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
-
-  // Filtered customers (client-side search on current page)
-  const filteredCustomers = useMemo(() => {
-    if (!searchQuery.trim()) return customers;
-    const query = searchQuery.toLowerCase();
-    return customers.filter(c =>
-      c.name.toLowerCase().includes(query) ||
-      c.phone.includes(query) ||
-      (c.email && c.email.toLowerCase().includes(query))
-    );
-  }, [customers, searchQuery]);
 
   const totalCustomers = pagination?.total || customers.length;
 
@@ -245,7 +254,7 @@ function CustomersPageContent() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
+      <form onSubmit={handleSearch} className="relative max-w-md">
         <svg
           className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
           fill="none"
@@ -261,17 +270,34 @@ function CustomersPageContent() {
         </svg>
         <input
           type="text"
-          value={searchQuery}
-          onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-          placeholder="Search by name, phone, email..."
-          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-gray-900 placeholder-gray-500 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search by name, phone, email, NID..."
+          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-28 text-gray-900 placeholder-gray-500 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
         />
-      </div>
+        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1">
+          {activeSearch && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              ✕
+            </button>
+          )}
+          <button
+            type="submit"
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+          >
+            Search
+          </button>
+        </div>
+      </form>
 
       {/* Results count */}
-      {searchQuery && (
+      {activeSearch && (
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Found {totalCustomers} customers
+          Found {customers.length} customers for &quot;{activeSearch}&quot;
         </p>
       )}
 
@@ -299,19 +325,19 @@ function CustomersPageContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredCustomers.length === 0 ? (
+              {customers.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}
                     className="px-6 py-12 text-center text-gray-500 dark:text-gray-400"
                   >
-                    {searchQuery
+                    {activeSearch
                       ? "No customers found matching your search."
                       : "No customers yet. Add your first customer!"}
                   </td>
                 </tr>
               ) : (
-                filteredCustomers.map((customer) => (
+                customers.map((customer: Customer) => (
                   <tr
                     key={customer.id}
                     onClick={() => handleViewCustomer(customer)}

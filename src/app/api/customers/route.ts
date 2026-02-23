@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { customers, activityLogs } from "@/db/schema";
-import { eq, or, like, desc, sql } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { customerSchema } from "@/lib/validations/purchases";
 
@@ -22,12 +22,9 @@ export async function GET(request: NextRequest) {
     let queryBuilder = db.select().from(customers).$dynamic();
 
     if (search) {
+      const searchTerm = `%${search.trim()}%`;
       queryBuilder = queryBuilder.where(
-        or(
-          like(customers.name, `%${search}%`),
-          like(customers.phone, `%${search}%`),
-          like(customers.nid, `%${search}%`)
-        )
+        sql`(${customers.name} ILIKE ${searchTerm} OR ${customers.phone} ILIKE ${searchTerm} OR ${customers.nid} ILIKE ${searchTerm} OR ${customers.email} ILIKE ${searchTerm})`
       );
     }
 

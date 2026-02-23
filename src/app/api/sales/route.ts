@@ -66,8 +66,12 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .offset(offset);
 
-    // Get total count
-    const totalCount = await db.select({ count: sql<number>`count(*)` }).from(sales);
+    // Get total count — must apply same filters
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(sales).$dynamic();
+    if (conditions.length > 0) {
+      countQuery = countQuery.where(and(...conditions));
+    }
+    const totalCount = await countQuery;
 
     // Aggregate stats (from ALL data, not paginated)
     const [salesAgg] = await db.select({

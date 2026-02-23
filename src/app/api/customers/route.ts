@@ -33,7 +33,15 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .offset(offset);
 
-    const totalCount = await db.select({ count: sql<number>`count(*)` }).from(customers);
+    // Count query — must apply same search conditions
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(customers).$dynamic();
+    if (search) {
+      const searchTerm = `%${search.trim()}%`;
+      countQuery = countQuery.where(
+        sql`(${customers.name} ILIKE ${searchTerm} OR ${customers.phone} ILIKE ${searchTerm} OR ${customers.nid} ILIKE ${searchTerm} OR ${customers.email} ILIKE ${searchTerm})`
+      );
+    }
+    const totalCount = await countQuery;
 
     return NextResponse.json({
       customers: allCustomers,

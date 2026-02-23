@@ -77,6 +77,7 @@ interface SalesFilters {
   endDate?: string;
   customerId?: string;
   status?: string;
+  search?: string;
   page?: number;
   limit?: number;
 }
@@ -104,6 +105,7 @@ export function useSales(filters: SalesFilters = {}) {
       if (filters.endDate) params.endDate = filters.endDate;
       if (filters.customerId) params.customerId = filters.customerId;
       if (filters.status) params.status = filters.status;
+      if (filters.search) params.search = filters.search;
       if (filters.page) params.page = String(filters.page);
       if (filters.limit) params.limit = String(filters.limit);
 

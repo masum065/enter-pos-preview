@@ -498,16 +498,36 @@ function SalesPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get("page") || "1");
+  const activeSearch = searchParams.get("search") || "";
   const setPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
     if (p <= 1) params.delete("page"); else params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
-  const { data: salesData, isLoading } = useSales({ page, limit: 20 });
+  const { data: salesData, isLoading } = useSales({ page, limit: 20, search: activeSearch || undefined });
   const sales: Sale[] = (salesData?.sales || []) as any[];
   const pagination = (salesData as any)?.pagination;
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState(activeSearch);
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const params = new URLSearchParams(searchParams.toString());
+    const query = searchInput.trim();
+    if (query) {
+      params.set("search", query);
+      params.delete("page");
+    } else {
+      params.delete("search");
+    }
+    router.push(`?${params.toString()}`);
+  };
+  const clearSearch = () => {
+    setSearchInput("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
   const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "partial" | "pending" | "returned">("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("today");
   const [dateFrom, setDateFrom] = useState("");
@@ -562,19 +582,8 @@ function SalesPageContent() {
       });
     }
 
-    // Search
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (s) =>
-          s.invoiceNumber.toLowerCase().includes(query) ||
-          s.customerName.toLowerCase().includes(query) ||
-          s.customerPhone.includes(query)
-      );
-    }
-
     return result.sort((a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime());
-  }, [sales, statusFilter, dateFilter, dateFrom, dateTo, searchQuery]);
+  }, [sales, statusFilter, dateFilter, dateFrom, dateTo]);
 
   // Stats — computed from FILTERED data so cards reflect current view
   const stats = useMemo(() => ({
@@ -731,18 +740,35 @@ function SalesPageContent() {
         )}
 
         {/* Search */}
-        <div className="relative flex-1">
+        <form onSubmit={handleSearch} className="relative flex-1">
           <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-            placeholder="Search by invoice, customer..."
-            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search invoice, customer name or phone..."
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-24 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
-        </div>
+          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1">
+            {activeSearch && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                ✕
+              </button>
+            )}
+            <button
+              type="submit"
+              className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+            >
+              Search
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Sales Table */}

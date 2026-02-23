@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("endDate");
     const customerId = searchParams.get("customerId");
     const status = searchParams.get("status");
+    const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = (page - 1) * limit;
@@ -41,6 +42,14 @@ export async function GET(request: NextRequest) {
     }
     if (status) {
       conditions.push(eq(sales.status, status));
+    }
+
+    // Search across invoice number, customer name, and phone
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      conditions.push(
+        sql`(${sales.invoiceNumber} ILIKE ${searchTerm} OR ${sales.customerName} ILIKE ${searchTerm} OR ${sales.customerPhone} ILIKE ${searchTerm})`
+      );
     }
 
     // Employee can only see their own sales

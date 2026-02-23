@@ -50,6 +50,8 @@ interface StockItemsResponse {
 interface StockFilters {
   productId?: string;
   status?: string;
+  source?: string;
+  search?: string;
   page?: number;
   limit?: number;
 }
@@ -79,6 +81,8 @@ export function useStockItems(filters: StockFilters = {}) {
       const params: Record<string, string> = {};
       if (filters.productId) params.productId = filters.productId;
       if (filters.status) params.status = filters.status;
+      if (filters.source) params.source = filters.source;
+      if (filters.search) params.search = filters.search;
       if (filters.page) params.page = String(filters.page);
       if (filters.limit) params.limit = String(filters.limit);
 

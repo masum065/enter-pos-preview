@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { stockItems, products, suppliers, supplierTransactions, activityLogs } from "@/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql, ilike } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { stockItemSchema } from "@/lib/validations/inventory";
 
@@ -16,36 +16,56 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId");
     const status = searchParams.get("status");
+    const source = searchParams.get("source");
+    const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
-    let queryBuilder = db
+    // Build conditions — ALL must be AND
+    const conditions = [];
+
+    if (productId) {
+      conditions.push(eq(stockItems.productId, productId));
+    }
+    if (status) {
+      conditions.push(eq(stockItems.status, status as any));
+    }
+    if (source) {
+      conditions.push(eq(stockItems.purchaseSource, source));
+    }
+    if (search) {
+      const searchTerm = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(stockItems.serialNumber, searchTerm),
+          ilike(stockItems.imei, searchTerm),
+          ilike(stockItems.supplierName, searchTerm)
+        )
+      );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const items = await db
       .select({
         stockItem: stockItems,
         product: products,
       })
       .from(stockItems)
       .leftJoin(products, eq(stockItems.productId, products.id))
-      .$dynamic();
-
-    // Apply filters
-    if (productId) {
-      queryBuilder = queryBuilder.where(eq(stockItems.productId, productId));
-    }
-    if (status) {
-      queryBuilder = queryBuilder.where(eq(stockItems.status, status as any));
-    }
-
-    const items = await queryBuilder
+      .where(whereClause)
       .orderBy(desc(stockItems.createdAt))
       .limit(limit)
       .offset(offset);
 
-    // Get total count (efficient)
-    const totalCount = await db.select({ count: sql<number>`count(*)` }).from(stockItems);
+    // Filtered count
+    const totalCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(stockItems)
+      .where(whereClause);
 
-    // Aggregate stats (from ALL data, not paginated)
+    // Aggregate stats (from ALL data, not filtered)
     const [availableStats] = await db.select({
       count: sql<number>`count(*)`,
       value: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}), 0)`,
@@ -55,14 +75,28 @@ export async function GET(request: NextRequest) {
       count: sql<number>`count(*)`,
     }).from(stockItems).where(eq(stockItems.status, 'Sold'));
 
+    const [totalAll] = await db.select({
+      count: sql<number>`count(*)`,
+    }).from(stockItems);
+
+    // Status counts for filter tabs
+    const statusCounts = await db.select({
+      status: stockItems.status,
+      count: sql<number>`count(*)`,
+    }).from(stockItems).groupBy(stockItems.status);
+
+    const statusCountMap: Record<string, number> = { All: Number(totalAll.count) };
+    statusCounts.forEach(s => { statusCountMap[s.status] = Number(s.count); });
+
     return NextResponse.json({
       stockItems: items,
       stats: {
-        total: Number(totalCount[0].count),
+        total: Number(totalAll.count),
         available: Number(availableStats.count),
         sold: Number(soldStats.count),
         stockValue: Number(availableStats.value),
       },
+      statusCounts: statusCountMap,
       pagination: {
         page,
         limit,

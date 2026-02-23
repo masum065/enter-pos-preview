@@ -208,23 +208,90 @@ function StockPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get("page") || "1");
+  const activeSearch = searchParams.get("search") || "";
+  const activeStatus = searchParams.get("status") || "";
+  const activeSource = searchParams.get("source") || "";
+  const activeProductId = searchParams.get("productId") || "";
+
   const setPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
     if (p <= 1) params.delete("page"); else params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
-  const { data: stockData, isLoading } = useStockItems({ page, limit: 20 });
+
+  const { data: stockData, isLoading } = useStockItems({
+    page, limit: 20,
+    search: activeSearch || undefined,
+    status: activeStatus || undefined,
+    source: activeSource || undefined,
+    productId: activeProductId || undefined,
+  });
   const { data: productsData } = useProducts();
   const updateStockMutation = useUpdateStockStatus();
 
   const stockItems: StockItem[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);
   const products: Product[] = (productsData?.products || []) as any[];
   const pagination = (stockData as any)?.pagination;
+  const statusCounts: Record<string, number> = (stockData as any)?.statusCounts || {};
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<StockStatus | "All">("All");
-  const [selectedProduct, setSelectedProduct] = useState<string>("All");
-  const [selectedSource, setSelectedSource] = useState<"All" | "supplier" | "local">("All");
+  // URL-based search
+  const [searchInput, setSearchInput] = useState(activeSearch);
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const params = new URLSearchParams(searchParams.toString());
+    const query = searchInput.trim();
+    if (query) {
+      params.set("search", query);
+      params.delete("page");
+    } else {
+      params.delete("search");
+    }
+    router.push(`?${params.toString()}`);
+  };
+  const clearSearch = () => {
+    setSearchInput("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
+
+  // URL-based status filter
+  const setStatus = (s: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (s === "All" || s === "") {
+      params.delete("status");
+    } else {
+      params.set("status", s);
+    }
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
+
+  // URL-based source filter
+  const setSource = (src: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (src === "All" || src === "") {
+      params.delete("source");
+    } else {
+      params.set("source", src);
+    }
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
+
+  // URL-based product filter
+  const setProductFilter = (pid: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (pid === "All" || pid === "") {
+      params.delete("productId");
+    } else {
+      params.set("productId", pid);
+    }
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
+
   const [editingStockItem, setEditingStockItem] = useState<StockItem | null>(null);
   const [viewingStockItem, setViewingStockItem] = useState<StockItem | null>(null);
 
@@ -233,32 +300,6 @@ function StockPageContent() {
     const product = products.find((p) => p.id === productId);
     return product ? `${product.brand} ${product.modelName}` : "Unknown Product";
   };
-
-  // Filtered stock items
-  const filteredStock = useMemo(() => {
-    let result = stockItems;
-    
-    if (selectedStatus !== "All") {
-      result = result.filter((s) => s.status === selectedStatus);
-    }
-    if (selectedProduct !== "All") {
-      result = result.filter((s) => s.productId === selectedProduct);
-    }
-    if (selectedSource !== "All") {
-      result = result.filter((s) => s.purchaseSource === selectedSource);
-    }
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter((s) => 
-        s.serialNumber.toLowerCase().includes(query) ||
-        s.imei?.toLowerCase().includes(query) ||
-        getProductName(s.productId).toLowerCase().includes(query) ||
-        s.supplierName?.toLowerCase().includes(query)
-      );
-    }
-    
-    return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [stockItems, selectedStatus, selectedProduct, selectedSource, searchQuery, products]);
 
   // Stats from API (all data, not just current page)
   const apiStats = (stockData as any)?.stats;
@@ -340,11 +381,11 @@ function StockPageContent() {
           </div>
         </div>
 
-        <div className="rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 p-5 text-white shadow-lg">
+        <div className="rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 p-5 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-purple-100">Stock Value</p>
-              <p className="mt-1 text-2xl font-bold">{formatCurrency(stats.stockValue)}</p>
+              <p className="text-sm font-medium text-violet-100">Stock Value</p>
+              <p className="mt-1 text-3xl font-bold">{formatCurrency(stats.stockValue)}</p>
             </div>
             <div className="rounded-lg bg-white/20 p-3">
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -362,14 +403,14 @@ function StockPageContent() {
           {STATUS_OPTIONS.map((status) => (
             <button
               key={status}
-              onClick={() => { setSelectedStatus(status); setPage(1); }}
+              onClick={() => setStatus(status === "All" ? "" : status)}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                selectedStatus === status
+                (status === "All" && !activeStatus) || activeStatus === status
                   ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
               }`}
             >
-              {status}
+              {status} {statusCounts[status] !== undefined ? `(${statusCounts[status]})` : ''}
             </button>
           ))}
         </div>
@@ -377,8 +418,8 @@ function StockPageContent() {
         {/* Source Filter */}
         <div className="flex flex-wrap gap-2">
           <select
-            value={selectedSource}
-            onChange={(e) => setSelectedSource(e.target.value as any)}
+            value={activeSource || "All"}
+            onChange={(e) => setSource(e.target.value)}
             className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
           >
             <option value="All">All Sources</option>
@@ -391,25 +432,41 @@ function StockPageContent() {
           {/* Product Filter */}
           <ProductSearchSelect
             products={products}
-            selectedProductId={selectedProduct}
-            onSelect={setSelectedProduct}
+            selectedProductId={activeProductId || "All"}
+            onSelect={(pid) => setProductFilter(pid)}
           />
 
           {/* Search */}
-          <div className="relative flex-1">
+          <form onSubmit={handleSearch} className="relative flex-1">
             <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               type="text"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              placeholder="Search by serial number..."
-              className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-4 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by serial, IMEI..."
+              className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-12 pr-24 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
-          </div>
+            <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1">
+              {activeSearch && (
+                <button type="button" onClick={clearSearch} className="rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">✕</button>
+              )}
+              <button type="submit" className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">Search</button>
+            </div>
+          </form>
         </div>
       </div>
+
+      {/* Active Filters Info */}
+      {(activeSearch || activeStatus || activeSource || activeProductId) && (
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          Found {pagination?.total || stockItems.length} items
+          {activeSearch ? ` matching "${activeSearch}"` : ''}
+          {activeStatus ? ` — Status: ${activeStatus}` : ''}
+          {activeSource ? ` — Source: ${activeSource}` : ''}
+        </div>
+      )}
 
       {/* Stock Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -426,14 +483,14 @@ function StockPageContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredStock.length === 0 ? (
+              {stockItems.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                    No stock items found.
+                    {activeSearch || activeStatus || activeSource || activeProductId ? "No stock items found matching filters." : "No stock items yet."}
                   </td>
                 </tr>
               ) : (
-                filteredStock.map((item) => (
+                stockItems.map((item) => (
                   <tr 
                     key={item.id} 
                     onClick={() => setViewingStockItem(item)}
@@ -511,13 +568,6 @@ function StockPageContent() {
           </table>
         </div>
       </div>
-
-      {/* Pagination placeholder */}
-      {filteredStock.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-          <p>Showing {filteredStock.length} of {pagination?.total || stockItems.length} items</p>
-        </div>
-      )}
 
       {/* Stock Edit Modal */}
       {editingStockItem && (

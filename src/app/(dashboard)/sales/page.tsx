@@ -426,8 +426,8 @@ function SaleDetailModal({
             <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(sale.dueAmount)}</p>
           </div>
           <div className="flex-1 rounded-lg bg-purple-50 p-3 text-center dark:bg-purple-900/20">
-            <p className="text-sm text-purple-700 dark:text-purple-300">Profit</p>
-            <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{formatCurrency(sale.totalProfit)}</p>
+            <p className="text-sm text-purple-700 dark:text-purple-300">Items</p>
+            <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{sale.items?.length || 0}</p>
           </div>
         </div>
 
@@ -580,7 +580,7 @@ function SalesPageContent() {
   const stats = useMemo(() => ({
     total: filteredSales.length,
     totalAmount: filteredSales.reduce((sum, s) => sum + parseFloat(String(s.grandTotal || 0)), 0),
-    totalProfit: filteredSales.reduce((sum, s) => sum + parseFloat(String(s.totalProfit || 0)), 0),
+    totalPaid: filteredSales.reduce((sum, s) => sum + parseFloat(String(s.paidAmount || 0)), 0),
     totalDue: filteredSales.reduce((sum, s) => sum + parseFloat(String(s.dueAmount || 0)), 0),
     dueCount: filteredSales.filter((s) => parseFloat(String(s.dueAmount || 0)) > 0).length,
     returnedCount: filteredSales.filter((s) => s.status === "returned" || s.status === "partially_returned").length,
@@ -661,8 +661,8 @@ function SalesPageContent() {
           <p className="text-sm text-gray-500">{formatCurrency(stats.totalAmount)}</p>
         </div>
         <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
-          <p className="text-sm text-gray-600 dark:text-gray-400">Total Profit</p>
-          <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(stats.totalProfit)}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Total Paid</p>
+          <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(stats.totalPaid)}</p>
         </div>
         <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Total Due</p>

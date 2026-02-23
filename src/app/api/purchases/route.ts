@@ -5,7 +5,9 @@ import {
   stockItems, 
   suppliers, 
   supplierTransactions, 
-  activityLogs 
+  activityLogs,
+  customers,
+  customerTransactions
 } from "@/db/schema";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { getSession } from "@/lib/session";
@@ -150,6 +152,35 @@ export async function POST(request: NextRequest) {
           purchasePrice: validatedData.purchasePrice,
         },
       });
+
+      // 5. Update customer (seller) ledger
+      const purchasePrice = parseFloat(validatedData.purchasePrice);
+      const paidAmount = parseFloat(validatedData.paidAmount);
+      const dueToSeller = purchasePrice - paidAmount;
+
+      const [currentCustomer] = await tx.select().from(customers).where(eq(customers.id, validatedData.sellerId));
+      if (currentCustomer) {
+        const prevBalance = parseFloat(currentCustomer.balance || '0');
+        // Negative balance = shop owes the customer
+        const newBalance = prevBalance - dueToSeller;
+        const prevTotalPaid = parseFloat(currentCustomer.totalPaid || '0');
+
+        await tx.update(customers).set({
+          totalPaid: (prevTotalPaid + paidAmount).toFixed(2),
+          balance: newBalance.toFixed(2),
+          updatedAt: new Date(),
+        }).where(eq(customers.id, validatedData.sellerId));
+
+        await tx.insert(customerTransactions).values({
+          customerId: validatedData.sellerId,
+          type: 'purchase',
+          amount: purchasePrice.toFixed(2),
+          description: `Purchase ${invoiceNumber} — ${validatedData.productName} (${validatedData.serialNumber}). Paid: ৳${paidAmount.toFixed(2)}, Due: ৳${dueToSeller.toFixed(2)}`,
+          reference: invoiceNumber,
+          balanceAfter: newBalance.toFixed(2),
+          createdBy: session.id,
+        });
+      }
 
       return { purchase: newPurchase, stockItem: newStockItem };
     });

@@ -536,8 +536,13 @@ function SalesPageContent() {
   const [printingSale, setPrintingSale] = useState<Sale | null>(null);
   const [returningSale, setReturningSale] = useState<Sale | null>(null);
 
-  // Filter sales
+  // Filter sales (skip filters when search is active — search is global)
   const filteredSales = useMemo(() => {
+    // When searching, return backend results directly — no client-side filtering
+    if (activeSearch) {
+      return [...sales].sort((a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime());
+    }
+
     let result = [...sales];
 
     // Status filter
@@ -583,7 +588,7 @@ function SalesPageContent() {
     }
 
     return result.sort((a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime());
-  }, [sales, statusFilter, dateFilter, dateFrom, dateTo]);
+  }, [sales, statusFilter, dateFilter, dateFrom, dateTo, activeSearch]);
 
   // Stats — computed from FILTERED data so cards reflect current view
   const stats = useMemo(() => ({

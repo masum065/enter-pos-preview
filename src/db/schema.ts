@@ -64,11 +64,29 @@ export const customers = pgTable('customers', {
   address: text('address'),
   nid: varchar('nid', { length: 50 }),
   notes: text('notes'),
+  totalPurchases: decimal('total_purchases', { precision: 12, scale: 2 }).default('0').notNull(),
+  totalPaid: decimal('total_paid', { precision: 12, scale: 2 }).default('0').notNull(),
+  balance: decimal('balance', { precision: 12, scale: 2 }).default('0').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   phoneIdx: index('idx_customers_phone').on(table.phone),
   nameIdx: index('idx_customers_name').on(table.name),
+}));
+
+export const customerTransactions = pgTable('customer_transactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  type: varchar('type', { length: 20 }).notNull(), // sale, payment, return
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  description: text('description').notNull(),
+  reference: varchar('reference', { length: 255 }),
+  balanceAfter: decimal('balance_after', { precision: 12, scale: 2 }).notNull(),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  customerIdIdx: index('idx_customer_transactions_customer_id').on(table.customerId),
+  createdAtIdx: index('idx_customer_transactions_created_at').on(table.createdAt),
 }));
 
 // ============================================
@@ -389,6 +407,14 @@ export const customersRelations = relations(customers, ({ many }) => ({
   purchaseInvoices: many(purchaseInvoices),
   stockItems: many(stockItems),
   serviceRecords: many(serviceRecords),
+  transactions: many(customerTransactions),
+}));
+
+export const customerTransactionsRelations = relations(customerTransactions, ({ one }) => ({
+  customer: one(customers, {
+    fields: [customerTransactions.customerId],
+    references: [customers.id],
+  }),
 }));
 
 export const suppliersRelations = relations(suppliers, ({ many }) => ({

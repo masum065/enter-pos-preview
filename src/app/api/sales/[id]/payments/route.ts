@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { sales, payments as paymentsTable, activityLogs } from "@/db/schema";
+import { sales, payments as paymentsTable, activityLogs, customers, customerTransactions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { addPaymentSchema } from "@/lib/validations/sales";
@@ -99,6 +99,29 @@ export async function POST(
           dueAmount: newDueAmount.toFixed(2),
           status: newStatus,
         },
+      });
+
+      // Update customer ledger
+      const paymentAmount = parseFloat(validatedData.amount);
+      const [currentCustomer] = await tx.select().from(customers).where(eq(customers.id, sale.customerId));
+      const prevCustomerBalance = parseFloat(currentCustomer?.balance || '0');
+      const newCustomerBalance = prevCustomerBalance - paymentAmount;
+      const prevCustomerPaid = parseFloat(currentCustomer?.totalPaid || '0');
+
+      await tx.update(customers).set({
+        totalPaid: (prevCustomerPaid + paymentAmount).toFixed(2),
+        balance: newCustomerBalance.toFixed(2),
+        updatedAt: new Date(),
+      }).where(eq(customers.id, sale.customerId));
+
+      await tx.insert(customerTransactions).values({
+        customerId: sale.customerId,
+        type: 'payment',
+        amount: validatedData.amount,
+        description: `Payment for ${sale.invoiceNumber} — ৳${validatedData.amount} via ${validatedData.method}`,
+        reference: sale.invoiceNumber,
+        balanceAfter: newCustomerBalance.toFixed(2),
+        createdBy: session.id,
       });
 
       return { sale: updatedSale, payment: newPayment };

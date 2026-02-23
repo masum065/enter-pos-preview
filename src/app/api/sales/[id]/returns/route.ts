@@ -6,7 +6,9 @@ import {
   saleReturns, 
   saleReturnItems, 
   stockItems,
-  activityLogs 
+  activityLogs,
+  customers,
+  customerTransactions
 } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
@@ -166,6 +168,31 @@ export async function POST(
           status: newStatus,
           totalReturned: newTotalReturned.toFixed(2),
         },
+      });
+
+      // Update customer ledger
+      const refundAmount = parseFloat(validatedData.refundAmount);
+      const [currentCustomer] = await tx.select().from(customers).where(eq(customers.id, sale.customerId));
+      const prevCustomerBalance = parseFloat(currentCustomer?.balance || '0');
+      const newCustomerBalance = prevCustomerBalance - totalReturnAmount;
+      const prevTotalPurchases = parseFloat(currentCustomer?.totalPurchases || '0');
+      const prevTotalPaid = parseFloat(currentCustomer?.totalPaid || '0');
+
+      await tx.update(customers).set({
+        totalPurchases: (prevTotalPurchases - totalReturnAmount).toFixed(2),
+        totalPaid: (prevTotalPaid - refundAmount).toFixed(2),
+        balance: newCustomerBalance.toFixed(2),
+        updatedAt: new Date(),
+      }).where(eq(customers.id, sale.customerId));
+
+      await tx.insert(customerTransactions).values({
+        customerId: sale.customerId,
+        type: 'return',
+        amount: totalReturnAmount.toFixed(2),
+        description: `Return for ${sale.invoiceNumber} — ৳${totalReturnAmount.toFixed(2)} returned, ৳${refundAmount} refunded`,
+        reference: sale.invoiceNumber,
+        balanceAfter: newCustomerBalance.toFixed(2),
+        createdBy: session.id,
       });
 
       return { sale: updatedSale, return: newReturn };

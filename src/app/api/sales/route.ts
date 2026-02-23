@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { sales, saleItems, payments, stockItems, products, activityLogs } from "@/db/schema";
+import { sales, saleItems, payments, stockItems, products, activityLogs, customers, customerTransactions } from "@/db/schema";
 import { eq, and, gte, lte, desc, sql, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { createSaleSchema } from "@/lib/validations/sales";
@@ -277,6 +277,30 @@ export async function POST(request: NextRequest) {
           grandTotal: grandTotal.toFixed(2),
           itemsCount: validatedData.items.length,
         },
+      });
+
+      // 9. Update customer ledger
+      const [currentCustomer] = await tx.select().from(customers).where(eq(customers.id, validatedData.customerId));
+      const prevBalance = parseFloat(currentCustomer?.balance || '0');
+      const newBalance = prevBalance + dueAmount;
+      const prevTotalPurchases = parseFloat(currentCustomer?.totalPurchases || '0');
+      const prevTotalPaid = parseFloat(currentCustomer?.totalPaid || '0');
+
+      await tx.update(customers).set({
+        totalPurchases: (prevTotalPurchases + grandTotal).toFixed(2),
+        totalPaid: (prevTotalPaid + paidAmount).toFixed(2),
+        balance: newBalance.toFixed(2),
+        updatedAt: new Date(),
+      }).where(eq(customers.id, validatedData.customerId));
+
+      await tx.insert(customerTransactions).values({
+        customerId: validatedData.customerId,
+        type: 'sale',
+        amount: grandTotal.toFixed(2),
+        description: `Sale ${invoiceNumber} — Total: ৳${grandTotal.toFixed(2)}, Paid: ৳${paidAmount.toFixed(2)}, Due: ৳${dueAmount.toFixed(2)}`,
+        reference: invoiceNumber,
+        balanceAfter: newBalance.toFixed(2),
+        createdBy: session.id,
       });
 
       return newSale;

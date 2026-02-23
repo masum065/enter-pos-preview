@@ -632,6 +632,8 @@ function ProductsPageContent() {
     page, limit: 20,
     search: activeSearch || undefined,
     category: activeCategory || undefined,
+    sortBy: searchParams.get("sortBy") || "latest",
+    sortOrder: searchParams.get("sortOrder") || "desc",
   });
   const { data: stockData } = useStockItems();
   const createProduct = useCreateProduct();
@@ -678,8 +680,21 @@ function ProductsPageContent() {
     router.push(`?${params.toString()}`);
   };
 
-  const [sortBy, setSortBy] = useState<"name" | "price" | "stock" | "latest">("latest");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  // URL-based sorting
+  const activeSortBy = searchParams.get("sortBy") || "latest";
+  const activeSortOrder = searchParams.get("sortOrder") || "desc";
+  const setSort = (key: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (activeSortBy === key) {
+      params.set("sortOrder", activeSortOrder === "asc" ? "desc" : "asc");
+    } else {
+      params.set("sortBy", key);
+      params.set("sortOrder", key === "latest" ? "desc" : "asc");
+    }
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  };
+
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
@@ -688,31 +703,6 @@ function ProductsPageContent() {
   const getStockCount = (productId: string) => {
     return allStockItems.filter(s => s.productId === productId && s.status === "available").length;
   };
-
-  // Sorted products (sorting is still client-side, but filtering is server-side)
-  const sortedProducts = useMemo(() => {
-    return [...products].sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortBy) {
-        case "name":
-          comparison = `${a.brand} ${a.modelName}`.localeCompare(`${b.brand} ${b.modelName}`);
-          break;
-        case "price":
-          comparison = parseFloat(a.defaultSalePrice) - parseFloat(b.defaultSalePrice);
-          break;
-        case "stock":
-          comparison = getStockCount(a.id) - getStockCount(b.id);
-          break;
-        case "latest":
-        default:
-          comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          break;
-      }
-
-      return sortOrder === "asc" ? comparison : -comparison;
-    });
-  }, [products, sortBy, sortOrder]);
 
   // Get all stock for a product
   const getProductStock = (productId: string): StockItem[] => {
@@ -848,20 +838,12 @@ function ProductsPageContent() {
               { key: "latest", label: "Latest", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
               { key: "name", label: "Name", icon: "M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" },
               { key: "price", label: "Price", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-              { key: "stock", label: "Stock", icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
             ].map((option) => (
               <button
                 key={option.key}
-                onClick={() => {
-                  if (sortBy === option.key) {
-                    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-                  } else {
-                    setSortBy(option.key as typeof sortBy);
-                    setSortOrder(option.key === "latest" ? "desc" : "asc");
-                  }
-                }}
+                onClick={() => setSort(option.key)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
-                  sortBy === option.key
+                  activeSortBy === option.key
                     ? "bg-blue-600 text-white shadow-sm"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                 }`}
@@ -870,8 +852,8 @@ function ProductsPageContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={option.icon} />
                 </svg>
                 {option.label}
-                {sortBy === option.key && (
-                  <svg className={`h-3 w-3 transition-transform ${sortOrder === "desc" ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {activeSortBy === option.key && (
+                  <svg className={`h-3 w-3 transition-transform ${activeSortOrder === "desc" ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                   </svg>
                 )}
@@ -889,7 +871,7 @@ function ProductsPageContent() {
       )}
 
       {/* Products Grid */}
-      {sortedProducts.length === 0 ? (
+      {products.length === 0 ? (
         <div className="flex min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
           <div className="text-center">
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -902,7 +884,7 @@ function ProductsPageContent() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {sortedProducts.map((product: Product) => {
+          {products.map((product: Product) => {
             const stockCount = getStockCount(product.id);
             return (
               <div

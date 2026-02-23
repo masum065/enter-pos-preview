@@ -32,6 +32,8 @@ interface ProductsResponse {
 interface ProductFilters {
   search?: string;
   category?: string;
+  sortBy?: string;
+  sortOrder?: string;
   page?: number;
   limit?: number;
 }
@@ -57,6 +59,8 @@ export function useProducts(filters: ProductFilters = {}) {
       const params: Record<string, string> = {};
       if (filters.search) params.search = filters.search;
       if (filters.category) params.category = filters.category;
+      if (filters.sortBy) params.sortBy = filters.sortBy;
+      if (filters.sortOrder) params.sortOrder = filters.sortOrder;
       if (filters.page) params.page = String(filters.page);
       if (filters.limit) params.limit = String(filters.limit);
 

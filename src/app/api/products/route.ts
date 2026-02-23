@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const category = searchParams.get("category") || "";
+    const sortBy = searchParams.get("sortBy") || "latest";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
@@ -44,8 +46,22 @@ export async function GET(request: NextRequest) {
 
     queryBuilder = queryBuilder.where(and(...conditions));
 
+    // Server-side sorting
+    const isAsc = sortOrder === "asc";
+    switch (sortBy) {
+      case "name":
+        queryBuilder = queryBuilder.orderBy(isAsc ? products.modelName : desc(products.modelName));
+        break;
+      case "price":
+        queryBuilder = queryBuilder.orderBy(isAsc ? products.defaultSalePrice : desc(products.defaultSalePrice));
+        break;
+      case "latest":
+      default:
+        queryBuilder = queryBuilder.orderBy(isAsc ? products.createdAt : desc(products.createdAt));
+        break;
+    }
+
     const allProducts = await queryBuilder
-      .orderBy(desc(products.createdAt))
       .limit(limit)
       .offset(offset);
 

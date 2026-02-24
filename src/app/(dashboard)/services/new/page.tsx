@@ -29,13 +29,25 @@ export default function NewServicePage() {
     deviceModel: "",
     serialNumber: "",
     imei: "",
-    problemDescription: "",
     estimatedCost: 0,
     serviceCharge: 0,
     partsCost: 0,
     expectedDays: 3,
     notes: "",
   });
+
+  // Multi-problem list
+  const [problems, setProblems] = useState<string[]>([""]);
+  const addProblem = () => setProblems([...problems, ""]);
+  const removeProblem = (index: number) => {
+    if (problems.length <= 1) return;
+    setProblems(problems.filter((_, i) => i !== index));
+  };
+  const updateProblem = (index: number, value: string) => {
+    const updated = [...problems];
+    updated[index] = value;
+    setProblems(updated);
+  };
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -51,7 +63,8 @@ export default function NewServicePage() {
     if (!selectedCustomer) newErrors.customer = "Please select a customer";
     if (!formData.deviceBrand.trim()) newErrors.deviceBrand = "Device brand is required";
     if (!formData.deviceModel.trim()) newErrors.deviceModel = "Device model is required";
-    if (!formData.problemDescription.trim()) newErrors.problemDescription = "Problem description is required";
+    const validProblems = problems.filter(p => p.trim());
+    if (validProblems.length === 0) newErrors.problems = "At least one problem is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -60,6 +73,8 @@ export default function NewServicePage() {
     e.preventDefault();
     if (!validate() || !selectedCustomer) return;
 
+    const validProblems = problems.filter(p => p.trim());
+    const problemDescription = validProblems.join("\n");
     const totalCost = formData.serviceCharge + formData.partsCost;
     const expectedDate = new Date();
     expectedDate.setDate(expectedDate.getDate() + formData.expectedDays);
@@ -73,7 +88,7 @@ export default function NewServicePage() {
       deviceModel: formData.deviceModel,
       serialNumber: formData.serialNumber || undefined,
       imei: formData.imei || undefined,
-      problemDescription: formData.problemDescription,
+      problemDescription,
       receivedDate: new Date().toISOString(),
       expectedDeliveryDate: expectedDate.toISOString(),
       estimatedCost: formData.estimatedCost || totalCost,
@@ -199,25 +214,58 @@ export default function NewServicePage() {
           </div>
 
           <div className="mt-4">
-            <label className="mb-2 block text-sm font-medium">Problem Description *</label>
-            <textarea
-              value={formData.problemDescription}
-              onChange={(e) => setFormData({ ...formData, problemDescription: e.target.value })}
-              rows={3}
-              className={`w-full rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${errors.problemDescription ? "border-red-500" : "border-gray-300 dark:border-gray-700"}`}
-              placeholder="Describe the issue..."
-            />
-            {errors.problemDescription && <p className="mt-1 text-sm text-red-500">{errors.problemDescription}</p>}
+            <label className="mb-2 block text-sm font-medium">Problems / Issues *</label>
+            <div className="space-y-2">
+              {problems.map((problem, index) => (
+                <div key={index} className="flex gap-2">
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-purple-100 text-sm font-bold text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                    {index + 1}
+                  </span>
+                  <input
+                    type="text"
+                    value={problem}
+                    onChange={(e) => updateProblem(index, e.target.value)}
+                    className={`flex-1 rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${errors.problems ? "border-red-500" : "border-gray-300 dark:border-gray-700"}`}
+                    placeholder={index === 0 ? "e.g. Screen not working" : "Another problem..."}
+                  />
+                  {problems.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeProblem(index)}
+                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={addProblem}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/20"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Another Problem
+            </button>
+            {errors.problems && <p className="mt-1 text-sm text-red-500">{errors.problems}</p>}
           </div>
         </div>
 
         {/* Cost & Timeline */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Cost & Timeline</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Cost & Timeline</h2>
+            <span className="text-xs text-gray-400">Costs can be updated later after diagnosis</span>
+          </div>
           
           <div className="grid gap-4 md:grid-cols-3">
             <div>
-              <label className="mb-2 block text-sm font-medium">Service Charge (৳)</label>
+              <label className="mb-2 block text-sm font-medium">Service Charge (৳) <span className="text-xs font-normal text-gray-400">optional</span></label>
               <input
                 type="number"
                 value={formData.serviceCharge}
@@ -228,7 +276,7 @@ export default function NewServicePage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium">Parts Cost (৳)</label>
+              <label className="mb-2 block text-sm font-medium">Parts Cost (৳) <span className="text-xs font-normal text-gray-400">optional</span></label>
               <input
                 type="number"
                 value={formData.partsCost}

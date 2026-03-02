@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
+import { Modal, ModalFooter } from "@/components/ui/modal";
 
 type Tab = "general" | "users";
 
@@ -27,58 +28,6 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
 );
 const inputCls = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
 
-// ── Confirm Modal ──────────────────────────────────────────────────────────
-function ConfirmModal({
-  title,
-  message,
-  confirmLabel,
-  confirmColor,
-  onConfirm,
-  onClose,
-}: {
-  title: string;
-  message: string;
-  confirmLabel: string;
-  confirmColor: "red" | "green";
-  onConfirm: () => void;
-  onClose: () => void;
-}) {
-  const btnCls =
-    confirmColor === "red"
-      ? "bg-red-600 hover:bg-red-700 text-white"
-      : "bg-green-600 hover:bg-green-700 text-white";
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:text-gray-600">
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className="px-6 py-5">
-          <p className="text-sm text-gray-600 dark:text-gray-400">{message}</p>
-        </div>
-        <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => { onConfirm(); onClose(); }}
-            className={`rounded-lg px-5 py-2 text-sm font-medium ${btnCls}`}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Add/Edit User Modal ────────────────────────────────────────────────────
 function UserModal({
@@ -701,16 +650,23 @@ export default function SettingsPage() {
         />
       )}
 
-      {/* Confirm Modal (activate / deactivate) */}
+      {/* Confirm Modal (activate / deactivate) — uses shared Modal component */}
       {confirmModal && (
-        <ConfirmModal
-          title={confirmModal.title}
-          message={confirmModal.message}
-          confirmLabel={confirmModal.confirmLabel}
-          confirmColor={confirmModal.confirmColor}
-          onConfirm={confirmModal.onConfirm}
+        <Modal
+          isOpen={!!confirmModal}
           onClose={() => setConfirmModal(null)}
-        />
+          title={confirmModal.title}
+          size="sm"
+        >
+          <p className="text-sm text-gray-600 dark:text-gray-400">{confirmModal.message}</p>
+          <ModalFooter
+            onCancel={() => setConfirmModal(null)}
+            onConfirm={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+            cancelText="Cancel"
+            confirmText={confirmModal.confirmLabel}
+            confirmVariant={confirmModal.confirmColor === "red" ? "danger" : "success"}
+          />
+        </Modal>
       )}
     </div>
   );

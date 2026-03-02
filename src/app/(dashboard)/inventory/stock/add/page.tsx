@@ -209,8 +209,15 @@ export default function AddStockPage() {
 function AddStockContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: productsData } = useProducts({ limit: 500 });
-  const products: Product[] = (productsData?.products || []) as any[];
+
+  // Server-side product search — no upfront 500-item load
+  const [productQuery, setProductQuery] = useState("");
+  const shouldFetchProducts = productQuery.trim().length >= MIN_SEARCH_LENGTH;
+  const { data: productsData, isFetching: productsFetching } = useProducts(
+    { search: productQuery.trim(), limit: 10 },
+    shouldFetchProducts
+  );
+  const products: Product[] = shouldFetchProducts ? (productsData?.products || []) as any[] : [];
 
   // Get productId from URL if provided
   const preSelectedProductId = searchParams.get("productId") || "";
@@ -392,6 +399,7 @@ function AddStockContent() {
             <ProductSearchSelect
               products={products}
               selectedProductId={selectedProduct}
+              onSearch={setProductQuery}
               onSelect={(productId) => {
                 setSelectedProduct(productId);
                 const product = products.find((p) => p.id === productId);
@@ -588,11 +596,13 @@ function ProductSearchSelect({
   products,
   selectedProductId,
   onSelect,
+  onSearch,
   hasError = false,
 }: {
   products: Product[];
   selectedProductId: string;
   onSelect: (productId: string) => void;
+  onSearch?: (query: string) => void;
   hasError?: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -602,8 +612,10 @@ function ProductSearchSelect({
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
 
-  // Filtered products (max 5)
+  // If onSearch is provided, products are filtered by server.
+  // Otherwise filter locally.
   const filteredProducts = useMemo(() => {
+    if (onSearch) return products.slice(0, 5); // server gives filtered results
     if (!query.trim()) return products.slice(0, 5);
     const q = query.toLowerCase();
     return products
@@ -613,7 +625,7 @@ function ProductSearchSelect({
         `${p.brand} ${p.modelName}`.toLowerCase().includes(q)
       )
       .slice(0, 5);
-  }, [products, query]);
+  }, [products, query, onSearch]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -683,10 +695,11 @@ function ProductSearchSelect({
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
+              onSearch?.(e.target.value);
               setIsOpen(true);
             }}
             onFocus={() => setIsOpen(true)}
-            placeholder="Search products by name or brand..."
+            placeholder="Search products by MINIMUM 2 chars..."
             className={`w-full rounded-lg border py-3 pl-12 pr-4 text-gray-900 focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
               hasError ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500 dark:border-gray-700"
             }`}

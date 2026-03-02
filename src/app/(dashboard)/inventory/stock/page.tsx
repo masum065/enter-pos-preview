@@ -228,13 +228,20 @@ function StockPageContent() {
     source: activeSource || undefined,
     productId: activeProductId || undefined,
   });
-  const { data: productsData } = useProducts({ limit: 500 });
-  const updateStockMutation = useUpdateStockStatus();
-
   const stockItems: StockItem[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);
-  const products: Product[] = (productsData?.products || []) as any[];
   const pagination = (stockData as any)?.pagination;
   const statusCounts: Record<string, number> = (stockData as any)?.statusCounts || {};
+
+  // Build a productId -> name map from already-loaded stock data (avoids separate 500-item fetch)
+  const productNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (stockData?.stockItems || []).forEach((s: any) => {
+      const p = s.product;
+      const id = s.stockItem?.productId || s.productId;
+      if (p && id) map[id] = `${p.brand} ${p.modelName}`;
+    });
+    return map;
+  }, [stockData]);
 
   // URL-based search
   const [searchInput, setSearchInput] = useState(activeSearch);
@@ -298,11 +305,9 @@ function StockPageContent() {
   const [viewingStockItem, setViewingStockItem] = useState<StockItem | null>(null);
   const { toast, showToast } = useToast();
 
-  // Get product name by ID
-  const getProductName = (productId: string): string => {
-    const product = products.find((p) => p.id === productId);
-    return product ? `${product.brand} ${product.modelName}` : "Unknown Product";
-  };
+  // Get product name by ID — from already-loaded stock data (no extra API call needed)
+  const getProductName = (productId: string): string =>
+    productNameMap[productId] || "Unknown Product";
 
   // Stats from API (all data, not just current page)
   const apiStats = (stockData as any)?.stats;
@@ -434,7 +439,7 @@ function StockPageContent() {
         <div className="flex flex-1 gap-4">
           {/* Product Filter */}
           <ProductSearchSelect
-            products={products}
+            products={Object.entries(productNameMap).map(([id, name]) => ({ id, brand: name.split(' ')[0], modelName: name.split(' ').slice(1).join(' ') } as Product))}
             selectedProductId={activeProductId || "All"}
             onSelect={(pid) => setProductFilter(pid)}
           />
@@ -597,7 +602,7 @@ function StockPageContent() {
       {viewingStockItem && (
         <StockDetailModal
           stockItem={viewingStockItem}
-          product={products.find(p => p.id === viewingStockItem.productId)}
+          product={((stockData?.stockItems || []).find((s: any) => (s.stockItem?.id || s.id) === viewingStockItem.id)?.product as Product) || undefined}
           onClose={() => setViewingStockItem(null)}
           onEdit={() => {
             if (viewingStockItem.status !== "Sold") {

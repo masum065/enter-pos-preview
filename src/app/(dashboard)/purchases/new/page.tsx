@@ -14,7 +14,7 @@ type Seller = CustomerOption;
 
 const MIN_PRODUCT_SEARCH = 2;
 
-// Product Combobox
+// Product Combobox — fetches from server only when user types 2+ chars
 function ProductCombobox({
   selectedProduct,
   onSelect,
@@ -22,8 +22,6 @@ function ProductCombobox({
   selectedProduct: any | null;
   onSelect: (product: any | null) => void;
 }) {
-  const { data: productsData } = useProducts({ limit: 500 });
-  const products = productsData?.products || [];
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,18 +29,12 @@ function ProductCombobox({
 
   const shouldSearch = query.trim().length >= MIN_PRODUCT_SEARCH;
 
-  const filteredProducts = useMemo(() => {
-    if (!shouldSearch) return [];
-    const q = query.toLowerCase();
-    return products
-      .filter(
-        (p: any) =>
-          p.modelName.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q) ||
-          `${p.brand} ${p.modelName}`.toLowerCase().includes(q),
-      )
-      .slice(0, 10);
-  }, [query, shouldSearch, products]);
+  // Only fetch when user has typed enough — no upfront 500-product load
+  const { data: productsData, isFetching } = useProducts({
+    search: query.trim(),
+    limit: 10,
+  }, shouldSearch);
+  const filteredProducts = shouldSearch ? (productsData?.products || []) : [];
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

@@ -34,6 +34,8 @@ interface StockItem {
   productId: string;
   purchasePrice: string;
   status: string;
+  // Product info embedded from API join — no separate products fetch needed
+  _product?: Product;
   [key: string]: any;
 }
 
@@ -73,7 +75,7 @@ function SerialCombobox({
   addedSerials: string[];
 }) {
   const { data: stockData } = useStockItems();
-  const { data: productsData } = useProducts({ limit: 500 });
+  // No separate products fetch — stock API already joins product info
   // Stock data returns StockItemWithProduct[] → flatten to StockItem[]
   const rawStockItems = stockData?.stockItems || [];
   const allStockItems: StockItem[] = rawStockItems.map((s: any) => ({
@@ -82,9 +84,10 @@ function SerialCombobox({
     productId: s.stockItem?.productId || s.productId,
     purchasePrice: s.stockItem?.purchasePrice || s.purchasePrice,
     status: s.stockItem?.status || s.status,
+    _product: s.product,          // carry product info from join
     ...(s.stockItem || s),
   }));
-  const allProducts: Product[] = (productsData?.products || []) as any[];
+  const allProducts: Product[] = [];  // no longer needed — using _product instead
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,7 +108,7 @@ function SerialCombobox({
     return availableStock
       .filter((item) => {
         if (item.serialNumber.includes(q)) return true;
-        const product = allProducts.find((p) => p.id === item.productId);
+        const product = item._product;
         if (product) {
           const productName = `${product.brand} ${product.modelName}`.toUpperCase();
           if (productName.includes(q)) return true;
@@ -113,7 +116,7 @@ function SerialCombobox({
         return false;
       })
       .slice(0, 10);
-  }, [query, shouldSearch, availableStock, allProducts]);
+  }, [query, shouldSearch, availableStock]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -243,9 +246,6 @@ function SerialCombobox({
 
 export default function NewSalePage() {
   const router = useRouter();
-  const { data: productsData } = useProducts({ limit: 500 });
-  const products: Product[] = (productsData?.products || []) as any[];
-
   const [step, setStep] = useState<Step>(1);
 
   // Step 1: Customer
@@ -290,7 +290,7 @@ export default function NewSalePage() {
 
   // Add item from stock selection
   const handleAddFromStock = (stockItem: StockItem) => {
-    const product = products.find((p) => p.id === stockItem.productId);
+    const product = stockItem._product;
     if (!product) return;
 
     const salePrice = parseFloat(product.defaultSalePrice);

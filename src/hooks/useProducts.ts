@@ -52,9 +52,10 @@ export const productKeys = {
 /**
  * Fetch all products with optional filters
  */
-export function useProducts(filters: ProductFilters = {}) {
+export function useProducts(filters: ProductFilters = {}, enabled = true) {
   return useQuery({
     queryKey: productKeys.list(filters),
+    enabled,
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (filters.search) params.search = filters.search;

@@ -79,7 +79,7 @@ export default function ProfilePage() {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/auth/sign-in");
+    window.location.href = "/auth/sign-in";
   };
 
   const inputCls = "w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";

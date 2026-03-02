@@ -9,7 +9,6 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOutIcon, SettingsIcon, UserIcon } from "./icons";
 import { useSession } from "@/hooks/useSession";
 
@@ -35,7 +34,6 @@ function UserAvatar({ name }: { name: string }) {
 
 export function UserInfo() {
   const [isOpen, setIsOpen] = useState(false);
-  const router = useRouter();
   const { data: sessionData } = useSession();
 
   const user = (sessionData as any)?.user || sessionData;
@@ -43,11 +41,9 @@ export function UserInfo() {
   const email = user?.email || user?.userId || "";
 
   const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {}
-    router.push("/auth/sign-in");
-    router.refresh();
+    try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
+    // Full reload to clear all React state / sidebar overlay
+    window.location.href = "/auth/sign-in";
   };
 
   return (

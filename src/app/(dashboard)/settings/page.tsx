@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
 
 type Tab = "general" | "users";
@@ -26,6 +26,59 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
   </div>
 );
 const inputCls = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
+
+// ── Confirm Modal ──────────────────────────────────────────────────────────
+function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  confirmColor,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  confirmColor: "red" | "green";
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const btnCls =
+    confirmColor === "red"
+      ? "bg-red-600 hover:bg-red-700 text-white"
+      : "bg-green-600 hover:bg-green-700 text-white";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:text-gray-600">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-6 py-5">
+          <p className="text-sm text-gray-600 dark:text-gray-400">{message}</p>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { onConfirm(); onClose(); }}
+            className={`rounded-lg px-5 py-2 text-sm font-medium ${btnCls}`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Add/Edit User Modal ────────────────────────────────────────────────────
 function UserModal({
@@ -259,6 +312,13 @@ export default function SettingsPage() {
   const [resetUser,      setResetUser]      = useState<User | null>(null);
   const [modalError,     setModalError]     = useState("");
   const [saving,         setSaving]         = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmColor: "red" | "green";
+    onConfirm: () => void;
+  } | null>(null);
 
   // Fetch real users from API
   const { data: usersData, isLoading: usersLoading } = useQuery({
@@ -334,33 +394,47 @@ export default function SettingsPage() {
     }
   };
 
-  // ── Deactivate user ───────────────────────────────────────────────────
+  // ── Deactivate user
   const handleDeactivate = async (user: User) => {
-    if (!confirm(`Deactivate user "${user.name}" (${user.userId})?`)) return;
-    try {
-      await apiClient.delete(`/api/users/${user.id}`);
-      qc.invalidateQueries({ queryKey: ["settings", "users"] });
-      showToast(`User "${user.name}" deactivated.`);
-    } catch (e: any) {
-      showToast(e?.message || "Failed to deactivate user.", "error");
-    }
+    setConfirmModal({
+      title: "Deactivate User",
+      message: `Are you sure you want to deactivate "${user.name}" (@${user.userId})? They will no longer be able to log in.`,
+      confirmLabel: "Deactivate",
+      confirmColor: "red",
+      onConfirm: async () => {
+        try {
+          await apiClient.delete(`/api/users/${user.id}`);
+          qc.invalidateQueries({ queryKey: ["settings", "users"] });
+          showToast(`User "${user.name}" deactivated.`);
+        } catch (e: any) {
+          showToast(e?.message || "Failed to deactivate user.", "error");
+        }
+      },
+    });
   };
 
-  // ── Activate user ─────────────────────────────────────────────────────
+  // ── Activate user
   const handleActivate = async (user: User) => {
-    if (!confirm(`Re-activate user "${user.name}" (${user.userId})?`)) return;
-    try {
-      await apiClient.put(`/api/users/${user.id}`, {
-        name:     user.name,
-        email:    user.email || undefined,
-        role:     user.role,
-        isActive: true,
-      });
-      qc.invalidateQueries({ queryKey: ["settings", "users"] });
-      showToast(`User "${user.name}" activated.`);
-    } catch (e: any) {
-      showToast(e?.message || "Failed to activate user.", "error");
-    }
+    setConfirmModal({
+      title: "Activate User",
+      message: `Re-activate "${user.name}" (@${user.userId})? They will be able to log in again.`,
+      confirmLabel: "Activate",
+      confirmColor: "green",
+      onConfirm: async () => {
+        try {
+          await apiClient.put(`/api/users/${user.id}`, {
+            name:     user.name,
+            email:    user.email || undefined,
+            role:     user.role,
+            isActive: true,
+          });
+          qc.invalidateQueries({ queryKey: ["settings", "users"] });
+          showToast(`User "${user.name}" activated.`);
+        } catch (e: any) {
+          showToast(e?.message || "Failed to activate user.", "error");
+        }
+      },
+    });
   };
 
   const roleBadge = (role: string) =>
@@ -624,6 +698,18 @@ export default function SettingsPage() {
           onSave={handleResetPassword}
           saving={saving}
           error={modalError}
+        />
+      )}
+
+      {/* Confirm Modal (activate / deactivate) */}
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          confirmColor={confirmModal.confirmColor}
+          onConfirm={confirmModal.onConfirm}
+          onClose={() => setConfirmModal(null)}
         />
       )}
     </div>

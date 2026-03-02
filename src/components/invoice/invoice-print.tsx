@@ -180,18 +180,17 @@ function buildInvoiceHTML(sale: Sale): string {
     <tfoot>
       <tr><td colspan="4"></td><td class="tr fw6">Total</td><td class="tr">${fmt(subtotal)}</td></tr>
       ${discount > 0 ? `<tr><td colspan="4"></td><td class="tr fw6">Discount</td><td class="tr">(${fmt(discount)})</td></tr>` : ""}
-      <tr><td colspan="4"></td><td class="tr fw7">Grand Total</td><td class="tr fw7">${fmt(grandTotal)}</td></tr>
+      <tr>
+        <td colspan="4" style="font-size:11px;"><strong>Amount In Words:</strong> ${amountInWords(grandTotal)}</td>
+        <td class="tr fw7">Grand Total</td>
+        <td class="tr fw7">${fmt(grandTotal)}</td>
+      </tr>
     </tfoot>
   </table>
 
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
-    <div style="font-size:11px;border:1px solid #e5e7eb;padding:4px 8px;max-width:60%;">
-      <strong>Amount In Words:</strong> ${amountInWords(grandTotal)}
-    </div>
-    <div class="paid-due">
-      <span>Paid: ${fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
-      <span class="${dueAmount > 0 ? 'due-red' : ''}">Due: ${fmt(dueAmount)} Tk</span>
-    </div>
+  <div style="display:flex;justify-content:flex-end;align-items:center;margin:4px 0;font-weight:700;font-size:11px;">
+    <span>Paid: ${fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
+    <span class="${dueAmount > 0 ? 'due-red' : ''}">Due: ${fmt(dueAmount)} Tk</span>
   </div>
   <p class="note">Good received by customer in good condition.</p>
 
@@ -332,22 +331,19 @@ export function InvoicePrintModal({
               </tr>
             )}
             <tr>
-              <td colSpan={4}></td>
+              <td colSpan={4} style={tdStyle({ fontSize: 11 })}>
+                <strong>Amount In Words:</strong> {amountInWords(grandTotal)}
+              </td>
               <td style={tdStyle({ textAlign: "right", fontWeight: 700 })}>Grand Total</td>
               <td style={tdStyle({ textAlign: "right", fontWeight: 700 })}>{fmt(grandTotal)}</td>
             </tr>
           </tfoot>
         </table>
 
-        {/* Amount words + paid/due — side by side box */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
-          <div style={{ fontSize: 11, border: "1px solid #e5e7eb", padding: "4px 8px", maxWidth: "60%" }}>
-            <strong>Amount In Words:</strong> {amountInWords(grandTotal)}
-          </div>
-          <div style={{ textAlign: "right", fontWeight: 700, fontSize: 11 }}>
-            <span>Paid: {fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
-            <span style={{ color: dueAmount > 0 ? "#dc2626" : "inherit" }}>Due: {fmt(dueAmount)} Tk</span>
-          </div>
+        {/* Paid / Due */}
+        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 11, margin: "4px 0" }}>
+          <span>Paid: {fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
+          <span style={{ color: dueAmount > 0 ? "#dc2626" : "inherit" }}>Due: {fmt(dueAmount)} Tk</span>
         </div>
         <p style={{ fontSize: 10, color: "#555", margin: "4px 0" }}>Good received by customer in good condition.</p>
 

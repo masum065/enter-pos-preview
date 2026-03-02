@@ -133,6 +133,9 @@ export default function ReportsPage() {
   const [logAction, setLogAction] = useState("all");
   const [logPage, setLogPage] = useState(1);
 
+  // Sales list state (audit table)
+  const [salesListPage, setSalesListPage] = useState(1);
+
   // Compute active date range
   const { start, end } = preset === "custom"
     ? { start: customStart, end: customEnd }
@@ -176,20 +179,48 @@ export default function ReportsPage() {
   const activityLogs: any[] = (activityData as any)?.logs || [];
   const activityPagination = (activityData as any)?.pagination;
 
+  // Fetch sales list (for audit table in Sales tab)
+  const { data: salesListData } = useQuery({
+    queryKey: ["reports", "salesList", start, end, salesListPage],
+    queryFn: () => {
+      const p: Record<string, string> = { page: String(salesListPage), limit: "50" };
+      if (start) p.startDate = start;
+      if (end) p.endDate = end;
+      return apiClient.get<any>("/api/sales", p);
+    },
+    enabled: tab === "sales",
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  });
+  const salesList: any[] = (salesListData as any)?.sales || [];
+  const salesListPagination = (salesListData as any)?.pagination;
+
   // ── Export ────────────────────────────────────────────────────────────────
   const handleExportXLSX = async () => {
     if (!report) return;
     if (tab === "sales") {
-      const data = [
-        { Metric: "Total Sales", Value: report.sales.count },
-        { Metric: "Revenue", Value: report.sales.revenue },
-        { Metric: "Collected", Value: report.sales.collected },
-        { Metric: "Due", Value: report.sales.due },
-        { Metric: "Gross Profit", Value: report.sales.grossProfit },
-        { Metric: "Returns", Value: report.sales.returned },
-        { Metric: "Avg Order", Value: Math.round(report.sales.avgOrder) },
-      ];
-      await exportXLSX(data, "Sales Report", `sales-report-${start || "all"}`);
+      if (salesList.length > 0) {
+        // Export the actual list rows
+        const data = salesList.map((s: any) => ({
+          "Invoice #":     s.invoiceNumber,
+          "Date":          new Date(s.invoiceDate || s.createdAt).toLocaleDateString("en-BD"),
+          "Customer":      s.customerName,
+          "Phone":         s.customerPhone,
+          "Grand Total":   Number(s.grandTotal),
+          "Paid":          Number(s.paidAmount),
+          "Due":           Number(s.dueAmount),
+          "Status":        s.paymentStatus || s.status,
+        }));
+        await exportXLSX(data, "Sales Report", `sales-report-${start || "all"}`);
+      } else {
+        const data = [
+          { Metric: "Total Sales", Value: report.sales.count },
+          { Metric: "Revenue", Value: report.sales.revenue },
+          { Metric: "Collected", Value: report.sales.collected },
+          { Metric: "Due", Value: report.sales.due },
+        ];
+        await exportXLSX(data, "Sales Report", `sales-report-${start || "all"}`);
+      }
     } else if (tab === "profit") {
       const r = report.profit;
       const data = [
@@ -248,16 +279,32 @@ export default function ReportsPage() {
       const rows: (string | number)[][] = report.expenses.byCategory.map(c => [c.category, c.count, formatCurrency(c.total)]);
       await exportPDF("Expense Report", dateLabel, ["Category", "Count", "Amount"], rows, `expense-report-${start || "all"}`);
     } else if (tab === "sales") {
-      const s = report.sales;
-      const rows: (string | number)[][] = [
-        ["Total Sales", s.count, ""],
-        ["Revenue", "", formatCurrency(s.revenue)],
-        ["Collected", "", formatCurrency(s.collected)],
-        ["Due", "", formatCurrency(s.due)],
-        ["Gross Profit", "", formatCurrency(s.grossProfit)],
-        ["Avg Order", "", formatCurrency(s.avgOrder)],
-      ];
-      await exportPDF("Sales Report", dateLabel, ["Metric", "Count", "Amount"], rows, `sales-report-${start || "all"}`);
+      if (salesList.length > 0) {
+        const rows: (string | number)[][] = salesList.map((s: any) => [
+          s.invoiceNumber,
+          new Date(s.invoiceDate || s.createdAt).toLocaleDateString("en-BD"),
+          s.customerName,
+          s.customerPhone || "",
+          formatCurrency(Number(s.grandTotal)),
+          formatCurrency(Number(s.paidAmount)),
+          formatCurrency(Number(s.dueAmount)),
+          s.paymentStatus || s.status,
+        ]);
+        await exportPDF(
+          "Sales Audit Report", dateLabel,
+          ["Invoice #", "Date", "Customer", "Phone", "Total", "Paid", "Due", "Status"],
+          rows, `sales-report-${start || "all"}`
+        );
+      } else {
+        const s = report.sales;
+        const rows: (string | number)[][] = [
+          ["Total Sales", s.count, ""],
+          ["Revenue", "", formatCurrency(s.revenue)],
+          ["Collected", "", formatCurrency(s.collected)],
+          ["Due", "", formatCurrency(s.due)],
+        ];
+        await exportPDF("Sales Report", dateLabel, ["Metric", "Count", "Amount"], rows, `sales-report-${start || "all"}`);
+      }
     }
   };
 
@@ -433,6 +480,7 @@ export default function ReportsPage() {
       {/* SALES */}
       {tab === "sales" && report && (
         <div className="space-y-4">
+          {/* Summary cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Total Sales" value={String(report.sales.count)} />
             <StatCard label="Revenue" value={formatCurrency(report.sales.revenue)} color="blue" />
@@ -441,6 +489,99 @@ export default function ReportsPage() {
             <StatCard label="Gross Profit" value={formatCurrency(report.sales.grossProfit)} color="green" sub="Revenue - Cost" />
             <StatCard label="Net Returns" value={formatCurrency(report.sales.returned)} color="orange" />
             <StatCard label="Average Order" value={formatCurrency(report.sales.avgOrder)} />
+          </div>
+
+          {/* Audit table */}
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Sales Audit List — {dateLabel}</h3>
+              <span className="text-sm text-gray-400">{salesListPagination?.total || salesList.length} records</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/50">
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Invoice #</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Date</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Customer</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Phone</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-600 dark:text-gray-300">Total</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-600 dark:text-gray-300">Paid</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-600 dark:text-gray-300">Due</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-600 dark:text-gray-300">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {salesList.length === 0 ? (
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No sales found for this period.</td></tr>
+                  ) : (
+                    salesList.map((s: any) => {
+                      const due = Number(s.dueAmount);
+                      const paid = Number(s.paidAmount);
+                      const total = Number(s.grandTotal);
+                      const status = s.paymentStatus || (due <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending");
+                      return (
+                        <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                          <td className="px-4 py-3 font-mono text-xs font-medium text-purple-600 dark:text-purple-400">{s.invoiceNumber}</td>
+                          <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatDate(s.invoiceDate || s.createdAt)}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{s.customerName}</td>
+                          <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{s.customerPhone}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(total)}</td>
+                          <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(paid)}</td>
+                          <td className={`px-4 py-3 text-right font-medium ${due > 0 ? "text-red-600 dark:text-red-400" : "text-gray-400"}`}>
+                            {due > 0 ? formatCurrency(due) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                              status === "Paid" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                              : status === "Partial" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
+                              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                            }`}>{status}</span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+                {salesList.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
+                      <td colSpan={4} className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">
+                        Total ({salesList.length} records)
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(salesList.reduce((s: number, r: any) => s + Number(r.grandTotal), 0))}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(salesList.reduce((s: number, r: any) => s + Number(r.paidAmount), 0))}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-red-600 dark:text-red-400">
+                        {formatCurrency(salesList.reduce((s: number, r: any) => s + Number(r.dueAmount), 0))}
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+            {/* Pagination */}
+            {salesListPagination && salesListPagination.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3 dark:border-gray-800">
+                <span className="text-sm text-gray-400">Page {salesListPage} of {salesListPagination.totalPages}</span>
+                <div className="flex gap-2">
+                  <button
+                    disabled={salesListPage <= 1}
+                    onClick={() => setSalesListPage(p => p - 1)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                  >← Prev</button>
+                  <button
+                    disabled={salesListPage >= salesListPagination.totalPages}
+                    onClick={() => setSalesListPage(p => p + 1)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                  >Next →</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -343,7 +343,11 @@ function SuppliersPageContent() {
                 </tr>
               ) : (
                 suppliers.map((supplier) => (
-                  <tr key={supplier.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <tr
+                    key={supplier.id}
+                    className="cursor-pointer transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/10"
+                    onClick={() => router.push(`/suppliers/ledger?id=${supplier.id}`)}
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white">
@@ -380,7 +384,7 @@ function SuppliersPageContent() {
                           : "Clear"}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
                         <Link href={`/suppliers/ledger?id=${supplier.id}`}
                           className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20" title="View Ledger">

@@ -110,6 +110,72 @@ function PaymentModal({
   );
 }
 
+// Adjustment Modal — set opening due or advance balance
+function AdjustmentModal({ isOpen, onClose, supplier, onAdjust }: {
+  isOpen: boolean; onClose: () => void; supplier: Supplier | null;
+  onAdjust: (type: "due" | "advance", amount: number, description?: string, reference?: string) => void;
+}) {
+  const [adjType, setAdjType] = useState<"due" | "advance">("due");
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [reference, setReference] = useState("");
+
+  useEffect(() => {
+    if (isOpen) { setAmount(""); setDescription(""); setReference(""); setAdjType("due"); }
+  }, [isOpen]);
+
+  if (!supplier) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Balance Adjustment" size="sm">
+      <div className="space-y-4 text-left">
+        <div className="rounded-lg bg-purple-50 p-3 dark:bg-purple-900/20">
+          <p className="text-xs text-purple-700 dark:text-purple-300">
+            Use this to set an <strong>opening/existing balance</strong>. Due = we owe them. Advance = they owe us.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setAdjType("due")}
+            className={`rounded-lg border py-2.5 text-sm font-medium transition-all ${adjType === "due" ? "border-red-500 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400"}`}>
+            📤 Due (We Owe)
+          </button>
+          <button type="button" onClick={() => setAdjType("advance")}
+            className={`rounded-lg border py-2.5 text-sm font-medium transition-all ${adjType === "advance" ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400"}`}>
+            📥 Advance (They Owe)
+          </button>
+        </div>
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Amount <span className="text-red-500">*</span></label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">৳</span>
+            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus
+              className="w-full rounded-lg border border-gray-300 py-2.5 pl-8 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="0" min="0" />
+          </div>
+        </div>
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            placeholder={adjType === "due" ? "e.g. Opening due balance" : "e.g. Advance given"} />
+        </div>
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Reference (optional)</label>
+          <input type="text" value={reference} onChange={(e) => setReference(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="Invoice #, note..." />
+        </div>
+      </div>
+      <ModalFooter onCancel={onClose}
+        onConfirm={() => {
+          const amt = parseFloat(amount);
+          if (!amt || amt <= 0) return;
+          onAdjust(adjType, amt, description || undefined, reference || undefined);
+          onClose();
+        }}
+        cancelText="Cancel" confirmText={`Add ${adjType === "due" ? "Due" : "Advance"}`} confirmVariant="primary" />
+    </Modal>
+  );
+}
+
 function getTransactionBadge(type: string) {
   switch (type) {
     case "stock_add":
@@ -133,6 +199,7 @@ function SupplierLedgerContent() {
   const [transactions, setTransactions] = useState<SupplierTransaction[]>([]);
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
 
   // Fetch supplier transactions
   useEffect(() => {
@@ -151,6 +218,21 @@ function SupplierLedgerContent() {
       // Refresh transactions
       const data = await apiClient.get<any>(`/api/suppliers/${supplier.id}/payments`);
       setTransactions(Array.isArray(data) ? data : data.transactions || []);
+    }
+  };
+  const handleAdjustment = async (
+    type: "due" | "advance",
+    amount: number,
+    description?: string,
+    reference?: string,
+  ) => {
+    if (supplier) {
+      await apiClient.post(`/api/suppliers/${supplier.id}/adjustments`, { type, amount, description, reference });
+      const data = await apiClient.get<any>(`/api/suppliers/${supplier.id}/payments`);
+      setTransactions(Array.isArray(data) ? data : data.transactions || []);
+      // Refresh supplier balance
+      const fresh = await apiClient.get<any>(`/api/suppliers/${supplier.id}`);
+      // useSupplier will re-fetch via query client, but we also refresh local transactions
     }
   };
 
@@ -194,6 +276,16 @@ function SupplierLedgerContent() {
           </div>
         </div>
         <div className="flex gap-3">
+          {/* Adjust Balance — always available */}
+          <button
+            onClick={() => setShowAdjustModal(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 font-medium text-white shadow-lg hover:shadow-xl"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Adjust Balance
+          </button>
           {parseFloat(supplier.balance) > 0 && (
             <button
               onClick={() => setShowPaymentModal(true)}
@@ -307,6 +399,14 @@ function SupplierLedgerContent() {
         onClose={() => setShowPaymentModal(false)}
         supplier={supplier}
         onPay={handlePayment}
+      />
+
+      {/* Adjustment Modal */}
+      <AdjustmentModal
+        isOpen={showAdjustModal}
+        onClose={() => setShowAdjustModal(false)}
+        supplier={supplier}
+        onAdjust={handleAdjustment}
       />
     </div>
   );

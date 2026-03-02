@@ -121,6 +121,99 @@ async function exportPDF(
   doc.save(`${fileName}.pdf`);
 }
 
+// ── Styled Sales Report HTML (invoice style) ──────────────────────────────
+function buildSalesReportHTML(rows: any[], dateLabel: string, summary: any): string {
+  const fmt = (n: number) => Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const today = new Date().toLocaleDateString("en-BD", { day: "2-digit", month: "short", year: "numeric" });
+  const totalAmt  = rows.reduce((s: number, r: any) => s + Number(r.grandTotal), 0);
+  const totalPaid = rows.reduce((s: number, r: any) => s + Number(r.paidAmount), 0);
+  const totalDue  = rows.reduce((s: number, r: any) => s + Number(r.dueAmount), 0);
+
+  const tableRows = rows.map((s: any, i: number) => {
+    const due = Number(s.dueAmount), paid = Number(s.paidAmount), total = Number(s.grandTotal);
+    const status = s.paymentStatus || (due <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending");
+    const date = new Date(s.invoiceDate || s.createdAt).toLocaleDateString("en-BD", { day: "2-digit", month: "short", year: "numeric" });
+    const bg = i % 2 === 1 ? "background:#fafafa;" : "";
+    return `<tr style="${bg}">
+      <td style="font-family:monospace;font-size:9px;">${s.invoiceNumber}</td>
+      <td>${date}</td><td>${s.customerName}</td><td>${s.customerPhone || ""}</td>
+      <td style="text-align:right;">${fmt(total)}</td>
+      <td style="text-align:right;">${fmt(paid)}</td>
+      <td style="text-align:right;">${due > 0 ? fmt(due) : "—"}</td>
+      <td style="text-align:center;">${status}</td>
+    </tr>`;
+  }).join("");
+
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+<title>Sales Report — ${dateLabel}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding:24px 28px;}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+.logo{font-size:26px;font-weight:900;font-style:italic;letter-spacing:-0.5px;}
+.shop-name{font-weight:700;font-size:11px;margin-top:4px;}
+.shop-addr{font-size:10px;color:#555;line-height:1.4;margin-top:2px;}
+.rep-box{border:1px solid #9ca3af;font-size:11px;min-width:190px;}
+.rep-box-title{text-align:center;font-weight:700;border-bottom:1px solid #9ca3af;padding:4px 16px;background:#f3f4f6;}
+.rep-box-row{padding:4px 16px;border-bottom:1px solid #e5e7eb;}
+.rep-box-row:last-child{border-bottom:none;}
+.summary{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 10px;}
+.sc{border:1px solid #e5e7eb;border-radius:4px;padding:5px 12px;min-width:100px;}
+.sc .lbl{font-size:9px;color:#555;}
+.sc .val{font-size:12px;font-weight:700;margin-top:1px;}
+table{width:100%;border-collapse:collapse;border:1px solid #9ca3af;}
+th,td{border:1px solid #9ca3af;padding:4px 7px;font-size:10px;word-break:break-word;}
+thead th{background:#f3f4f6;font-weight:700;}
+tfoot td{background:#f3f4f6;font-weight:700;}
+.note{font-size:9px;color:#555;margin-top:8px;}
+.footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:16px;padding-top:10px;border-top:1px solid #f3f4f6;}
+@media print{@page{size:A4 landscape;margin:10mm 12mm;}body{padding:0!important;}}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <div class="logo">ENTER</div>
+    <div class="shop-name">Enter Computers</div>
+    <div class="shop-addr">Dhaka, Bangladesh | Phone: +880 1234-567890 | info@entercomputers.com</div>
+  </div>
+  <div class="rep-box">
+    <div class="rep-box-title">Sales Audit Report</div>
+    <div class="rep-box-row">Period: <strong>${dateLabel}</strong></div>
+    <div class="rep-box-row">Printed: ${today}</div>
+    <div class="rep-box-row">Records: <strong>${rows.length}</strong></div>
+  </div>
+</div>
+<div class="summary">
+  <div class="sc"><div class="lbl">Total Sales</div><div class="val">${summary.count}</div></div>
+  <div class="sc"><div class="lbl">Revenue</div><div class="val">৳${fmt(summary.revenue)}</div></div>
+  <div class="sc"><div class="lbl">Collected</div><div class="val">৳${fmt(summary.collected)}</div></div>
+  <div class="sc"><div class="lbl">Due</div><div class="val">৳${fmt(summary.due)}</div></div>
+  <div class="sc"><div class="lbl">Gross Profit</div><div class="val">৳${fmt(summary.grossProfit)}</div></div>
+  <div class="sc"><div class="lbl">Avg Order</div><div class="val">৳${fmt(summary.avgOrder)}</div></div>
+</div>
+<table>
+  <thead><tr>
+    <th style="width:100px">Invoice #</th><th style="width:72px">Date</th>
+    <th>Customer</th><th style="width:88px">Phone</th>
+    <th style="text-align:right;width:82px">Total (৳)</th>
+    <th style="text-align:right;width:82px">Paid (৳)</th>
+    <th style="text-align:right;width:72px">Due (৳)</th>
+    <th style="text-align:center;width:55px">Status</th>
+  </tr></thead>
+  <tbody>${tableRows || "<tr><td colspan='8' style='text-align:center;padding:10px;color:#999;'>No records</td></tr>"}</tbody>
+  <tfoot><tr>
+    <td colspan="4">Total (${rows.length} records)</td>
+    <td style="text-align:right;">${fmt(totalAmt)}</td>
+    <td style="text-align:right;">${fmt(totalPaid)}</td>
+    <td style="text-align:right;">${fmt(totalDue)}</td>
+    <td></td>
+  </tr></tfoot>
+</table>
+<p class="note">* Showing current page records. Export XLSX for complete dataset.</p>
+<div class="footer-note">System Generated Report — Enter Computers © ${new Date().getFullYear()}</div>
+<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
+</body></html>`;
+}
+
 // ── Main component ────────────────────────────────────────────────────────
 export default function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>("profit");
@@ -279,32 +372,12 @@ export default function ReportsPage() {
       const rows: (string | number)[][] = report.expenses.byCategory.map(c => [c.category, c.count, formatCurrency(c.total)]);
       await exportPDF("Expense Report", dateLabel, ["Category", "Count", "Amount"], rows, `expense-report-${start || "all"}`);
     } else if (tab === "sales") {
-      if (salesList.length > 0) {
-        const rows: (string | number)[][] = salesList.map((s: any) => [
-          s.invoiceNumber,
-          new Date(s.invoiceDate || s.createdAt).toLocaleDateString("en-BD"),
-          s.customerName,
-          s.customerPhone || "",
-          formatCurrency(Number(s.grandTotal)),
-          formatCurrency(Number(s.paidAmount)),
-          formatCurrency(Number(s.dueAmount)),
-          s.paymentStatus || s.status,
-        ]);
-        await exportPDF(
-          "Sales Audit Report", dateLabel,
-          ["Invoice #", "Date", "Customer", "Phone", "Total", "Paid", "Due", "Status"],
-          rows, `sales-report-${start || "all"}`
-        );
-      } else {
-        const s = report.sales;
-        const rows: (string | number)[][] = [
-          ["Total Sales", s.count, ""],
-          ["Revenue", "", formatCurrency(s.revenue)],
-          ["Collected", "", formatCurrency(s.collected)],
-          ["Due", "", formatCurrency(s.due)],
-        ];
-        await exportPDF("Sales Report", dateLabel, ["Metric", "Count", "Amount"], rows, `sales-report-${start || "all"}`);
-      }
+      // Open invoice-style HTML print popup
+      const html = buildSalesReportHTML(salesList, dateLabel, report.sales);
+      const w = window.open("", "_blank", "width=1000,height=700");
+      if (!w) { alert("Please allow pop-ups to print/download"); return; }
+      w.document.write(html);
+      w.document.close();
     }
   };
 

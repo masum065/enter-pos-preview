@@ -11,7 +11,7 @@ type User = {
   userId: string;
   name: string;
   email: string | null;
-  role: "admin" | "manager" | "cashier";
+  role: "admin" | "manager" | "employee";
   isActive: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -47,7 +47,7 @@ function UserModal({
     name:     user?.name     ?? "",
     email:    user?.email    ?? "",
     password: "",
-    role:     user?.role     ?? "cashier",
+    role:     user?.role     ?? "employee",
     isActive: user?.isActive ?? true,
   });
 
@@ -122,7 +122,7 @@ function UserModal({
             >
               <option value="admin">Admin</option>
               <option value="manager">Manager</option>
-              <option value="cashier">Cashier</option>
+              <option value="employee">Employee</option>
             </select>
           </Field>
 
@@ -542,7 +542,7 @@ export default function SettingsPage() {
                 </ul>
               </div>
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
-                <h3 className="font-semibold text-gray-800 dark:text-gray-300">Cashier</h3>
+                <h3 className="font-semibold text-gray-800 dark:text-gray-300">Employee</h3>
                 <ul className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-400">
                   <li>✓ Create sales</li>
                   <li>✓ View customers</li>

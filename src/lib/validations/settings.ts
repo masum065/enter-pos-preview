@@ -19,14 +19,14 @@ export const createUserSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email().optional().or(z.literal("")),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum(["admin", "manager", "cashier", "employee"]),
+  role: z.enum(["admin", "manager", "employee"]),
 });
 
 // User update schema (no password required)
 export const updateUserSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email().optional().or(z.literal("")),
-  role: z.enum(["admin", "manager", "cashier", "employee"]),
+  role: z.enum(["admin", "manager", "employee"]),
   isActive: z.boolean().default(true),
 });
 

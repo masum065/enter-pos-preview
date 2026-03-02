@@ -5,6 +5,7 @@ import { POSOverviewCards } from "./_components/pos-overview-cards";
 import { useSales } from "@/hooks/useSales";
 import { useStockItems } from "@/hooks/useStock";
 import { formatCurrency } from "@/lib/utils";
+import { useSession } from "@/hooks/useSession";
 
 interface Sale {
   id: string;
@@ -39,6 +40,9 @@ const ApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 function SalesSummaryChart() {
   const { data: salesData } = useSales();
+  const { data: sessionData } = useSession();
+  const role = (sessionData as any)?.user?.role || (sessionData as any)?.role || "employee";
+  const isEmployee = role === "employee";
   const sales: Sale[] = (salesData?.sales || []) as any[];
 
   // Calculate current month and previous month daily sales data
@@ -195,7 +199,7 @@ function SalesSummaryChart() {
           <div>
             <p className="text-sm font-medium text-gray-900 dark:text-white">{currentMonthName} Sales</p>
             <p className="text-lg font-bold text-[#3C50E0]">{formatCurrency(currentMonthTotal)}</p>
-            <p className="text-xs text-gray-500">Profit: {formatCurrency(currentMonthProfit)}</p>
+            {!isEmployee && <p className="text-xs text-gray-500">Profit: {formatCurrency(currentMonthProfit)}</p>}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -203,7 +207,7 @@ function SalesSummaryChart() {
           <div>
             <p className="text-sm font-medium text-gray-900 dark:text-white">{prevMonthName} Sales</p>
             <p className="text-lg font-bold text-[#0ABEF9]">{formatCurrency(prevMonthTotal)}</p>
-            <p className="text-xs text-gray-500">Profit: {formatCurrency(prevMonthProfit)}</p>
+            {!isEmployee && <p className="text-xs text-gray-500">Profit: {formatCurrency(prevMonthProfit)}</p>}
           </div>
         </div>
       </div>
@@ -298,11 +302,12 @@ function StockByCategoryChart() {
 }
 
 // Quick Actions Component
-function QuickActions() {
-  const actions = [
+function QuickActions({ isEmployee }: { isEmployee: boolean }) {
+  const allActions = [
     { 
       label: "New Sale", 
-      href: "/sales/new", 
+      href: "/sales/new",
+      employeeAllowed: true,
       color: "from-green-500 to-emerald-600", 
       icon: (
         <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -312,7 +317,8 @@ function QuickActions() {
     },
     { 
       label: "Add Stock", 
-      href: "/inventory/stock/add", 
+      href: "/inventory/stock/add",
+      employeeAllowed: false,
       color: "from-blue-500 to-indigo-600", 
       icon: (
         <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -322,7 +328,8 @@ function QuickActions() {
     },
     { 
       label: "New Service", 
-      href: "/services/new", 
+      href: "/services/new",
+      employeeAllowed: true,
       color: "from-purple-500 to-pink-600", 
       icon: (
         <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -332,7 +339,8 @@ function QuickActions() {
     },
     { 
       label: "Add Expense", 
-      href: "/expenses/new", 
+      href: "/expenses/new",
+      employeeAllowed: false,
       color: "from-orange-500 to-red-600", 
       icon: (
         <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -341,6 +349,8 @@ function QuickActions() {
       )
     },
   ];
+
+  const actions = isEmployee ? allActions.filter(a => a.employeeAllowed) : allActions;
 
   return (
     <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
@@ -493,13 +503,17 @@ function LowStockAlert() {
 }
 
 export default function Home() {
+  const { data: sessionData } = useSession();
+  const role = (sessionData as any)?.user?.role || (sessionData as any)?.role || "employee";
+  const isEmployee = role === "employee";
+
   return (
     <>
       {/* Welcome Banner */}
       <div className="mb-6 rounded-[10px] bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white shadow-lg">
         <h1 className="text-2xl font-bold">Welcome to Enter Computer POS</h1>
         <p className="mt-1 text-blue-100">
-          Manage your laptop & mobile shop efficiently
+          Manage your laptop &amp; mobile shop efficiently
         </p>
       </div>
 
@@ -510,7 +524,7 @@ export default function Home() {
 
       {/* Quick Actions */}
       <div className="mt-6">
-        <QuickActions />
+        <QuickActions isEmployee={isEmployee} />
       </div>
 
       {/* Charts Section */}

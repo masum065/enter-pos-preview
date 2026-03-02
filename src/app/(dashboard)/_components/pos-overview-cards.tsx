@@ -7,6 +7,7 @@ import { useSales } from "@/hooks/useSales";
 import { useServices } from "@/hooks/useServices";
 import { useStockItems } from "@/hooks/useStock";
 import { useExpenses } from "@/hooks/useExpenses";
+import { useSession } from "@/hooks/useSession";
 
 // Icon Components
 function SalesIcon() {
@@ -150,6 +151,9 @@ export function POSOverviewCards() {
   const { data: servicesData, isLoading: servicesLoading } = useServices();
   const { data: stockData, isLoading: stockLoading } = useStockItems();
   const { data: expensesData, isLoading: expensesLoading } = useExpenses();
+  const { data: sessionData } = useSession();
+  const role = (sessionData as any)?.user?.role || (sessionData as any)?.role || "employee";
+  const isEmployee = role === "employee";
 
   const sales: any[] = salesData?.sales || [];
   const services: any[] = servicesData?.services || [];
@@ -226,12 +230,15 @@ export function POSOverviewCards() {
         Icon={SalesIcon}
       />
 
-      <OverviewCard
-        label="This Month Profit"
-        value={formatCurrency(thisMonthProfit)}
-        subValue={`${thisMonthSalesCount} total sales`}
-        Icon={ProfitIcon}
-      />
+      {/* Profit — admin/manager only */}
+      {!isEmployee && (
+        <OverviewCard
+          label="This Month Profit"
+          value={formatCurrency(thisMonthProfit)}
+          subValue={`${thisMonthSalesCount} total sales`}
+          Icon={ProfitIcon}
+        />
+      )}
 
       <OverviewCard
         label="Total Due"
@@ -246,19 +253,23 @@ export function POSOverviewCards() {
         Icon={ServiceIcon}
       />
 
+      {/* Stock value hidden from employee */}
       <OverviewCard
         label="Available Stock"
         value={availableStock.toString()}
-        subValue={`Value: ${formatCurrency(stockValue)}`}
+        subValue={!isEmployee ? `Value: ${formatCurrency(stockValue)}` : undefined}
         Icon={StockIcon}
       />
 
-      <OverviewCard
-        label="This Month Expenses"
-        value={formatCurrency(thisMonthExpenses)}
-        subValue="All categories"
-        Icon={ExpenseIcon}
-      />
+      {/* Expenses — admin/manager only */}
+      {!isEmployee && (
+        <OverviewCard
+          label="This Month Expenses"
+          value={formatCurrency(thisMonthExpenses)}
+          subValue="All categories"
+          Icon={ExpenseIcon}
+        />
+      )}
     </div>
   );
 }

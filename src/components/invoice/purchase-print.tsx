@@ -30,22 +30,16 @@ function fmtDate(d: string | Date): string {
   const mon = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"][date.getMonth()];
   return `${dd}-${mon}-${String(date.getFullYear()).slice(-2)}`;
 }
-function fmtFull(d: string | Date): string {
-  const date = new Date(d);
-  const dd  = String(date.getDate()).padStart(2, "0");
-  const mm  = String(date.getMonth() + 1).padStart(2, "0");
-  const yy  = date.getFullYear();
-  let h     = date.getHours(), min = String(date.getMinutes()).padStart(2, "0");
-  const ap  = h >= 12 ? "PM" : "AM"; h = h % 12 || 12;
-  return `${dd}-${mm}-${yy} ${h}:${min} ${ap}`;
-}
 
 // ── Build printable HTML ──────────────────────────────────────────────────
 function buildPurchaseHTML(p: Purchase): string {
-  const price    = Number(p.purchasePrice);
-  const paid     = Number(p.paidAmount);
-  const balance  = price - paid;
-  const isPaid   = balance <= 0;
+  const price   = Number(p.purchasePrice);
+  const paid    = Number(p.paidAmount);
+  const balance = price - paid;
+  const isPaid  = balance <= 0;
+  const cols    = p.imei ? 4 : 3; // SL + PRODUCT + SERIAL [+ IMEI] + PRICE
+
+  const statusText = isPaid ? "Paid" : balance < price ? "Partial" : "Unpaid";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -63,22 +57,17 @@ function buildPurchaseHTML(p: Purchase): string {
   .inv-box-title{text-align:center;font-weight:700;border-bottom:1px solid #9ca3af;padding:4px 16px;}
   .inv-box-row{padding:4px 16px;border-bottom:1px solid #e5e7eb;}
   .inv-box-row:last-child{border-bottom:none;}
-  hr{border:none;border-top:1px solid #9ca3af;margin:8px 0;}
   .row{display:flex;flex-wrap:wrap;gap:0 20px;margin-bottom:3px;font-size:11px;}
-  table{width:100%;border-collapse:collapse;}
-  th,td{border:1px solid #9ca3af;padding:4px 8px;font-size:11px;}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  th,td{border:1px solid #9ca3af;padding:4px 8px;font-size:11px;word-break:break-word;}
   thead th{background:#f3f4f6;font-weight:700;}
   .tr{text-align:right;}.tc{text-align:center;}.at{vertical-align:top;}
   .mono{font-family:monospace;}.fw7{font-weight:700;}.fw6{font-weight:600;}
   .note{font-size:10px;color:#555;margin:4px 0;}
-  .badge-paid{display:inline-block;background:#dcfce7;color:#166534;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;}
-  .badge-partial{display:inline-block;background:#fef9c3;color:#854d0e;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;}
-  .badge-unpaid{display:inline-block;background:#fee2e2;color:#991b1b;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;}
-  ol.terms{padding-left:16px;}
-  ol.terms li{font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;}
-  .sig-section{margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;}
-  .sig-box{display:inline-block;text-align:center;min-width:200px;}
-  .footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:12px;}
+  .status-badge{display:inline-block;border:1px solid #1a1a1a;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700;color:#1a1a1a;}
+  .sig-section{margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;display:flex;justify-content:flex-end;}
+  .sig-box{text-align:center;min-width:200px;}
+  .footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:20px;padding-top:12px;border-top:1px solid #f3f4f6;}
   @media print{@page{size:A4;margin:10mm 12mm;}body{padding:0!important;}}
 </style>
 </head>
@@ -95,9 +84,8 @@ function buildPurchaseHTML(p: Purchase): string {
       <div class="inv-box-row">Date: ${fmtDate(p.purchaseDate)}</div>
     </div>
   </div>
-  <hr/>
 
-  <div style="margin-bottom:8px;">
+  <div style="padding-top:8px;margin-bottom:8px;">
     <div class="row">
       <span><strong>Seller:</strong> ${p.sellerName}</span>
       <span><strong>Phone:</strong> ${p.sellerPhone}</span>
@@ -108,14 +96,14 @@ function buildPurchaseHTML(p: Purchase): string {
     </div>
   </div>
 
-  <table style="margin-bottom:6px;">
+  <table>
     <thead>
       <tr>
         <th style="width:28px">SL.</th>
         <th>PRODUCT</th>
         <th class="mono" style="width:120px">SERIAL NO.</th>
         ${p.imei ? '<th class="mono" style="width:110px">IMEI</th>' : ''}
-        <th class="tr" style="width:100px">PURCHASE PRICE</th>
+        <th class="tr" style="width:110px">PURCHASE PRICE</th>
       </tr>
     </thead>
     <tbody>
@@ -129,31 +117,27 @@ function buildPurchaseHTML(p: Purchase): string {
     </tbody>
     <tfoot>
       <tr>
-        <td colspan="${p.imei ? 3 : 2}"></td>
+        <td colspan="${cols - 1}" style="font-size:11px;">
+          <strong>Payment Status:</strong>
+          <span class="status-badge">${statusText}</span>
+          &nbsp; <strong>Method:</strong> ${p.paymentMethod}
+        </td>
         <td class="tr fw6">Purchase Price</td>
         <td class="tr fw6">${fmt(price)}</td>
       </tr>
       <tr>
-        <td colspan="${p.imei ? 3 : 2}"></td>
+        <td colspan="${cols - 1}"></td>
         <td class="tr fw6">Paid to Seller</td>
-        <td class="tr" style="color:#16a34a;">${fmt(paid)}</td>
+        <td class="tr fw6">${fmt(paid)}</td>
       </tr>
       ${balance > 0 ? `
       <tr>
-        <td colspan="${p.imei ? 3 : 2}"></td>
+        <td colspan="${cols - 1}"></td>
         <td class="tr fw7">Balance Due</td>
-        <td class="tr fw7" style="color:#dc2626;">${fmt(balance)}</td>
+        <td class="tr fw7">${fmt(balance)}</td>
       </tr>` : ''}
     </tfoot>
   </table>
-
-  <div style="margin:6px 0;font-size:11px;display:flex;align-items:center;gap:8px;">
-    <strong>Payment Status:</strong>
-    <span class="${isPaid ? 'badge-paid' : balance < price ? 'badge-partial' : 'badge-unpaid'}">
-      ${isPaid ? 'Paid' : balance < price ? 'Partial' : 'Unpaid'}
-    </span>
-    <span style="color:#555;margin-left:8px;">Method: ${p.paymentMethod}</span>
-  </div>
 
   ${p.notes ? `<p class="note" style="margin-top:6px;"><strong>Notes:</strong> ${p.notes}</p>` : ''}
 
@@ -162,7 +146,6 @@ function buildPurchaseHTML(p: Purchase): string {
       <div style="height:48px;"></div>
       <div style="border-top:1px dotted #9ca3af;padding-top:4px;font-size:10px;">Issued By</div>
       <div style="font-size:10px;color:#555;margin-top:2px;">Enter Computers</div>
-      <div style="margin-top:6px;font-size:10px;color:#555;">Date: _______________</div>
     </div>
   </div>
 
@@ -171,6 +154,14 @@ function buildPurchaseHTML(p: Purchase): string {
   <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
 </body>
 </html>`;
+}
+
+// ── Style helpers ─────────────────────────────────────────────────────────
+function th(extra: React.CSSProperties = {}): React.CSSProperties {
+  return { border: "1px solid #9ca3af", padding: "4px 8px", fontSize: 11, background: "#f3f4f6", fontWeight: 700, textAlign: "left", ...extra };
+}
+function td(extra: React.CSSProperties = {}): React.CSSProperties {
+  return { border: "1px solid #9ca3af", padding: "4px 8px", fontSize: 11, wordBreak: "break-word", ...extra };
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────
@@ -187,6 +178,8 @@ export function PurchasePrintModal({
   const paid    = Number(purchase.paidAmount);
   const balance = price - paid;
   const isPaid  = balance <= 0;
+  const cols    = purchase.imei ? 4 : 3;
+  const statusText = isPaid ? "Paid" : balance < price ? "Partial" : "Unpaid";
 
   const handlePrint = () => {
     const html = buildPurchaseHTML(purchase);
@@ -218,10 +211,8 @@ export function PurchasePrintModal({
           </div>
         </div>
 
-        <hr style={{ border: "none", borderTop: "1px solid #9ca3af", margin: "8px 0" }} />
-
-        {/* Seller + Prepared by */}
-        <div style={{ marginBottom: 8 }}>
+        {/* Seller — no hr, top padding */}
+        <div style={{ paddingTop: 8, marginBottom: 8 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0 20px", marginBottom: 3 }}>
             <span><strong>Seller:</strong> {purchase.sellerName}</span>
             <span><strong>Phone:</strong> {purchase.sellerPhone}</span>
@@ -232,8 +223,8 @@ export function PurchasePrintModal({
           </div>
         </div>
 
-        {/* Product table */}
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 6 }}>
+        {/* Product table — table-layout fixed, border stable */}
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
             <tr>
               <th style={th({ width: 28 })}>SL.</th>
@@ -253,54 +244,48 @@ export function PurchasePrintModal({
             </tr>
           </tbody>
           <tfoot>
+            {/* Payment status inside table — left side, Purchase Price right */}
             <tr>
-              <td colSpan={purchase.imei ? 3 : 2}></td>
+              <td colSpan={cols - 1} style={td({ fontSize: 11 })}>
+                <strong>Payment Status:</strong>{" "}
+                <span style={{ display: "inline-block", border: "1px solid #1a1a1a", borderRadius: 3, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>
+                  {statusText}
+                </span>
+                &nbsp;&nbsp;<strong>Method:</strong> {purchase.paymentMethod}
+              </td>
               <td style={td({ textAlign: "right", fontWeight: 600 })}>Purchase Price</td>
-              <td style={td({ textAlign: "right" })}>{fmt(price)}</td>
+              <td style={td({ textAlign: "right", fontWeight: 600 })}>{fmt(price)}</td>
             </tr>
             <tr>
-              <td colSpan={purchase.imei ? 3 : 2}></td>
+              <td colSpan={cols - 1}></td>
               <td style={td({ textAlign: "right", fontWeight: 600 })}>Paid to Seller</td>
-              <td style={td({ textAlign: "right", color: "#16a34a" })}>{fmt(paid)}</td>
+              <td style={td({ textAlign: "right", fontWeight: 600 })}>{fmt(paid)}</td>
             </tr>
             {balance > 0 && (
               <tr>
-                <td colSpan={purchase.imei ? 3 : 2}></td>
+                <td colSpan={cols - 1}></td>
                 <td style={td({ textAlign: "right", fontWeight: 700 })}>Balance Due</td>
-                <td style={td({ textAlign: "right", fontWeight: 700, color: "#dc2626" })}>{fmt(balance)}</td>
+                <td style={td({ textAlign: "right", fontWeight: 700 })}>{fmt(balance)}</td>
               </tr>
             )}
           </tfoot>
         </table>
 
-        {/* Status */}
-        <div style={{ margin: "6px 0", display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
-          <strong>Payment Status:</strong>
-          <span style={{
-            display: "inline-block", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 700,
-            background: isPaid ? "#dcfce7" : balance < price ? "#fef9c3" : "#fee2e2",
-            color: isPaid ? "#166534" : balance < price ? "#854d0e" : "#991b1b",
-          }}>
-            {isPaid ? "Paid" : balance < price ? "Partial" : "Unpaid"}
-          </span>
-          <span style={{ color: "#555", marginLeft: 8 }}>Method: {purchase.paymentMethod}</span>
-        </div>
-
         {purchase.notes && (
           <p style={{ fontSize: 10, color: "#555", margin: "6px 0" }}><strong>Notes:</strong> {purchase.notes}</p>
         )}
 
-        {/* Signature */}
-        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16 }}>
-          <div style={{ display: "inline-block", textAlign: "center", minWidth: 200 }}>
+        {/* Signature — right aligned, no date */}
+        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ textAlign: "center", minWidth: 200 }}>
             <div style={{ height: 48 }} />
             <div style={{ borderTop: "1px dotted #9ca3af", paddingTop: 4, fontSize: 10 }}>Issued By</div>
             <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>Enter Computers</div>
-            <div style={{ marginTop: 6, fontSize: 10, color: "#6b7280" }}>Date: _______________</div>
           </div>
         </div>
 
-        <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 12 }}>
+        {/* Footer note — very bottom */}
+        <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 20, paddingTop: 12, borderTop: "1px solid #f3f4f6" }}>
           This is a system generated purchase voucher.
         </div>
       </div>
@@ -323,14 +308,6 @@ export function PurchasePrintModal({
   );
 }
 
-// ── Style helpers ─────────────────────────────────────────────────────────
-function th(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { border: "1px solid #9ca3af", padding: "4px 8px", fontSize: 11, background: "#f3f4f6", fontWeight: 700, textAlign: "left", ...extra };
-}
-function td(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { border: "1px solid #9ca3af", padding: "4px 8px", fontSize: 11, ...extra };
-}
-
 // ── Trigger button ────────────────────────────────────────────────────────
 export function PrintPurchaseButton({
   purchase: initialPurchase,
@@ -346,7 +323,6 @@ export function PrintPurchaseButton({
   const handleOpen = async () => {
     setLoading(true);
     try {
-      // Fetch createdByName if not present
       const res = await fetch(`/api/purchases/${initialPurchase.id}`);
       if (res.ok) {
         const data = await res.json();

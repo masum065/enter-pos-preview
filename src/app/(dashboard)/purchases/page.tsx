@@ -151,7 +151,7 @@ function PurchaseHistoryPageContent() {
   // ── Local UI state ────────────────────────────────────────────────────────
   const [searchInput, setSearchInput] = useState(activeSearch);
   const [paymentStatus, setPaymentStatus] = useState<"all" | "paid" | "partial" | "unpaid">("all");
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("today");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [viewingInvoice, setViewingInvoice] = useState<PurchaseInvoice | null>(null);

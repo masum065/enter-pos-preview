@@ -209,24 +209,16 @@ function buildInvoiceHTML(sale: Sale): string {
       <li>Please retain this invoice for all warranty claims.</li>
     </ol>
   </div>
-
-  <div style="margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;display:flex;justify-content:space-between;align-items:flex-end;">
-    <div style="text-align:center;min-width:160px;">
-      <div style="border-top:1px dotted #9ca3af;margin-bottom:4px;padding-top:4px;font-size:10px;">Prepared By / Issued By</div>
-      <div style="font-size:10px;color:#555;">Enter Computers</div>
-      <div style="margin-top:6px;font-size:10px;color:#555;">Date: _______________</div>
-    </div>
-    <div style="text-align:center;min-width:160px;">
-      <div style="height:40px;"></div>
-      <div style="border-top:1px dotted #9ca3af;padding-top:4px;font-size:10px;">Authorized Signatory &amp; Seal</div>
-    </div>
-    <div style="text-align:center;min-width:160px;">
-      <div style="border-top:1px dotted #9ca3af;margin-bottom:4px;padding-top:4px;font-size:10px;">Received By (Customer)</div>
+  <div style="margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;">
+    <div style="display:inline-block;text-align:center;min-width:200px;">
+      <div style="height:48px;"></div>
+      <div style="border-top:1px dotted #9ca3af;padding-top:4px;font-size:10px;">Issued By</div>
+      <div style="font-size:10px;color:#555;margin-top:2px;">Enter Computers</div>
       <div style="margin-top:6px;font-size:10px;color:#555;">Date: _______________</div>
     </div>
   </div>
 
-  <div class="footer-note" style="margin-top:12px;">This is a system generated invoice — seal &amp; sign are not mandatory.</div>
+  <div class="footer-note" style="margin-top:12px;">This is a system generated invoice &mdash; seal &amp; sign are not mandatory.</div>
 
   <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
 </body>
@@ -400,16 +392,14 @@ export function InvoicePrintModal({
           </ol>
         </div>
 
-        {/* Signature row */}
-        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          {["Prepared By / Issued By", "Authorized Signatory & Seal", "Received By (Customer)"].map((label, i) => (
-            <div key={i} style={{ textAlign: "center", minWidth: 140 }}>
-              <div style={{ height: 36 }} />
-              <div style={{ borderTop: "1px dotted #9ca3af", paddingTop: 4, fontSize: 10 }}>{label}</div>
-              {i !== 1 && <div style={{ marginTop: 4, fontSize: 10, color: "#6b7280" }}>Date: _______________</div>}
-              {i === 0 && <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>Enter Computers</div>}
-            </div>
-          ))}
+        {/* Signature — Issued By only */}
+        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16 }}>
+          <div style={{ display: "inline-block", textAlign: "center", minWidth: 200 }}>
+            <div style={{ height: 48 }} />
+            <div style={{ borderTop: "1px dotted #9ca3af", paddingTop: 4, fontSize: 10 }}>Issued By</div>
+            <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>Enter Computers</div>
+            <div style={{ marginTop: 6, fontSize: 10, color: "#6b7280" }}>Date: _______________</div>
+          </div>
         </div>
 
         <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 12 }}>

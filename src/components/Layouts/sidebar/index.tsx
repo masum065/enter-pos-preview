@@ -9,11 +9,46 @@ import { NAV_DATA } from "./data";
 import { ArrowLeftIcon, ChevronUp } from "./icons";
 import { MenuItem } from "./menu-item";
 import { useSidebarContext } from "./sidebar-context";
+import { useSession } from "@/hooks/useSession";
 
 export function Sidebar() {
   const pathname = usePathname();
   const { setIsOpen, isOpen, isMobile, toggleSidebar } = useSidebarContext();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const { data: sessionData } = useSession();
+  const role = (sessionData as any)?.user?.role || (sessionData as any)?.role || "employee";
+
+  // Routes employee cannot access
+  const employeeBlocked = ["/inventory", "/purchases", "/expenses", "/suppliers", "/reports", "/settings", "/charts"];
+  // Routes manager cannot access
+  const managerBlocked = ["/settings"];
+
+  const isUrlAllowed = (url: string) => {
+    if (role === "admin") return true;
+    const blocked = role === "manager" ? managerBlocked : employeeBlocked;
+    return !blocked.some(b => url.startsWith(b));
+  };
+
+  // Filter nav sections and items by role
+  const filteredNav = NAV_DATA.map(section => ({
+    ...section,
+    items: section.items
+      .filter(item => {
+        // Check top-level url
+        const url = "url" in item ? (item.url as string) : "";
+        if (url && !isUrlAllowed(url)) return false;
+        // Check if any sub-items are allowed
+        if (item.items.length > 0) {
+          const allowedSubs = item.items.filter((sub: any) => isUrlAllowed(sub.url));
+          return allowedSubs.length > 0;
+        }
+        return true;
+      })
+      .map(item => ({
+        ...item,
+        items: item.items.filter((sub: any) => isUrlAllowed(sub.url)),
+      })),
+  })).filter(section => section.items.length > 0);
 
   const toggleExpanded = (title: string) => {
     setExpandedItems((prev) => (prev.includes(title) ? [] : [title]));
@@ -87,7 +122,7 @@ export function Sidebar() {
 
           {/* Navigation */}
           <div className="custom-scrollbar mt-6 flex-1 overflow-y-auto pr-3 min-[850px]:mt-10">
-            {NAV_DATA.map((section) => (
+            {filteredNav.map((section) => (
               <div key={section.label} className="mb-6">
                 <h2 className="mb-5 text-sm font-medium text-dark-4 dark:text-dark-6">
                   {section.label}

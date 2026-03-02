@@ -22,14 +22,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
-    let queryBuilder = db.select().from(products).$dynamic();
-
-    // Build conditions — ALL must be AND
     const conditions = [];
-    
-    // Always exclude soft-deleted products
     conditions.push(eq(products.isDeleted, false));
-    
+    if (category) {
+      conditions.push(eq(products.category, category));
+    }
     if (search) {
       const searchTerm = `%${search.trim()}%`;
       conditions.push(
@@ -40,35 +37,43 @@ export async function GET(request: NextRequest) {
         )
       );
     }
-    if (category) {
-      conditions.push(eq(products.category, category));
-    }
 
-    queryBuilder = queryBuilder.where(and(...conditions));
+    const whereClause = and(...conditions);
 
     // Server-side sorting
     const isAsc = sortOrder === "asc";
+    let orderByClause;
     switch (sortBy) {
       case "name":
-        queryBuilder = queryBuilder.orderBy(isAsc ? products.modelName : desc(products.modelName));
+        orderByClause = isAsc ? products.modelName : desc(products.modelName);
         break;
       case "price":
-        queryBuilder = queryBuilder.orderBy(isAsc ? products.defaultSalePrice : desc(products.defaultSalePrice));
+        orderByClause = isAsc ? products.defaultSalePrice : desc(products.defaultSalePrice);
         break;
       case "latest":
       default:
-        queryBuilder = queryBuilder.orderBy(isAsc ? products.createdAt : desc(products.createdAt));
+        orderByClause = isAsc ? products.createdAt : desc(products.createdAt);
         break;
     }
 
-    // Run all 3 in parallel (was 3 sequential queries)
-    const [allProducts, totalCount, categoryCounts] = await Promise.all([
-      queryBuilder.limit(limit).offset(offset),
-      db.select({ count: sql<number>`count(*)` }).from(products).where(and(...conditions)),
+    // Run all 3 queries in parallel without sharing a mutated query builder
+    const [allProducts, totalCountResult, categoryCounts] = await Promise.all([
+      db.select()
+        .from(products)
+        .where(whereClause)
+        .orderBy(orderByClause)
+        .limit(limit)
+        .offset(offset),
+        
+      db.select({ count: sql<number>`count(*)` })
+        .from(products)
+        .where(whereClause),
+        
       db.select({
-        category: products.category,
-        count: sql<number>`count(*)`,
-      }).from(products)
+          category: products.category,
+          count: sql<number>`count(*)`,
+        })
+        .from(products)
         .where(eq(products.isDeleted, false))
         .groupBy(products.category),
     ]);
@@ -83,8 +88,8 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         limit,
-        total: Number(totalCount[0].count),
-        totalPages: Math.ceil(Number(totalCount[0].count) / limit),
+        total: Number(totalCountResult[0].count),
+        totalPages: Math.ceil(Number(totalCountResult[0].count) / limit),
       },
     });
     // Products rarely change — 60s cache is safe

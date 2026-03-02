@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCreateService } from "@/hooks/useServices";
 import { CustomerCombobox } from "@/components/ui/customer-combobox";
 import type { CustomerOption } from "@/components/ui/customer-combobox";
+import { AddCustomerModal } from "@/components/customers/customer-modals";
 import Link from "next/link";
 
 type Customer = CustomerOption;
@@ -13,6 +14,8 @@ export default function NewServicePage() {
   const router = useRouter();
   const createServiceMutation = useCreateService();
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
 
   const [formData, setFormData] = useState({
     deviceType: "Mobile" as "Laptop" | "Mobile" | "Tablet" | "Other",
@@ -113,6 +116,10 @@ export default function NewServicePage() {
           <CustomerCombobox
             selectedCustomer={selectedCustomer}
             onSelect={setSelectedCustomer}
+            onAddNew={(query) => {
+              setCustomerSearchQuery(query);
+              setShowAddCustomerModal(true);
+            }}
           />
           {errors.customer && <p className="mt-2 text-sm text-red-500">{errors.customer}</p>}
         </div>
@@ -290,6 +297,17 @@ export default function NewServicePage() {
           </button>
         </div>
       </form>
+
+      {/* Add Customer Modal */}
+      <AddCustomerModal
+        isOpen={showAddCustomerModal}
+        onClose={() => setShowAddCustomerModal(false)}
+        defaultName={customerSearchQuery}
+        onCustomerAdded={(newCustomer) => {
+          setSelectedCustomer(newCustomer as Customer);
+          setShowAddCustomerModal(false);
+        }}
+      />
     </div>
   );
 }

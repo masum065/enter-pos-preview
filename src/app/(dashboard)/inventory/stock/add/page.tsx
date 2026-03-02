@@ -6,6 +6,8 @@ import { useProducts } from "@/hooks/useProducts";
 import { useSuppliers } from "@/hooks/useSuppliers";
 import { apiClient } from "@/lib/api-client";
 import { formatCurrency } from "@/lib/utils";
+import { ToastNotification } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 
 interface Product {
@@ -225,7 +227,7 @@ function AddStockContent() {
   });
   const [bulkSerials, setBulkSerials] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [successMessage, setSuccessMessage] = useState("");
+  const { toast, showToast } = useToast();
 
   // Get selected product details
   const selectedProductDetails = products.find((p) => p.id === selectedProduct);
@@ -273,7 +275,7 @@ function AddStockContent() {
         notes: formData.notes.trim() || undefined,
       });
 
-      setSuccessMessage("Stock item added successfully!");
+      showToast("Stock item added successfully!");
       setFormData({
         serialNumber: "",
         imei: "",
@@ -281,9 +283,8 @@ function AddStockContent() {
         purchaseDate: formData.purchaseDate,
         notes: "",
       });
-
-      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
+      showToast((error as Error).message || "Failed to add stock item.", "error");
       setErrors({ submit: (error as Error).message });
     }
   };
@@ -324,12 +325,12 @@ function AddStockContent() {
 
     try {
       const result = await apiClient.post("/api/stock/bulk", { items }) as any;
-      setSuccessMessage(`${result?.added || serials.length} items added successfully!`);
+      showToast(`${result?.added || serials.length} items added to stock successfully!`);
       setBulkSerials("");
     } catch (error) {
+      showToast((error as Error).message || "Failed to add bulk stock.", "error");
       setErrors({ submit: (error as Error).message });
     }
-    setTimeout(() => setSuccessMessage(""), 5000);
   };
 
   return (
@@ -347,18 +348,6 @@ function AddStockContent() {
           ← Back to Stock
         </Link>
       </div>
-
-      {/* Success Message */}
-      {successMessage && (
-        <div className="rounded-lg bg-green-50 p-4 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-          <div className="flex items-center gap-2">
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            {successMessage}
-          </div>
-        </div>
-      )}
 
       {/* Mode Selector */}
       <div className="flex gap-4">
@@ -588,6 +577,8 @@ function AddStockContent() {
           </div>
         </form>
       </div>
+
+      <ToastNotification toast={toast} />
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { useSuppliers, useUpdateSupplier, useDeleteSupplier } from "@/hooks/useS
 import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, formatPhone } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
+import { ToastNotification } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 
@@ -179,6 +181,7 @@ function SuppliersPageContent() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { toast, showToast } = useToast();
 
   const { data: suppliersData, isLoading, isFetching } = useSuppliers({
     page,
@@ -209,13 +212,19 @@ function SuppliersPageContent() {
   };
 
   const handleUpdate = (data: Partial<Supplier>) => {
-    if (selectedSupplier) updateSupplierMutation.mutate({ id: selectedSupplier.id, data: data as any });
+    if (selectedSupplier) {
+      updateSupplierMutation.mutate({ id: selectedSupplier.id, data: data as any }, {
+        onSuccess: () => { setShowEditModal(false); showToast(`"${selectedSupplier.companyName}" updated.`); },
+        onError: () => showToast("Failed to update supplier.", "error"),
+      });
+    }
   };
 
   const handleDelete = () => {
     if (selectedSupplier) {
       deleteSupplierMutation.mutate(selectedSupplier.id, {
-        onSuccess: () => { setShowDeleteConfirm(false); setSelectedSupplier(null); },
+        onSuccess: () => { setShowDeleteConfirm(false); showToast(`"${selectedSupplier.companyName}" deleted.`); setSelectedSupplier(null); },
+        onError: () => showToast("Failed to delete supplier.", "error"),
       });
     }
   };
@@ -443,6 +452,8 @@ function SuppliersPageContent() {
         <ModalFooter onCancel={() => setShowDeleteConfirm(false)} onConfirm={handleDelete}
           cancelText="Cancel" confirmText="Delete" confirmVariant="danger" />
       </Modal>
+
+      <ToastNotification toast={toast} />
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { Pagination } from "@/components/ui/pagination";
 import { formatDate, formatPhone, formatCurrency } from "@/lib/utils";
 import { AddCustomerModal, EditCustomerModal } from "@/components/customers/customer-modals";
 import { Modal, ModalFooter } from "@/components/ui/modal";
+import { ToastNotification } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 
 interface Customer {
@@ -241,6 +243,7 @@ function CustomersPageContent() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+  const { toast, showToast } = useToast();
 
   const totalCustomers = pagination?.total || customers.length;
 
@@ -250,7 +253,9 @@ function CustomersPageContent() {
         onSuccess: () => {
           setDeletingCustomer(null);
           setShowDeleteModal(false);
+          showToast(`Customer "${deletingCustomer.name}" deleted.`);
         },
+        onError: () => showToast("Failed to delete customer.", "error"),
       });
     }
   };
@@ -510,6 +515,7 @@ function CustomersPageContent() {
       <AddCustomerModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
+        onCustomerAdded={() => showToast("Customer added successfully!")}
       />
 
       {/* Edit Customer Modal */}
@@ -517,6 +523,7 @@ function CustomersPageContent() {
         isOpen={!!editingCustomer}
         onClose={() => setEditingCustomer(null)}
         customer={editingCustomer}
+        onCustomerUpdated={() => showToast("Customer updated.")}
       />
 
       {/* Delete Confirmation Modal */}
@@ -557,6 +564,8 @@ function CustomersPageContent() {
           onPageChange={setPage}
         />
       )}
+
+      <ToastNotification toast={toast} />
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { useProducts } from "@/hooks/useProducts";
 import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
+import { ToastNotification } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 
@@ -294,6 +296,7 @@ function StockPageContent() {
 
   const [editingStockItem, setEditingStockItem] = useState<StockItem | null>(null);
   const [viewingStockItem, setViewingStockItem] = useState<StockItem | null>(null);
+  const { toast, showToast } = useToast();
 
   // Get product name by ID
   const getProductName = (productId: string): string => {
@@ -579,7 +582,11 @@ function StockPageContent() {
             onSave={async (data) => {
               try {
                 await apiClient.put(`/api/stock/${editingStockItem.id}`, data);
-              } catch (e) { console.error(e); }
+                showToast(`Stock item "${editingStockItem.serialNumber}" updated.`);
+              } catch (e) {
+                showToast("Failed to update stock item.", "error");
+                console.error(e);
+              }
               setEditingStockItem(null);
             }}
           />
@@ -609,6 +616,8 @@ function StockPageContent() {
           onPageChange={setPage}
         />
       )}
+
+      <ToastNotification toast={toast} />
     </div>
   );
 }

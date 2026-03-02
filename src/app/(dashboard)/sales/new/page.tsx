@@ -10,6 +10,8 @@ import { AddCustomerModal } from "@/components/customers/customer-modals";
 import { InvoicePrintModal } from "@/components/invoice/invoice-print";
 import { CustomerCombobox } from "@/components/ui/customer-combobox";
 import type { CustomerOption } from "@/components/ui/customer-combobox";
+import { ToastNotification } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 
 type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer";
@@ -264,7 +266,7 @@ export default function NewSalePage() {
   // Completed sale for print
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
-
+  const { toast, showToast } = useToast();
 
   // Handle new customer added
   const handleCustomerAdded = (customer: Customer) => {
@@ -384,10 +386,14 @@ export default function NewSalePage() {
 
       const sale = await apiClient.post("/api/sales", saleData) as Sale;
 
-      setCompletedSale(sale);
+      // Merge local saleItems into response so invoice preview shows items
+      const saleWithItems = { ...sale, items: saleItems, payments: saleData.payments };
+      setCompletedSale(saleWithItems as any);
       setShowPrintModal(true);
+      showToast(`Sale ${(sale as any).invoiceNumber || ""} created successfully! ✓`);
     } catch (error) {
       console.error("Error creating sale:", error);
+      showToast("Failed to create sale. Please try again.", "error");
     }
   };
 
@@ -699,7 +705,6 @@ export default function NewSalePage() {
           setCustomerSearchQuery("");
         }}
         onCustomerAdded={handleCustomerAdded}
-        // Detect if query is phone number (only digits and starts with 01) or name
         defaultPhone={/^0?1[0-9]*$/.test(customerSearchQuery.replace(/\s/g, "")) ? customerSearchQuery.replace(/\s/g, "") : ""}
         defaultName={!/^0?1[0-9]*$/.test(customerSearchQuery.replace(/\s/g, "")) ? customerSearchQuery : ""}
       />
@@ -712,6 +717,8 @@ export default function NewSalePage() {
           onClose={handleClosePrintModal}
         />
       )}
+
+      <ToastNotification toast={toast} />
     </div>
   );
 }

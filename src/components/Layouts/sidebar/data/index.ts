@@ -99,6 +99,10 @@ export const NAV_DATA = [
         icon: Icons.SuppliersIcon,
         items: [
           {
+            title: "Add Supplier",
+            url: "/suppliers/new",
+          },
+          {
             title: "Supplier List",
             url: "/suppliers",
           },

@@ -47,54 +47,47 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const items = await db
-      .select({
-        stockItem: stockItems,
-        product: products,
-      })
-      .from(stockItems)
-      .leftJoin(products, eq(stockItems.productId, products.id))
-      .where(whereClause)
-      .orderBy(desc(stockItems.createdAt))
-      .limit(limit)
-      .offset(offset);
+    // Run items + count + all stats in parallel (was 5 sequential queries)
+    const [
+      [items, totalCount],
+      [allStats],
+      statusCountsRaw,
+    ] = await Promise.all([
+      Promise.all([
+        db
+          .select({ stockItem: stockItems, product: products })
+          .from(stockItems)
+          .leftJoin(products, eq(stockItems.productId, products.id))
+          .where(whereClause)
+          .orderBy(desc(stockItems.createdAt))
+          .limit(limit)
+          .offset(offset),
+        db.select({ count: sql<number>`count(*)` }).from(stockItems).where(whereClause),
+      ]),
+      // Single query replaces availableStats + soldStats + totalAll
+      db.select({
+        total: sql<number>`count(*)`,
+        available: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Available')`,
+        sold: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Sold')`,
+        stockValue: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}) FILTER (WHERE ${stockItems.status} = 'Available'), 0)`,
+      }).from(stockItems),
+      // Status group counts for filter tabs
+      db.select({
+        status: stockItems.status,
+        count: sql<number>`count(*)`,
+      }).from(stockItems).groupBy(stockItems.status),
+    ]);
 
-    // Filtered count
-    const totalCount = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(stockItems)
-      .where(whereClause);
+    const statusCountMap: Record<string, number> = { All: Number(allStats.total) };
+    statusCountsRaw.forEach(s => { statusCountMap[s.status] = Number(s.count); });
 
-    // Aggregate stats (from ALL data, not filtered)
-    const [availableStats] = await db.select({
-      count: sql<number>`count(*)`,
-      value: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}), 0)`,
-    }).from(stockItems).where(eq(stockItems.status, 'Available'));
-
-    const [soldStats] = await db.select({
-      count: sql<number>`count(*)`,
-    }).from(stockItems).where(eq(stockItems.status, 'Sold'));
-
-    const [totalAll] = await db.select({
-      count: sql<number>`count(*)`,
-    }).from(stockItems);
-
-    // Status counts for filter tabs
-    const statusCounts = await db.select({
-      status: stockItems.status,
-      count: sql<number>`count(*)`,
-    }).from(stockItems).groupBy(stockItems.status);
-
-    const statusCountMap: Record<string, number> = { All: Number(totalAll.count) };
-    statusCounts.forEach(s => { statusCountMap[s.status] = Number(s.count); });
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       stockItems: items,
       stats: {
-        total: Number(totalAll.count),
-        available: Number(availableStats.count),
-        sold: Number(soldStats.count),
-        stockValue: Number(availableStats.value),
+        total: Number(allStats.total),
+        available: Number(allStats.available),
+        sold: Number(allStats.sold),
+        stockValue: Number(allStats.stockValue),
       },
       statusCounts: statusCountMap,
       pagination: {
@@ -104,6 +97,8 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(Number(totalCount[0].count) / limit),
       },
     });
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+    return response;
   } catch (error) {
     console.error("Error fetching stock:", error);
     return NextResponse.json(

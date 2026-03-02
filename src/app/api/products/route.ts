@@ -61,26 +61,21 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    const allProducts = await queryBuilder
-      .limit(limit)
-      .offset(offset);
-
-    // Count query — apply same conditions
-    let countQuery = db.select({ count: sql<number>`count(*)` }).from(products).$dynamic();
-    countQuery = countQuery.where(and(...conditions));
-    const totalCount = await countQuery;
-
-    // Category counts (always non-deleted, ignoring search/category filter)
-    const categoryCounts = await db.select({
-      category: products.category,
-      count: sql<number>`count(*)`,
-    }).from(products)
-      .where(eq(products.isDeleted, false))
-      .groupBy(products.category);
+    // Run all 3 in parallel (was 3 sequential queries)
+    const [allProducts, totalCount, categoryCounts] = await Promise.all([
+      queryBuilder.limit(limit).offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(products).where(and(...conditions)),
+      db.select({
+        category: products.category,
+        count: sql<number>`count(*)`,
+      }).from(products)
+        .where(eq(products.isDeleted, false))
+        .groupBy(products.category),
+    ]);
 
     const totalNonDeleted = categoryCounts.reduce((sum, c) => sum + Number(c.count), 0);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       products: allProducts,
       categoryCounts: Object.fromEntries(
         [['All', totalNonDeleted], ...categoryCounts.map(c => [c.category, Number(c.count)])]
@@ -92,6 +87,9 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(Number(totalCount[0].count) / limit),
       },
     });
+    // Products rarely change — 60s cache is safe
+    response.headers.set("Cache-Control", "private, max-age=60, stale-while-revalidate=120");
+    return response;
   } catch (error) {
     console.error("Error fetching products:", error);
     return NextResponse.json(

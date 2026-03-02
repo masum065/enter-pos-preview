@@ -37,29 +37,21 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const allSuppliers = await db
-      .select()
-      .from(suppliers)
-      .where(whereClause)
-      .orderBy(desc(suppliers.createdAt))
-      .limit(limit)
-      .offset(offset);
+    // Run data + count + stats all in parallel (was 3 sequential queries)
+    const [allSuppliers, [{ count: totalCount }], [suppAgg]] = await Promise.all([
+      db.select().from(suppliers).where(whereClause)
+        .orderBy(desc(suppliers.createdAt)).limit(limit).offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(suppliers).where(whereClause),
+      db.select({
+        totalPayable: sql<string>`COALESCE(SUM(GREATEST(CAST(${suppliers.balance} AS numeric), 0)), 0)`,
+        totalPurchases: sql<string>`COALESCE(SUM(${suppliers.totalPurchases}), 0)`,
+        totalPaid: sql<string>`COALESCE(SUM(${suppliers.totalPaid}), 0)`,
+        total: sql<number>`count(*)`,
+        withDue: sql<number>`count(*) FILTER (WHERE CAST(${suppliers.balance} AS numeric) > 0)`,
+      }).from(suppliers),
+    ]);
 
-    const [{ count: totalCount }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(suppliers)
-      .where(whereClause);
-
-    // Aggregate stats (from ALL data, not filtered)
-    const [suppAgg] = await db.select({
-      totalPayable: sql<string>`COALESCE(SUM(GREATEST(CAST(${suppliers.balance} AS numeric), 0)), 0)`,
-      totalPurchases: sql<string>`COALESCE(SUM(${suppliers.totalPurchases}), 0)`,
-      totalPaid: sql<string>`COALESCE(SUM(${suppliers.totalPaid}), 0)`,
-      total: sql<number>`count(*)`,
-      withDue: sql<number>`count(*) FILTER (WHERE CAST(${suppliers.balance} AS numeric) > 0)`,
-    }).from(suppliers);
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       suppliers: allSuppliers,
       stats: {
         total: Number(suppAgg.total),
@@ -69,11 +61,14 @@ export async function GET(request: NextRequest) {
         totalPaid: Number(suppAgg.totalPaid),
       },
       pagination: {
-        page, limit,
+        page,
+        limit,
         total: Number(totalCount),
         totalPages: Math.ceil(Number(totalCount) / limit),
       },
     });
+    response.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=30");
+    return response;
   } catch (error) {
     console.error("Error fetching suppliers:", error);
     return NextResponse.json({ error: "Failed to fetch suppliers" }, { status: 500 });

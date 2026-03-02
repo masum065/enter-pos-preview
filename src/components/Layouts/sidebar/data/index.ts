@@ -119,12 +119,6 @@ export const NAV_DATA = [
         icon: Icons.ReportsIcon,
         items: [],
       },
-      {
-        title: "Charts",
-        url: "/charts/basic-chart",
-        icon: Icons.PieChart,
-        items: [],
-      },
     ],
   },
   {

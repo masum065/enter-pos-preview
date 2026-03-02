@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { apiClient } from "@/lib/api-client";
 
 interface Sale {
   id: string;
@@ -423,7 +424,7 @@ function tdStyle(extra: React.CSSProperties = {}): React.CSSProperties {
 
 // ── Trigger button ────────────────────────────────────────────────────────
 export function PrintInvoiceButton({
-  sale,
+  sale: initialSale,
   variant = "icon",
   className = "",
 }: {
@@ -432,20 +433,47 @@ export function PrintInvoiceButton({
   className?: string;
 }) {
   const [showModal, setShowModal] = useState(false);
+  const [fullSale, setFullSale] = useState<Sale | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleOpen = async () => {
+    setLoading(true);
+    try {
+      const data = await apiClient.get<Sale>(`/api/sales/${initialSale.id}`);
+      setFullSale(data);
+    } catch {
+      setFullSale(initialSale); // fallback
+    } finally {
+      setLoading(false);
+      setShowModal(true);
+    }
+  };
+
+  const saleToShow = fullSale || initialSale;
 
   if (variant === "icon") {
     return (
       <>
         <button
-          onClick={() => setShowModal(true)}
-          className={`rounded-lg p-2 text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 ${className}`}
+          onClick={handleOpen}
+          disabled={loading}
+          className={`rounded-lg p-2 text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 disabled:opacity-50 ${className}`}
           title="Print Invoice"
         >
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-          </svg>
+          {loading ? (
+            <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          ) : (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+          )}
         </button>
-        <InvoicePrintModal sale={sale} isOpen={showModal} onClose={() => setShowModal(false)} />
+        {showModal && (
+          <InvoicePrintModal sale={saleToShow} isOpen={showModal} onClose={() => { setShowModal(false); setFullSale(null); }} />
+        )}
       </>
     );
   }
@@ -453,15 +481,25 @@ export function PrintInvoiceButton({
   return (
     <>
       <button
-        onClick={() => setShowModal(true)}
-        className={`inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 ${className}`}
+        onClick={handleOpen}
+        disabled={loading}
+        className={`inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-70 ${className}`}
       >
-        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-        </svg>
-        Print Invoice
+        {loading ? (
+          <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+        ) : (
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+          </svg>
+        )}
+        {loading ? "Loading..." : "Print Invoice"}
       </button>
-      <InvoicePrintModal sale={sale} isOpen={showModal} onClose={() => setShowModal(false)} />
+      {showModal && (
+        <InvoicePrintModal sale={saleToShow} isOpen={showModal} onClose={() => { setShowModal(false); setFullSale(null); }} />
+      )}
     </>
   );
 }

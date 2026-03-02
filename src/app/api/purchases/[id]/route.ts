@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { purchaseInvoices, users } from "@/db/schema";
+import { purchaseInvoices, users, customers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 
@@ -33,7 +33,18 @@ export async function GET(
       if (user) createdByName = user.name;
     } catch {}
 
-    return NextResponse.json({ ...purchase, createdByName });
+    // Seller address
+    let sellerAddress = "";
+    try {
+      const [cust] = await db
+        .select({ address: customers.address })
+        .from(customers)
+        .where(eq(customers.id, purchase.sellerId))
+        .limit(1);
+      if (cust?.address) sellerAddress = cust.address;
+    } catch {}
+
+    return NextResponse.json({ ...purchase, createdByName, sellerAddress });
   } catch (error) {
     console.error("Error fetching purchase:", error);
     return NextResponse.json({ error: "Failed to fetch purchase" }, { status: 500 });

@@ -9,6 +9,7 @@ interface Purchase {
   purchaseDate: string;
   sellerName: string;
   sellerPhone: string;
+  sellerAddress?: string;
   productName: string;
   serialNumber: string;
   imei?: string;
@@ -89,6 +90,7 @@ function buildPurchaseHTML(p: Purchase): string {
     <div class="row">
       <span><strong>Seller:</strong> ${p.sellerName}</span>
       <span><strong>Phone:</strong> ${p.sellerPhone}</span>
+      ${p.sellerAddress ? `<span><strong>Address:</strong> ${p.sellerAddress}</span>` : ''}
     </div>
     <div class="row">
       <span><strong>Prepared By:</strong> ${p.createdByName || 'Admin'}</span>
@@ -216,6 +218,7 @@ export function PurchasePrintModal({
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0 20px", marginBottom: 3 }}>
             <span><strong>Seller:</strong> {purchase.sellerName}</span>
             <span><strong>Phone:</strong> {purchase.sellerPhone}</span>
+            {purchase.sellerAddress && <span><strong>Address:</strong> {purchase.sellerAddress}</span>}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0 20px" }}>
             <span><strong>Prepared By:</strong> {purchase.createdByName || "Admin"}</span>

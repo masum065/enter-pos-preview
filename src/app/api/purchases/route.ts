@@ -9,7 +9,7 @@ import {
   customers,
   customerTransactions
 } from "@/db/schema";
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, or, ilike } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { purchaseInvoiceSchema } from "@/lib/validations/purchases";
 
@@ -23,38 +23,74 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const sellerId = searchParams.get("sellerId");
+    const search = searchParams.get("search");
+    const paymentStatus = searchParams.get("paymentStatus"); // "paid" | "partial" | "unpaid"
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
-
-    let queryBuilder = db.select().from(purchaseInvoices).$dynamic();
 
     const conditions = [];
     if (startDate) conditions.push(gte(purchaseInvoices.purchaseDate, new Date(startDate)));
-    if (endDate) conditions.push(lte(purchaseInvoices.purchaseDate, new Date(endDate)));
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      conditions.push(lte(purchaseInvoices.purchaseDate, end));
+    }
     if (sellerId) conditions.push(eq(purchaseInvoices.sellerId, sellerId));
-
-    if (conditions.length > 0) {
-      queryBuilder = queryBuilder.where(and(...conditions));
+    if (search) {
+      conditions.push(
+        or(
+          ilike(purchaseInvoices.invoiceNumber, `%${search}%`),
+          ilike(purchaseInvoices.serialNumber, `%${search}%`),
+          ilike(purchaseInvoices.sellerName, `%${search}%`),
+          ilike(purchaseInvoices.sellerPhone, `%${search}%`),
+          ilike(purchaseInvoices.productName, `%${search}%`),
+        )
+      );
     }
 
-    const allPurchases = await queryBuilder
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Paginated results
+    const allPurchases = await db
+      .select()
+      .from(purchaseInvoices)
+      .where(whereClause)
       .orderBy(desc(purchaseInvoices.purchaseDate))
       .limit(limit)
       .offset(offset);
 
-    const totalCount = await db.select({ count: sql<number>`count(*)` }).from(purchaseInvoices);
+    // Apply paymentStatus filter in-memory (derived field)
+    let filteredPurchases = allPurchases;
+    if (paymentStatus) {
+      filteredPurchases = allPurchases.filter((p) => {
+        const price = parseFloat(p.purchasePrice);
+        const paid = parseFloat(p.paidAmount);
+        const balance = price - paid;
+        if (paymentStatus === "paid") return balance <= 0;
+        if (paymentStatus === "partial") return balance > 0 && paid > 0;
+        if (paymentStatus === "unpaid") return paid <= 0;
+        return true;
+      });
+    }
 
-    // Aggregate stats (from ALL data, not paginated)
+    // Total count for pagination (filtered)
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(purchaseInvoices)
+      .where(whereClause);
+
+    // Aggregate stats from ALL data (not paginated, not date-filtered)
     const [purchaseAgg] = await db.select({
       totalAmount: sql<string>`COALESCE(SUM(${purchaseInvoices.purchasePrice}), 0)`,
       totalPaid: sql<string>`COALESCE(SUM(${purchaseInvoices.paidAmount}), 0)`,
-    }).from(purchaseInvoices);
+      totalCount: sql<number>`count(*)`,
+    }).from(purchaseInvoices).where(whereClause);
 
     return NextResponse.json({
-      purchases: allPurchases,
+      purchases: filteredPurchases,
       stats: {
-        totalPurchases: Number(totalCount[0].count),
+        totalPurchases: Number(purchaseAgg.totalCount),
         totalAmount: Number(purchaseAgg.totalAmount),
         totalPaid: Number(purchaseAgg.totalPaid),
         totalDue: Number(purchaseAgg.totalAmount) - Number(purchaseAgg.totalPaid),
@@ -62,8 +98,8 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         limit,
-        total: Number(totalCount[0].count),
-        totalPages: Math.ceil(Number(totalCount[0].count) / limit),
+        total: Number(totalCount),
+        totalPages: Math.ceil(Number(totalCount) / limit),
       },
     });
   } catch (error) {
@@ -71,6 +107,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch purchases" }, { status: 500 });
   }
 }
+
 
 // POST /api/purchases - Create purchase invoice with stock item (transaction)
 export async function POST(request: NextRequest) {

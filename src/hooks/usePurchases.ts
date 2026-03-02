@@ -32,6 +32,8 @@ interface PurchaseFilters {
   startDate?: string;
   endDate?: string;
   sellerId?: string;
+  search?: string;
+  paymentStatus?: string;
   page?: number;
   limit?: number;
 }
@@ -50,6 +52,8 @@ export function usePurchases(filters: PurchaseFilters = {}) {
       if (filters.startDate) params.startDate = filters.startDate;
       if (filters.endDate) params.endDate = filters.endDate;
       if (filters.sellerId) params.sellerId = filters.sellerId;
+      if (filters.search) params.search = filters.search;
+      if (filters.paymentStatus) params.paymentStatus = filters.paymentStatus;
       if (filters.page) params.page = String(filters.page);
       if (filters.limit) params.limit = String(filters.limit);
       return apiClient.get<PurchasesResponse>("/api/purchases", params);

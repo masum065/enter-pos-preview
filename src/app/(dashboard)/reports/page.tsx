@@ -167,7 +167,7 @@ thead th{background:#f3f4f6;font-weight:700;}
 tfoot td{background:#f3f4f6;font-weight:700;}
 .note{font-size:9px;color:#555;margin-top:8px;}
 .footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:16px;padding-top:10px;border-top:1px solid #f3f4f6;}
-@media print{@page{size:A4 landscape;margin:10mm 12mm;}body{padding:0!important;}}
+@media print{@page{size:A4;margin:10mm 12mm;}body{padding:0!important;}}
 </style></head><body>
 <div class="hdr">
   <div>

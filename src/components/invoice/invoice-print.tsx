@@ -113,7 +113,7 @@ function buildInvoiceHTML(sale: Sale): string {
 <title>Invoice ${sale.invoiceNumber}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding:28px 32px;}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding:24px 28px;}
   .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
   .logo{font-size:26px;font-weight:900;font-style:italic;letter-spacing:-0.5px;}
   .shop-name{font-weight:700;font-size:11px;margin-top:4px;}
@@ -124,7 +124,7 @@ function buildInvoiceHTML(sale: Sale): string {
   .inv-box-row:last-child{border-bottom:none;}
   hr{border:none;border-top:1px solid #9ca3af;margin:8px 0;}
   .cust-row{display:flex;flex-wrap:wrap;gap:0 20px;margin-bottom:4px;}
-  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;border:1px solid #9ca3af;}
   th,td{border:1px solid #9ca3af;padding:4px 8px;font-size:11px;word-break:break-word;}
   thead th{background:#f3f4f6;font-weight:700;}
   .tr{text-align:right;} .tc{text-align:center;} .at{vertical-align:top;}
@@ -136,7 +136,7 @@ function buildInvoiceHTML(sale: Sale): string {
   ol.terms li{font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;}
   .footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:20px;padding-top:12px;border-top:1px solid #f3f4f6;}
   @media print{
-    @page{size:A4;margin:10mm 12mm;}
+    @page{size:A4;margin:12mm 14mm;}
     body{padding:0!important;}
   }
 </style>

@@ -1,26 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateService } from "@/hooks/useServices";
-import { useCustomers } from "@/hooks/useCustomers";
+import { CustomerCombobox } from "@/components/ui/customer-combobox";
+import type { CustomerOption } from "@/components/ui/customer-combobox";
 import Link from "next/link";
 
-interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  [key: string]: any;
-}
+type Customer = CustomerOption;
 
 export default function NewServicePage() {
   const router = useRouter();
   const createServiceMutation = useCreateService();
-  const { data: customersData } = useCustomers({ limit: 500 });
-  const customers: Customer[] = (customersData?.customers || []) as any[];
-
-
-  const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   const [formData, setFormData] = useState({
@@ -52,11 +43,6 @@ export default function NewServicePage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
 
-  const filteredCustomers = useMemo(() => {
-    if (!customerSearch.trim()) return customers.slice(0, 5);
-    const q = customerSearch.toLowerCase();
-    return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 5);
-  }, [customerSearch, customers]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -124,38 +110,11 @@ export default function NewServicePage() {
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
           <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Customer</h2>
           
-          <input
-            type="text"
-            value={customerSearch}
-            onChange={(e) => setCustomerSearch(e.target.value)}
-            placeholder="Search customer..."
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          <CustomerCombobox
+            selectedCustomer={selectedCustomer}
+            onSelect={setSelectedCustomer}
           />
-          {errors.customer && <p className="mt-1 text-sm text-red-500">{errors.customer}</p>}
-
-          {selectedCustomer ? (
-            <div className="mt-3 flex items-center justify-between rounded-lg bg-purple-50 p-4 dark:bg-purple-900/20">
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white">{selectedCustomer.name}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{selectedCustomer.phone}</p>
-              </div>
-              <button type="button" onClick={() => setSelectedCustomer(null)} className="text-red-600">Remove</button>
-            </div>
-          ) : (
-            <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-              {filteredCustomers.map((customer) => (
-                <button
-                  key={customer.id}
-                  type="button"
-                  onClick={() => setSelectedCustomer(customer)}
-                  className="w-full rounded-lg border border-gray-200 p-3 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  <p className="font-medium text-gray-900 dark:text-white">{customer.name}</p>
-                  <p className="text-sm text-gray-500">{customer.phone}</p>
-                </button>
-              ))}
-            </div>
-          )}
+          {errors.customer && <p className="mt-2 text-sm text-red-500">{errors.customer}</p>}
         </div>
 
         {/* Device Information */}

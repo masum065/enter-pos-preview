@@ -57,37 +57,38 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(sales.createdBy, session.id));
     }
 
-    if (conditions.length > 0) {
-      queryBuilder = queryBuilder.where(and(...conditions));
-    }
+    // Prepare where clause
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const allSales = queryBuilder.orderBy(desc(sales.createdAt)).limit(limit).offset(offset);
-
-    // Count query — same filters
-    let countQuery = db.select({ count: sql<number>`count(*)` }).from(sales).$dynamic();
-    if (conditions.length > 0) {
-      countQuery = countQuery.where(and(...conditions));
-    }
-
-    // Stats — one combined query instead of two separate ones
-    const statsQuery = db.select({
-      totalAmount: sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
-      totalProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
-      totalDue: sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
-      dueCount: sql<number>`count(*) FILTER (WHERE ${sales.dueAmount}::numeric > 0)`,
-    }).from(sales);
-
-    // Run all 3 in parallel instead of sequentially
-    const [fetchedSales, totalCount, [salesAgg]] = await Promise.all([
-      allSales,
-      countQuery,
-      statsQuery,
+    // Run all 3 in parallel without sharing a mutated query builder
+    const [fetchedSales, totalCountResult, statsAggResult] = await Promise.all([
+      db.select()
+        .from(sales)
+        .where(whereClause)
+        .orderBy(desc(sales.createdAt))
+        .limit(limit)
+        .offset(offset),
+        
+      db.select({ count: sql<number>`count(*)` })
+        .from(sales)
+        .where(whereClause),
+        
+      db.select({
+        totalAmount: sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
+        totalProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
+        totalDue: sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
+        dueCount: sql<number>`count(*) FILTER (WHERE ${sales.dueAmount}::numeric > 0)`,
+      })
+        .from(sales)
+        .where(whereClause),
     ]);
+
+    const salesAgg = statsAggResult[0];
 
     const response = NextResponse.json({
       sales: fetchedSales,
       stats: {
-        total: Number(totalCount[0].count),
+        total: Number(totalCountResult[0].count),
         totalAmount: Number(salesAgg.totalAmount),
         totalProfit: Number(salesAgg.totalProfit),
         totalDue: Number(salesAgg.totalDue),
@@ -96,8 +97,8 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         limit,
-        total: Number(totalCount[0].count),
-        totalPages: Math.ceil(Number(totalCount[0].count) / limit),
+        total: Number(totalCountResult[0].count),
+        totalPages: Math.ceil(Number(totalCountResult[0].count) / limit),
       },
     });
 

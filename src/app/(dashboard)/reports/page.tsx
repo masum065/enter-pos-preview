@@ -1,188 +1,272 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useSales } from "@/hooks/useSales";
-import { useServices } from "@/hooks/useServices";
-import { useExpenses } from "@/hooks/useExpenses";
-import { useStockItems } from "@/hooks/useStock";
-import { useCustomers } from "@/hooks/useCustomers";
-import { formatCurrency, formatDate, downloadCSV } from "@/lib/utils";
+import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
-type ReportType = "sales" | "profit" | "inventory" | "service" | "expense" | "activity";
-
-export default function ReportsPage() {
-  const [selectedReport, setSelectedReport] = useState<ReportType>("sales");
-  const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "year" | "all">("month");
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
-  const [logSearch, setLogSearch] = useState("");
-  const [logActionFilter, setLogActionFilter] = useState<string>("all");
-
-  const { data: salesData } = useSales();
-  const { data: servicesData } = useServices();
-  const { data: expensesData } = useExpenses();
-  const { data: stockData } = useStockItems();
-  const { data: customersData } = useCustomers();
-
-  const salesList = (salesData as any)?.sales || [];
-  const servicesList = (servicesData as any)?.services || [];
-  const expensesList = (expensesData as any)?.expenses || [];
-  const stockItemsList = (stockData as any)?.stockItems || [];
-
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
-
-  // Date filtering helper
-  const filterByDate = (
-    items: any[],
-    dateField: string
-  ): any[] => {
-    if (dateRange === "all") return items;
-    
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    return items.filter((item) => {
-      const itemDate = new Date(item[dateField] as string);
-      
-      if (dateRange === "today") {
-        return itemDate >= today;
-      } else if (dateRange === "week") {
-        const weekAgo = new Date(today);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        return itemDate >= weekAgo;
-      } else if (dateRange === "month") {
-        return itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
-      } else if (dateRange === "year") {
-        return itemDate.getFullYear() === now.getFullYear();
-      }
-      return true;
-    });
+// ── Types ─────────────────────────────────────────────────────────────────
+interface ReportData {
+  sales: {
+    count: number; revenue: number; collected: number; due: number;
+    grossProfit: number; returned: number; avgOrder: number;
   };
+  services: {
+    count: number; completed: number; pending: number;
+    revenue: number; collected: number; due: number; grossProfit: number;
+  };
+  expenses: {
+    count: number; total: number;
+    byCategory: { category: string; total: number; count: number }[];
+  };
+  profit: {
+    salesRevenue: number; serviceRevenue: number; totalRevenue: number;
+    salesGrossProfit: number; serviceGrossProfit: number; totalGrossProfit: number;
+    totalExpenses: number; netProfit: number;
+    profitMargin: number; grossMargin: number; isProfit: boolean;
+  };
+  inventory: {
+    total: number; available: number; sold: number; inService: number; stockValue: number;
+  };
+}
 
-  // Sales Report Data
-  const salesReport = useMemo(() => {
-    const filtered = filterByDate(salesList, "invoiceDate");
-    return {
-      totalSales: filtered.length,
-      totalRevenue: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.grandTotal) || 0), 0),
-      totalProfit: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.totalProfit) || 0), 0),
-      totalDue: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.dueAmount) || 0), 0),
-      avgOrderValue: filtered.length > 0 ? Math.round(filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.grandTotal) || 0), 0) / filtered.length) : 0,
-      items: filtered.slice(0, 10),
-    };
-  }, [salesList, dateRange]);
+type ReportTab = "profit" | "sales" | "service" | "expense" | "inventory" | "activity";
+type DatePreset = "today" | "week" | "month" | "year" | "custom";
 
-  // Inventory Report Data
-  const inventoryReport = useMemo(() => {
-    // stockItemsList is StockItemWithProduct[] -> flatten
-    const flatStock = stockItemsList.map((s: any) => s.stockItem || s);
-    const available = flatStock.filter((s: any) => s.status === "Available");
-    const sold = flatStock.filter((s: any) => s.status === "Sold");
-    const service = flatStock.filter((s: any) => s.status === "Service");
-    return {
-      totalItems: flatStock.length,
-      available: available.length,
-      sold: sold.length,
-      inService: service.length,
-      stockValue: available.reduce((sum: number, s: any) => sum + (parseFloat(s.purchasePrice) || 0), 0),
-    };
-  }, [stockItemsList]);
+// ── Date helpers ──────────────────────────────────────────────────────────
+function getPresetDates(preset: DatePreset): { start: string; end: string } {
+  const now = new Date();
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  const today = fmt(now);
 
-  // Service Report Data
-  const serviceReport = useMemo(() => {
-    const filtered = filterByDate(servicesList, "createdAt");
-    const completed = filtered.filter((s: any) => s.status === "Completed" || s.status === "Delivered");
-    return {
-      totalServices: filtered.length,
-      completed: completed.length,
-      pending: filtered.length - completed.length,
-      totalRevenue: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.totalCost) || 0), 0),
-      totalDue: filtered.reduce((sum: number, s: any) => sum + (parseFloat(s.dueAmount) || 0), 0),
-    };
-  }, [servicesList, dateRange]);
+  if (preset === "today") {
+    return { start: today, end: today };
+  }
+  if (preset === "week") {
+    const d = new Date(now); d.setDate(d.getDate() - 6);
+    return { start: fmt(d), end: today };
+  }
+  if (preset === "month") {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start: fmt(d), end: today };
+  }
+  if (preset === "year") {
+    const d = new Date(now.getFullYear(), 0, 1);
+    return { start: fmt(d), end: today };
+  }
+  return { start: "", end: "" }; // custom — caller provides
+}
 
-  // Expense Report Data
-  const expenseReport = useMemo(() => {
-    const filtered = filterByDate(expensesList, "date");
-    // Build category breakdown from expenses
-    const categoryMap: Record<string, number> = {};
-    filtered.forEach((e: any) => {
-      const cat = e.category || 'Other';
-      categoryMap[cat] = (categoryMap[cat] || 0) + (parseFloat(e.amount) || 0);
-    });
-    const byCategory = Object.entries(categoryMap)
-      .map(([category, total]) => ({ category, total }))
-      .sort((a, b) => b.total - a.total);
-    return {
-      totalExpenses: filtered.length,
-      totalAmount: filtered.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0),
-      avgExpense: filtered.length > 0 ? Math.round(filtered.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0) / filtered.length) : 0,
-      topCategories: byCategory.slice(0, 5),
-    };
-  }, [expensesList, dateRange]);
+// ── Mini stat card ────────────────────────────────────────────────────────
+function StatCard({ label, value, sub, color = "gray", large = false }: {
+  label: string; value: string; sub?: string;
+  color?: "gray" | "blue" | "green" | "red" | "orange" | "purple";
+  large?: boolean;
+}) {
+  const colorMap: Record<string, string> = {
+    gray:   "text-gray-900 dark:text-white",
+    blue:   "text-blue-600 dark:text-blue-400",
+    green:  "text-green-600 dark:text-green-400",
+    red:    "text-red-600 dark:text-red-400",
+    orange: "text-orange-600 dark:text-orange-400",
+    purple: "text-purple-600 dark:text-purple-400",
+  };
+  return (
+    <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
+      <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+      <p className={`mt-1 font-bold ${large ? "text-3xl" : "text-2xl"} ${colorMap[color]}`}>{value}</p>
+      {sub && <p className="mt-1 text-xs text-gray-400">{sub}</p>}
+    </div>
+  );
+}
 
-  // Profit Report Data
-  const profitReport = useMemo(() => {
-    const salesFiltered = filterByDate(salesList, "invoiceDate");
-    const expenseFiltered = filterByDate(expensesList, "date");
-    
-    const totalRevenue = salesFiltered.reduce((sum: number, s: any) => sum + (parseFloat(s.grandTotal) || 0), 0);
-    const totalProfit = salesFiltered.reduce((sum: number, s: any) => sum + (parseFloat(s.totalProfit) || 0), 0);
-    const totalExpenses = expenseFiltered.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
-    const netProfit = totalProfit - totalExpenses;
-    
-    return {
-      totalRevenue,
-      grossProfit: totalProfit,
-      totalExpenses,
-      netProfit,
-      profitMargin: totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0,
-    };
-  }, [salesList, expensesList, dateRange]);
+// ── Export helpers (dynamic import to avoid SSR issues) ───────────────────
+async function exportXLSX(data: any[], sheetName: string, fileName: string) {
+  const XLSX = await import("xlsx");
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, `${fileName}.xlsx`);
+}
 
-  // Export handlers
-  const handleExport = () => {
-    if (selectedReport === "sales") {
-      const data = salesList.map((s: any) => ({
-        Invoice: s.invoiceNumber,
-        Date: formatDate(s.invoiceDate),
-        Customer: s.customerName,
-        Total: s.grandTotal,
-        Paid: s.paidAmount,
-        Due: s.dueAmount,
-        Profit: s.totalProfit,
-        Status: s.status,
+async function exportPDF(
+  title: string,
+  dateLabel: string,
+  columns: string[],
+  rows: (string | number)[][],
+  fileName: string,
+) {
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  const doc = new jsPDF();
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text(title, 14, 22);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(100);
+  doc.text(`Period: ${dateLabel}`, 14, 30);
+  doc.text(`Generated: ${new Date().toLocaleString("en-BD")}`, 14, 36);
+
+  autoTable(doc, {
+    startY: 44,
+    head: [columns],
+    body: rows,
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+
+  doc.save(`${fileName}.pdf`);
+}
+
+// ── Main component ────────────────────────────────────────────────────────
+export default function ReportsPage() {
+  const [tab, setTab] = useState<ReportTab>("profit");
+  const [preset, setPreset] = useState<DatePreset>("month");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+
+  // Activity log state
+  const [logSearch, setLogSearch] = useState("");
+  const [logAction, setLogAction] = useState("all");
+  const [logPage, setLogPage] = useState(1);
+
+  // Compute active date range
+  const { start, end } = preset === "custom"
+    ? { start: customStart, end: customEnd }
+    : getPresetDates(preset);
+
+  const dateLabel = preset === "custom"
+    ? (start && end ? `${start} – ${end}` : "All Time")
+    : preset === "today" ? "Today"
+    : preset === "week" ? "This Week"
+    : preset === "month" ? "This Month"
+    : "This Year";
+
+  // Fetch summary
+  const { data: report, isLoading: reportLoading, isFetching: reportFetching } = useQuery<ReportData>({
+    queryKey: ["reports", "summary", start, end],
+    queryFn: () => {
+      const p: Record<string, string> = { type: "summary" };
+      if (start) p.startDate = start;
+      if (end) p.endDate = end;
+      return apiClient.get<ReportData>("/api/reports", p);
+    },
+    staleTime: 60 * 1000,
+  });
+
+  // Fetch activity logs
+  const { data: activityData, isLoading: activityLoading } = useQuery({
+    queryKey: ["reports", "activity", logSearch, logAction, logPage, start, end],
+    queryFn: () => {
+      const p: Record<string, string> = { type: "activity", page: String(logPage), limit: "50" };
+      if (logSearch) p.search = logSearch;
+      if (logAction !== "all") p.action = logAction;
+      if (start) p.startDate = start;
+      if (end) p.endDate = end;
+      return apiClient.get<any>("/api/reports", p);
+    },
+    enabled: tab === "activity",
+    staleTime: 30 * 1000,
+  });
+
+  const activityLogs: any[] = (activityData as any)?.logs || [];
+  const activityPagination = (activityData as any)?.pagination;
+
+  // ── Export ────────────────────────────────────────────────────────────────
+  const handleExportXLSX = async () => {
+    if (!report) return;
+    if (tab === "sales") {
+      const data = [
+        { Metric: "Total Sales", Value: report.sales.count },
+        { Metric: "Revenue", Value: report.sales.revenue },
+        { Metric: "Collected", Value: report.sales.collected },
+        { Metric: "Due", Value: report.sales.due },
+        { Metric: "Gross Profit", Value: report.sales.grossProfit },
+        { Metric: "Returns", Value: report.sales.returned },
+        { Metric: "Avg Order", Value: Math.round(report.sales.avgOrder) },
+      ];
+      await exportXLSX(data, "Sales Report", `sales-report-${start || "all"}`);
+    } else if (tab === "profit") {
+      const r = report.profit;
+      const data = [
+        { Metric: "Sales Revenue", Value: r.salesRevenue },
+        { Metric: "Service Revenue", Value: r.serviceRevenue },
+        { Metric: "Total Revenue", Value: r.totalRevenue },
+        { Metric: "Sales Gross Profit", Value: r.salesGrossProfit },
+        { Metric: "Service Gross Profit", Value: r.serviceGrossProfit },
+        { Metric: "Total Gross Profit", Value: r.totalGrossProfit },
+        { Metric: "Total Expenses", Value: r.totalExpenses },
+        { Metric: "Net Profit", Value: r.netProfit },
+        { Metric: "Net Margin %", Value: r.profitMargin },
+        { Metric: "Gross Margin %", Value: r.grossMargin },
+      ];
+      await exportXLSX(data, "P&L Report", `profit-report-${start || "all"}`);
+    } else if (tab === "expense") {
+      const data = report.expenses.byCategory.map(c => ({
+        Category: c.category,
+        Count: c.count,
+        "Total Amount": c.total,
       }));
-      downloadCSV(data, `sales-report-${new Date().toISOString().split("T")[0]}`);
-    } else if (selectedReport === "expense") {
-      const data = expensesList.map((e: any) => ({
-        Number: e.expenseNumber,
-        Date: formatDate(e.date),
-        Category: e.category,
-        Description: e.description,
-        Amount: e.amount,
-        Method: e.paymentMethod,
-        PaidBy: e.paidBy,
-      }));
-      downloadCSV(data, `expense-report-${new Date().toISOString().split("T")[0]}`);
-    } else if (selectedReport === "activity") {
-      // Activity logs not yet available from API
+      await exportXLSX(data, "Expenses", `expense-report-${start || "all"}`);
+    } else if (tab === "service") {
+      const s = report.services;
+      const data = [
+        { Metric: "Total Services", Value: s.count },
+        { Metric: "Completed", Value: s.completed },
+        { Metric: "Pending", Value: s.pending },
+        { Metric: "Revenue", Value: s.revenue },
+        { Metric: "Collected", Value: s.collected },
+        { Metric: "Due", Value: s.due },
+        { Metric: "Gross Profit", Value: s.grossProfit },
+      ];
+      await exportXLSX(data, "Services", `service-report-${start || "all"}`);
     }
   };
 
-  const handleClearLogs = () => {
-    // Not needed in API mode
+  const handleExportPDF = async () => {
+    if (!report) return;
+    if (tab === "profit") {
+      const r = report.profit;
+      const rows: (string | number)[][] = [
+        ["Sales Revenue",         formatCurrency(r.salesRevenue)],
+        ["Service Revenue",       formatCurrency(r.serviceRevenue)],
+        ["Total Revenue",         formatCurrency(r.totalRevenue)],
+        ["Sales Gross Profit",    formatCurrency(r.salesGrossProfit)],
+        ["Service Gross Profit",  formatCurrency(r.serviceGrossProfit)],
+        ["Total Gross Profit",    formatCurrency(r.totalGrossProfit)],
+        ["Total Expenses",       `(${formatCurrency(r.totalExpenses)})`],
+        ["Net Profit / (Loss)",   formatCurrency(r.netProfit)],
+        ["Net Margin",            `${r.profitMargin.toFixed(2)}%`],
+        ["Gross Margin",          `${r.grossMargin.toFixed(2)}%`],
+      ];
+      await exportPDF("Profit & Loss Statement", dateLabel, ["Metric", "Amount"], rows, `pl-report-${start || "all"}`);
+    } else if (tab === "expense") {
+      const rows: (string | number)[][] = report.expenses.byCategory.map(c => [c.category, c.count, formatCurrency(c.total)]);
+      await exportPDF("Expense Report", dateLabel, ["Category", "Count", "Amount"], rows, `expense-report-${start || "all"}`);
+    } else if (tab === "sales") {
+      const s = report.sales;
+      const rows: (string | number)[][] = [
+        ["Total Sales", s.count, ""],
+        ["Revenue", "", formatCurrency(s.revenue)],
+        ["Collected", "", formatCurrency(s.collected)],
+        ["Due", "", formatCurrency(s.due)],
+        ["Gross Profit", "", formatCurrency(s.grossProfit)],
+        ["Avg Order", "", formatCurrency(s.avgOrder)],
+      ];
+      await exportPDF("Sales Report", dateLabel, ["Metric", "Count", "Amount"], rows, `sales-report-${start || "all"}`);
+    }
   };
 
-  const filteredLogs: any[] = [];
+  const isLoading = reportLoading;
+  const isFetching = reportFetching;
 
-
-  if (!isLoaded) {
+  if (isLoading && !report) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
       </div>
     );
   }
@@ -193,354 +277,319 @@ export default function ReportsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports</h1>
-          <p className="text-gray-600 dark:text-gray-400">Business analytics and insights</p>
+          <p className="text-gray-500 dark:text-gray-400">
+            Business analytics · <span className="font-medium text-blue-600">{dateLabel}</span>
+            {isFetching && <span className="ml-2 text-xs text-gray-400">Refreshing...</span>}
+          </p>
         </div>
-        <button
-          onClick={handleExport}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white"
-        >
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-          Export CSV
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportXLSX}
+            className="inline-flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            XLSX
+          </button>
+          <button
+            onClick={handleExportPDF}
+            className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            PDF
+          </button>
+        </div>
       </div>
 
-      {/* Report Type Tabs */}
+      {/* Tabs */}
       <div className="flex flex-wrap gap-2">
-        {(["sales", "profit", "inventory", "service", "expense", "activity"] as ReportType[]).map((type) => (
+        {([
+          ["profit",    "Profit & Loss"],
+          ["sales",     "Sales"],
+          ["service",   "Services"],
+          ["expense",   "Expenses"],
+          ["inventory", "Inventory"],
+          ["activity",  "Activity Log"],
+        ] as [ReportTab, string][]).map(([id, label]) => (
           <button
-            key={type}
-            onClick={() => setSelectedReport(type)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium capitalize transition-all ${
-              selectedReport === type
-                ? "bg-blue-600 text-white"
+            key={id}
+            onClick={() => setTab(id)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+              tab === id
+                ? "bg-blue-600 text-white shadow"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
             }`}
           >
-            {type === "activity" ? "Activity Log" : `${type} Report`}
+            {label}
           </button>
         ))}
       </div>
 
-      {/* Date Range Filter */}
-      <div className="flex gap-2">
-        {(["today", "week", "month", "year", "all"] as const).map((range) => (
-          <button
-            key={range}
-            onClick={() => setDateRange(range)}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all ${
-              dateRange === range
-                ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
-            }`}
-          >
-            {range === "all" ? "All Time" : range === "week" ? "This Week" : range === "month" ? "This Month" : range === "year" ? "This Year" : "Today"}
-          </button>
-        ))}
+      {/* Date Range */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="flex flex-wrap gap-2">
+          {(["today", "week", "month", "year", "custom"] as DatePreset[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPreset(p)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all ${
+                preset === p
+                  ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
+              }`}
+            >
+              {p === "today" ? "Today" : p === "week" ? "This Week" : p === "month" ? "This Month" : p === "year" ? "This Year" : "Custom"}
+            </button>
+          ))}
+        </div>
+        {preset === "custom" && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+            <span className="text-gray-400">→</span>
+            <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+          </div>
+        )}
       </div>
 
-      {/* Report Content */}
-      <div className="space-y-6">
-        {/* Sales Report */}
-        {selectedReport === "sales" && (
-          <>
-            <div className="grid gap-4 md:grid-cols-5">
-              <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total Sales</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{salesReport.totalSales}</p>
-              </div>
-              <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Revenue</p>
-                <p className="mt-1 text-2xl font-bold text-blue-600">{formatCurrency(salesReport.totalRevenue)}</p>
-              </div>
-              <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Profit</p>
-                <p className="mt-1 text-2xl font-bold text-green-600">{formatCurrency(salesReport.totalProfit)}</p>
-              </div>
-              <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Due Amount</p>
-                <p className="mt-1 text-2xl font-bold text-red-600">{formatCurrency(salesReport.totalDue)}</p>
-              </div>
-              <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Avg Order</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(salesReport.avgOrderValue)}</p>
+      {/* ── Report Content ─────────────────────────────────────────────────── */}
+
+      {/* PROFIT & LOSS */}
+      {tab === "profit" && report && (
+        <div className="space-y-4">
+          {/* Key metrics */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Total Revenue" value={formatCurrency(report.profit.totalRevenue)} sub={`Sales + Services`} color="blue" large />
+            <StatCard label="Gross Profit" value={formatCurrency(report.profit.totalGrossProfit)} sub={`Margin: ${report.profit.grossMargin.toFixed(1)}%`} color="green" large />
+            <StatCard label="Total Expenses" value={formatCurrency(report.profit.totalExpenses)} color="red" large />
+            <StatCard
+              label="Net Profit / Loss"
+              value={formatCurrency(report.profit.netProfit)}
+              sub={`Net margin: ${report.profit.profitMargin.toFixed(1)}%`}
+              color={report.profit.isProfit ? "green" : "red"}
+              large
+            />
+          </div>
+
+          {/* Breakdown table */}
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Profit & Loss Statement — {dateLabel}</h3>
+            </div>
+            <div className="p-6">
+              <table className="w-full text-sm">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {[
+                    { label: "Sales Revenue",          value: report.profit.salesRevenue,        indent: false, color: "blue"  },
+                    { label: "Service Revenue",         value: report.profit.serviceRevenue,       indent: true,  color: "blue"  },
+                    { label: "Total Revenue",           value: report.profit.totalRevenue,         indent: false, color: "blue",  bold: true },
+                    { label: "Sales Gross Profit",      value: report.profit.salesGrossProfit,     indent: false, color: "green" },
+                    { label: "Service Gross Profit",    value: report.profit.serviceGrossProfit,   indent: true,  color: "green" },
+                    { label: "Total Gross Profit",      value: report.profit.totalGrossProfit,     indent: false, color: "green", bold: true },
+                    { label: "Less: Total Expenses",    value: -report.profit.totalExpenses,       indent: false, color: "red"   },
+                    { label: "Net Profit / (Loss)",     value: report.profit.netProfit,            indent: false, color: report.profit.isProfit ? "green" : "red", bold: true },
+                  ].map((row, i) => (
+                    <tr key={i}>
+                      <td className={`py-3 text-gray-700 dark:text-gray-300 ${row.indent ? "pl-8 text-gray-400" : ""} ${row.bold ? "font-bold" : ""}`}>
+                        {row.label}
+                      </td>
+                      <td className={`py-3 text-right font-mono ${row.bold ? "font-bold text-base" : ""} ${
+                        row.color === "blue" ? "text-blue-600 dark:text-blue-400"
+                        : row.color === "green" ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400"
+                      }`}>
+                        {row.value < 0 ? `(${formatCurrency(Math.abs(row.value))})` : formatCurrency(row.value)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-4 flex gap-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+                <div className="flex-1 rounded-xl bg-gray-50 p-4 text-center dark:bg-gray-800">
+                  <p className="text-xs text-gray-500">Gross Margin</p>
+                  <p className="text-xl font-bold text-green-600">{report.profit.grossMargin.toFixed(2)}%</p>
+                </div>
+                <div className="flex-1 rounded-xl bg-gray-50 p-4 text-center dark:bg-gray-800">
+                  <p className="text-xs text-gray-500">Net Margin</p>
+                  <p className={`text-xl font-bold ${report.profit.isProfit ? "text-green-600" : "text-red-600"}`}>{report.profit.profitMargin.toFixed(2)}%</p>
+                </div>
+                <div className="flex-1 rounded-xl bg-gray-50 p-4 text-center dark:bg-gray-800">
+                  <p className="text-xs text-gray-500">Status</p>
+                  <p className={`text-xl font-bold ${report.profit.isProfit ? "text-green-600" : "text-red-600"}`}>
+                    {report.profit.isProfit ? "✅ Profit" : "❌ Loss"}
+                  </p>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Recent Sales */}
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-              <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Recent Sales</h3>
+      {/* SALES */}
+      {tab === "sales" && report && (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Total Sales" value={String(report.sales.count)} />
+            <StatCard label="Revenue" value={formatCurrency(report.sales.revenue)} color="blue" />
+            <StatCard label="Collected" value={formatCurrency(report.sales.collected)} color="green" />
+            <StatCard label="Due" value={formatCurrency(report.sales.due)} color="red" />
+            <StatCard label="Gross Profit" value={formatCurrency(report.sales.grossProfit)} color="green" sub="Revenue - Cost" />
+            <StatCard label="Net Returns" value={formatCurrency(report.sales.returned)} color="orange" />
+            <StatCard label="Average Order" value={formatCurrency(report.sales.avgOrder)} />
+          </div>
+        </div>
+      )}
+
+      {/* SERVICES */}
+      {tab === "service" && report && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Total Services" value={String(report.services.count)} />
+          <StatCard label="Completed" value={String(report.services.completed)} color="green" />
+          <StatCard label="Pending" value={String(report.services.pending)} color="orange" />
+          <StatCard label="Revenue" value={formatCurrency(report.services.revenue)} color="blue" />
+          <StatCard label="Collected" value={formatCurrency(report.services.collected)} color="green" />
+          <StatCard label="Due" value={formatCurrency(report.services.due)} color="red" />
+          <StatCard label="Gross Profit" value={formatCurrency(report.services.grossProfit)} color="green" sub="Charge - Parts" />
+        </div>
+      )}
+
+      {/* EXPENSES */}
+      {tab === "expense" && report && (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <StatCard label="Total Expenses" value={formatCurrency(report.expenses.total)} color="red" large />
+            <StatCard label="Transactions" value={String(report.expenses.count)} />
+            <StatCard label="Avg per Expense" value={formatCurrency(report.expenses.count > 0 ? report.expenses.total / report.expenses.count : 0)} />
+          </div>
+          {report.expenses.byCategory.length > 0 && (
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+              <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">By Category</h3>
               <div className="space-y-3">
-                {salesReport.items.map((sale) => (
-                  <div key={sale.id} className="flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{sale.invoiceNumber}</p>
-                      <p className="text-sm text-gray-500">{sale.customerName} • {formatDate(sale.invoiceDate)}</p>
+                {report.expenses.byCategory.map((c) => {
+                  const pct = report.expenses.total > 0 ? (c.total / report.expenses.total) * 100 : 0;
+                  return (
+                    <div key={c.category}>
+                      <div className="mb-1 flex justify-between text-sm">
+                        <span className="font-medium text-gray-800 dark:text-gray-200">{c.category}</span>
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {formatCurrency(c.total)} <span className="ml-1 text-xs text-gray-400">({pct.toFixed(1)}%)</span>
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                        <div className="h-full rounded-full bg-red-500 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(sale.grandTotal)}</p>
-                      <p className="text-sm text-green-600">+{formatCurrency(sale.totalProfit)}</p>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* INVENTORY */}
+      {tab === "inventory" && report && (
+        <div className="space-y-4">
+          <p className="text-xs text-gray-400">📌 Inventory is a live snapshot — not date-filtered.</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <StatCard label="Total Items" value={String(report.inventory.total)} />
+            <StatCard label="Available" value={String(report.inventory.available)} color="green" />
+            <StatCard label="Sold" value={String(report.inventory.sold)} color="blue" />
+            <StatCard label="In Service" value={String(report.inventory.inService)} color="orange" />
+            <StatCard label="Stock Value" value={formatCurrency(report.inventory.stockValue)} color="purple" sub="Available items cost" />
+          </div>
+        </div>
+      )}
+
+      {/* ACTIVITY LOG */}
+      {tab === "activity" && (
+        <div className="space-y-4">
+          {/* Controls */}
+          <div className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm dark:bg-gray-900 md:flex-row md:items-center">
+            <div className="relative flex-1">
+              <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search user, action, details..."
+                value={logSearch}
+                onChange={(e) => { setLogSearch(e.target.value); setLogPage(1); }}
+                className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-4 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+            </div>
+            <select
+              value={logAction}
+              onChange={(e) => { setLogAction(e.target.value); setLogPage(1); }}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            >
+              <option value="all">All Actions</option>
+              <option value="SALE">Sales</option>
+              <option value="PURCHASE">Purchases</option>
+              <option value="EXPENSE">Expenses</option>
+              <option value="SERVICE">Services</option>
+              <option value="SUPPLIER">Suppliers</option>
+              <option value="CUSTOMER">Customers</option>
+              <option value="LOGIN">Login</option>
+              <option value="STOCK">Stock</option>
+            </select>
+          </div>
+
+          {/* Log list */}
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Activity Log</h3>
+              <span className="text-xs text-gray-400">{activityPagination?.total ?? 0} entries</span>
+            </div>
+            {activityLoading ? (
+              <div className="flex h-40 items-center justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+              </div>
+            ) : activityLogs.length === 0 ? (
+              <div className="px-6 py-12 text-center text-gray-500">No activity logs found</div>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {activityLogs.map((log: any) => (
+                  <div key={log.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                            {log.action.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-xs text-gray-400">{formatDate(log.createdAt, "datetime")}</span>
+                          <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase font-bold ${
+                            log.userRole === "admin" ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-500"
+                          }`}>{log.userRole}</span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{log.details}</p>
+                        <p className="mt-0.5 text-xs text-gray-400">By: {log.userName}</p>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          </>
-        )}
-
-        {/* Profit Report */}
-        {selectedReport === "profit" && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 p-6 text-white shadow-lg">
-              <p className="text-sm text-blue-100">Total Revenue</p>
-              <p className="mt-2 text-3xl font-bold">{formatCurrency(profitReport.totalRevenue)}</p>
-            </div>
-            <div className="rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 p-6 text-white shadow-lg">
-              <p className="text-sm text-green-100">Gross Profit</p>
-              <p className="mt-2 text-3xl font-bold">{formatCurrency(profitReport.grossProfit)}</p>
-            </div>
-            <div className="rounded-xl bg-gradient-to-br from-orange-500 to-red-600 p-6 text-white shadow-lg">
-              <p className="text-sm text-orange-100">Total Expenses</p>
-              <p className="mt-2 text-3xl font-bold">{formatCurrency(profitReport.totalExpenses)}</p>
-            </div>
-            <div className={`rounded-xl p-6 text-white shadow-lg ${profitReport.netProfit >= 0 ? "bg-gradient-to-br from-emerald-500 to-teal-600" : "bg-gradient-to-br from-red-500 to-pink-600"}`}>
-              <p className="text-sm opacity-80">Net Profit</p>
-              <p className="mt-2 text-3xl font-bold">{formatCurrency(profitReport.netProfit)}</p>
-            </div>
-            <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-900">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Profit Margin</p>
-              <p className={`mt-2 text-3xl font-bold ${profitReport.profitMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {profitReport.profitMargin}%
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Inventory Report */}
-        {selectedReport === "inventory" && (
-          <div className="grid gap-4 md:grid-cols-5">
-            <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Items</p>
-              <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{inventoryReport.totalItems}</p>
-            </div>
-            <div className="rounded-xl bg-green-50 p-5 shadow-sm dark:bg-green-900/20">
-              <p className="text-sm text-green-600 dark:text-green-400">Available</p>
-              <p className="mt-1 text-2xl font-bold text-green-700 dark:text-green-300">{inventoryReport.available}</p>
-            </div>
-            <div className="rounded-xl bg-blue-50 p-5 shadow-sm dark:bg-blue-900/20">
-              <p className="text-sm text-blue-600 dark:text-blue-400">Sold</p>
-              <p className="mt-1 text-2xl font-bold text-blue-700 dark:text-blue-300">{inventoryReport.sold}</p>
-            </div>
-            <div className="rounded-xl bg-orange-50 p-5 shadow-sm dark:bg-orange-900/20">
-              <p className="text-sm text-orange-600 dark:text-orange-400">In Service</p>
-              <p className="mt-1 text-2xl font-bold text-orange-700 dark:text-orange-300">{inventoryReport.inService}</p>
-            </div>
-            <div className="rounded-xl bg-purple-50 p-5 shadow-sm dark:bg-purple-900/20">
-              <p className="text-sm text-purple-600 dark:text-purple-400">Stock Value</p>
-              <p className="mt-1 text-2xl font-bold text-purple-700 dark:text-purple-300">{formatCurrency(inventoryReport.stockValue)}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Service Report */}
-        {selectedReport === "service" && (
-          <div className="grid gap-4 md:grid-cols-5">
-            <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Services</p>
-              <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{serviceReport.totalServices}</p>
-            </div>
-            <div className="rounded-xl bg-green-50 p-5 shadow-sm dark:bg-green-900/20">
-              <p className="text-sm text-green-600">Completed</p>
-              <p className="mt-1 text-2xl font-bold text-green-700">{serviceReport.completed}</p>
-            </div>
-            <div className="rounded-xl bg-yellow-50 p-5 shadow-sm dark:bg-yellow-900/20">
-              <p className="text-sm text-yellow-600">Pending</p>
-              <p className="mt-1 text-2xl font-bold text-yellow-700">{serviceReport.pending}</p>
-            </div>
-            <div className="rounded-xl bg-blue-50 p-5 shadow-sm dark:bg-blue-900/20">
-              <p className="text-sm text-blue-600">Revenue</p>
-              <p className="mt-1 text-2xl font-bold text-blue-700">{formatCurrency(serviceReport.totalRevenue)}</p>
-            </div>
-            <div className="rounded-xl bg-red-50 p-5 shadow-sm dark:bg-red-900/20">
-              <p className="text-sm text-red-600">Due</p>
-              <p className="mt-1 text-2xl font-bold text-red-700">{formatCurrency(serviceReport.totalDue)}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Activity Log Report */}
-        {selectedReport === "activity" && (
-          <div className="space-y-4">
-            {/* Log Controls */}
-            <div className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm dark:bg-gray-900 md:flex-row md:items-center">
-              <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </span>
-                <input
-                  type="text"
-                  placeholder="Search logs by user, action or details..."
-                  value={logSearch}
-                  onChange={(e) => setLogSearch(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
-                />
+            )}
+            {activityPagination && activityPagination.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+                <button disabled={logPage <= 1} onClick={() => setLogPage(p => p - 1)}
+                  className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
+                  ← Prev
+                </button>
+                <span className="text-sm text-gray-500">Page {logPage} of {activityPagination.totalPages}</span>
+                <button disabled={logPage >= activityPagination.totalPages} onClick={() => setLogPage(p => p + 1)}
+                  className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
+                  Next →
+                </button>
               </div>
-              <select
-                value={logActionFilter}
-                onChange={(e) => setLogActionFilter(e.target.value)}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:outline-none dark:border-gray-700 dark:bg-gray-800"
-              >
-                <option value="all">All Actions</option>
-                <option value="LOGIN">Logins</option>
-                <option value="SALE_CREATE">Sales</option>
-                <option value="REFUND">Refunds</option>
-                <option value="STOCK_UPDATE">Stock Updates</option>
-                <option value="PRICE_CHANGE">Price Changes</option>
-              </select>j
-              <button
-              disabled={true}
-                onClick={handleClearLogs}
-                className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-900/20"
-              >
-                Clear Data
-              </button>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900 overflow-hidden">
-              <div className="border-b border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/50 flex justify-between items-center">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Detailed System Audit Trail</h3>
-                <span className="text-xs font-medium text-gray-500">{filteredLogs.length} logs found</span>
-              </div>
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                {filteredLogs.length > 0 ? (
-                  filteredLogs.slice(0, 50).map((log) => (
-                    <div key={log.id} className="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                      <div 
-                        onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
-                        className="p-4 flex gap-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors cursor-pointer"
-                      >
-                        <div className={`mt-1 h-9 w-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
-                          log.action === "LOGIN" ? "bg-green-100 text-green-600" :
-                          log.action === "SALE_CREATE" ? "bg-blue-100 text-blue-600" :
-                          log.action === "PRICE_CHANGE" ? "bg-orange-100 text-orange-600" :
-                          log.action === "REFUND" ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600"
-                        }`}>
-                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            {log.action === "LOGIN" && <path d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />}
-                            {log.action === "SALE_CREATE" && <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
-                            {log.action === "STOCK_UPDATE" && <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />}
-                            {log.action === "PRICE_CHANGE" && <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />}
-                            {log.action === "REFUND" && <path d="M16 15L12 19M12 19L8 15M12 19V9.5C12 7.56701 13.567 6 15.5 6H16" />}
-                            {!["LOGIN", "SALE_CREATE", "STOCK_UPDATE", "PRICE_CHANGE", "REFUND"].includes(log.action) && <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="font-bold text-gray-900 dark:text-white capitalize">{log.action.replace('_', ' ').toLowerCase()}</span>
-                              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                {formatDate(log.timestamp, "datetime")}
-                              </span>
-                            </div>
-                            <div className={`transition-transform duration-200 ${expandedLogId === log.id ? 'rotate-180' : ''}`}>
-                              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                          <p className="text-gray-700 dark:text-gray-300 mt-1 text-sm">{log.details}</p>
-                          <div className="mt-2 flex items-center gap-4">
-                            <div className="flex items-center gap-1.5">
-                              <div className="h-5 w-5 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                                <svg className="h-3 w-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
-                                </svg>
-                              </div>
-                              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                <span className="text-gray-400">By:</span> {log.userName}
-                                {log.userRole && (
-                                  <span className={`ml-1 rounded px-1.5 py-0.5 text-[10px] uppercase font-bold ${
-                                    log.userRole === "admin" ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
-                                    log.userRole === "manager" ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" :
-                                    "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                                  }`}>
-                                    {log.userRole}
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                            {log.ipAddress && (
-                              <div className="flex items-center gap-1.5 border-l border-gray-100 dark:border-gray-800 pl-4">
-                                <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-1.447-.894L15 7m0 13V7m0 0L9 7" />
-                                </svg>
-                                <span className="text-[11px] font-mono text-gray-400">
-                                  {log.ipAddress === "::1" || log.ipAddress === "127.0.0.1" ? "Localhost" : log.ipAddress}
-                                </span>
-                              </div>
-                            )}
-                            {log.entityId && (
-                              <span className="text-xs text-gray-400">
-                                ID: <span className="font-mono">{log.entityId}</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Expanded details */}
-                      {expandedLogId === log.id && (log.before || log.after) && (
-                        <div className="px-6 pb-6 pt-2 bg-gray-50/50 dark:bg-gray-800/20">
-                          <div className="ml-11 grid gap-4 md:grid-cols-2">
-                            {log.before && (
-                              <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-                                <div className="mb-3 flex items-center justify-between">
-                                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Original Data</p>
-                                  <span className="rounded bg-red-50 px-2 py-0.5 text-[10px] text-red-600">Old State</span>
-                                </div>
-                                <pre className="overflow-auto text-[11px] font-mono text-gray-600 dark:text-gray-400 max-h-60 leading-relaxed">
-                                  {JSON.stringify(log.before, null, 2)}
-                                </pre>
-                              </div>
-                            )}
-                            {log.after && (
-                              <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-                                <div className="mb-3 flex items-center justify-between">
-                                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Modified Data</p>
-                                  <span className="rounded bg-green-50 px-2 py-0.5 text-[10px] text-green-600">New State</span>
-                                </div>
-                                <pre className="overflow-auto text-[11px] font-mono text-gray-600 dark:text-gray-400 max-h-60 leading-relaxed">
-                                  {JSON.stringify(log.after, null, 2)}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-12 text-center text-gray-500">
-                    <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    <p className="mt-4">No activity logs match your current filters or searching.</p>
-                    <button 
-                      onClick={() => { setLogSearch(""); setLogActionFilter("all"); }}
-                      className="mt-2 text-sm text-blue-600 hover:underline"
-                    >
-                      Reset filters
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

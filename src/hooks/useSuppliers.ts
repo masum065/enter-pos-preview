@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { SupplierInput, SupplierPaymentInput } from "@/lib/validations/purchases";
 
@@ -44,16 +44,19 @@ export const supplierKeys = {
   detail: (id: string) => [...supplierKeys.all, "detail", id] as const,
 };
 
-export function useSuppliers(filters: { search?: string; page?: number; limit?: number } = {}) {
+export function useSuppliers(filters: { search?: string; balanceFilter?: string; page?: number; limit?: number } = {}) {
   return useQuery({
     queryKey: supplierKeys.list(filters),
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (filters.search) params.search = filters.search;
+      if (filters.balanceFilter) params.balanceFilter = filters.balanceFilter;
       if (filters.page) params.page = String(filters.page);
       if (filters.limit) params.limit = String(filters.limit);
       return apiClient.get<SuppliersResponse>("/api/suppliers", params);
     },
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
   });
 }
 

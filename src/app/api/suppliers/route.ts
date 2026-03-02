@@ -1,62 +1,77 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { suppliers, activityLogs } from "@/db/schema";
-import { or, like, desc, sql } from "drizzle-orm";
+import { or, ilike, desc, sql, and, gt, lt, eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { supplierSchema } from "@/lib/validations/purchases";
 
-// GET /api/suppliers - List suppliers with search
+// GET /api/suppliers - List suppliers with search and filters
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
+    const balanceFilter = searchParams.get("balanceFilter"); // "due" | "clear" | "advance"
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
-    let queryBuilder = db.select().from(suppliers).$dynamic();
+    const conditions = [];
 
     if (search) {
-      queryBuilder = queryBuilder.where(
+      conditions.push(
         or(
-          like(suppliers.companyName, `%${search}%`),
-          like(suppliers.phone, `%${search}%`)
+          ilike(suppliers.companyName, `%${search}%`),
+          ilike(suppliers.phone, `%${search}%`),
+          ilike(suppliers.email, `%${search}%`),
+          ilike(suppliers.address, `%${search}%`),
         )
       );
     }
 
-    const allSuppliers = await queryBuilder
+    if (balanceFilter === "due") conditions.push(gt(suppliers.balance, "0"));
+    if (balanceFilter === "clear") conditions.push(eq(suppliers.balance, "0"));
+    if (balanceFilter === "advance") conditions.push(lt(suppliers.balance, "0"));
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const allSuppliers = await db
+      .select()
+      .from(suppliers)
+      .where(whereClause)
       .orderBy(desc(suppliers.createdAt))
       .limit(limit)
       .offset(offset);
 
-    const totalCount = await db.select({ count: sql<number>`count(*)` }).from(suppliers);
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(suppliers)
+      .where(whereClause);
 
-    // Aggregate stats (from ALL data)
+    // Aggregate stats (from ALL data, not filtered)
     const [suppAgg] = await db.select({
-      totalPayable: sql<string>`COALESCE(SUM(GREATEST(${suppliers.balance}, 0)), 0)`,
+      totalPayable: sql<string>`COALESCE(SUM(GREATEST(CAST(${suppliers.balance} AS numeric), 0)), 0)`,
       totalPurchases: sql<string>`COALESCE(SUM(${suppliers.totalPurchases}), 0)`,
       totalPaid: sql<string>`COALESCE(SUM(${suppliers.totalPaid}), 0)`,
+      total: sql<number>`count(*)`,
+      withDue: sql<number>`count(*) FILTER (WHERE CAST(${suppliers.balance} AS numeric) > 0)`,
     }).from(suppliers);
 
     return NextResponse.json({
       suppliers: allSuppliers,
       stats: {
-        total: Number(totalCount[0].count),
+        total: Number(suppAgg.total),
+        withDue: Number(suppAgg.withDue),
         totalPayable: Number(suppAgg.totalPayable),
         totalPurchases: Number(suppAgg.totalPurchases),
         totalPaid: Number(suppAgg.totalPaid),
       },
       pagination: {
-        page,
-        limit,
-        total: Number(totalCount[0].count),
-        totalPages: Math.ceil(Number(totalCount[0].count) / limit),
+        page, limit,
+        total: Number(totalCount),
+        totalPages: Math.ceil(Number(totalCount) / limit),
       },
     });
   } catch (error) {
@@ -64,6 +79,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch suppliers" }, { status: 500 });
   }
 }
+
 
 // POST /api/suppliers - Create supplier
 export async function POST(request: NextRequest) {

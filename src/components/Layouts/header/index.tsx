@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSidebarContext } from "../sidebar/sidebar-context";
 import { MenuIcon } from "./icons";
 import { ThemeToggleSwitch } from "./theme-toggle";
 import { UserInfo } from "./user-info";
-import { GlobalSearch } from "./global-search";
-import Image from "next/image";
 
 export function Header() {
   const { toggleSidebar, isMobile } = useSidebarContext();
@@ -41,10 +40,7 @@ export function Header() {
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2 min-[375px]:gap-4">
-        <GlobalSearch />
-
         <ThemeToggleSwitch />
-
         <div className="shrink-0">
           <UserInfo />
         </div>

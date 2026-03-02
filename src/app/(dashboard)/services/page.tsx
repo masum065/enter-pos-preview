@@ -6,6 +6,8 @@ import { useServices } from "@/hooks/useServices";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Pagination } from "@/components/ui/pagination";
+import { Modal, ModalFooter } from "@/components/ui/modal";
+import { PrintServiceButton } from "@/components/invoice/service-print";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import Link from "next/link";
 
@@ -132,174 +134,148 @@ function ServiceEditModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-gray-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-gray-700">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-              Edit Service <span className="font-mono text-purple-600 dark:text-purple-400">{service.serviceNumber}</span>
-            </h2>
-            <p className="text-sm text-gray-500">{service.customerName} &bull; {service.deviceBrand} {service.deviceModel}</p>
+    <Modal isOpen={true} onClose={onClose} title={`Edit Service ${service.serviceNumber}`} size="lg">
+      <p className="-mt-4 mb-4 text-sm text-gray-500">{service.customerName} &bull; {service.deviceBrand} {service.deviceModel}</p>
+
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</div>
+      )}
+
+      <div className="space-y-5">
+        {/* Status */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+          <select
+            value={status}
+            onChange={(e) => setStatusLocal(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          >
+            {STATUS_OPTIONS.slice(1).map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Problems List */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Problems / Issues</label>
+          <div className="space-y-2">
+            {problems.map((problem, index) => (
+              <div key={index} className="flex gap-2">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-purple-100 text-sm font-bold text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                  {index + 1}
+                </span>
+                <input
+                  type="text"
+                  value={problem}
+                  onChange={(e) => updateProblem(index, e.target.value)}
+                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  placeholder={index === 0 ? "e.g. Screen not working" : "Another problem..."}
+                />
+                {problems.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeProblem(index)}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <button type="button" onClick={addProblem} className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
+            Add Problem
           </button>
         </div>
 
-        <div className="space-y-6 p-6">
-          {error && (
-            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</div>
-          )}
+        {/* Diagnosis */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Diagnosis</label>
+          <textarea
+            value={diagnosis}
+            onChange={(e) => setDiagnosis(e.target.value)}
+            rows={2}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            placeholder="What was found after inspection..."
+          />
+        </div>
 
-          {/* Status */}
+        {/* Costs */}
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
-            <select
-              value={status}
-              onChange={(e) => setStatusLocal(e.target.value)}
+            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Service Charge (৳)</label>
+            <input
+              type="number"
+              value={serviceCharge}
+              onChange={(e) => setServiceCharge(Number(e.target.value))}
               className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-            >
-              {STATUS_OPTIONS.slice(1).map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Problems List */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Problems / Issues</label>
-            <div className="space-y-2">
-              {problems.map((problem, index) => (
-                <div key={index} className="flex gap-2">
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-purple-100 text-sm font-bold text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                    {index + 1}
-                  </span>
-                  <input
-                    type="text"
-                    value={problem}
-                    onChange={(e) => updateProblem(index, e.target.value)}
-                    className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                    placeholder={index === 0 ? "e.g. Screen not working" : "Another problem..."}
-                  />
-                  {problems.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeProblem(index)}
-                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button type="button" onClick={addProblem} className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Problem
-            </button>
-          </div>
-
-          {/* Diagnosis */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Diagnosis</label>
-            <textarea
-              value={diagnosis}
-              onChange={(e) => setDiagnosis(e.target.value)}
-              rows={2}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              placeholder="What was found after inspection..."
+              min="0"
             />
           </div>
-
-          {/* Costs */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Service Charge (&#x09F3;)</label>
-              <input
-                type="number"
-                value={serviceCharge}
-                onChange={(e) => setServiceCharge(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                min="0"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Parts Cost (&#x09F3;)</label>
-              <input
-                type="number"
-                value={partsCost}
-                onChange={(e) => setPartsCost(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                min="0"
-              />
-            </div>
-          </div>
-
-          {/* Cost Summary */}
-          <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Service Charge</span>
-              <span>&#x09F3;{serviceCharge.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Parts Cost</span>
-              <span>&#x09F3;{partsCost.toLocaleString()}</span>
-            </div>
-            <div className="mt-2 flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-gray-700">
-              <span>Total</span>
-              <span>&#x09F3;{totalCost.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Paid</span>
-              <span className="text-green-600">&#x09F3;{currentPaid.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-sm font-medium">
-              <span className="text-gray-500">Due</span>
-              <span className={newDue > 0 ? "text-red-600" : "text-green-600"}>&#x09F3;{newDue.toLocaleString()}</span>
-            </div>
-          </div>
-
-          {/* Technician Notes */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Technician Notes</label>
-            <textarea
-              value={technicianNotes}
-              onChange={(e) => setTechnicianNotes(e.target.value)}
-              rows={2}
+            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Parts Cost (৳)</label>
+            <input
+              type="number"
+              value={partsCost}
+              onChange={(e) => setPartsCost(Number(e.target.value))}
               className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              placeholder="Internal notes for technician..."
+              min="0"
             />
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 p-6 dark:border-gray-700">
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-2.5 text-sm font-medium text-white shadow-lg disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
+        {/* Cost Summary */}
+        <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Service Charge</span>
+            <span>৳{serviceCharge.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Parts Cost</span>
+            <span>৳{partsCost.toLocaleString()}</span>
+          </div>
+          <div className="mt-2 flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-gray-700">
+            <span>Total</span>
+            <span>৳{totalCost.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Paid</span>
+            <span className="text-green-600">৳{currentPaid.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-sm font-medium">
+            <span className="text-gray-500">Due</span>
+            <span className={newDue > 0 ? "text-red-600" : "text-green-600"}>৳{newDue.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* Technician Notes */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Technician Notes</label>
+          <textarea
+            value={technicianNotes}
+            onChange={(e) => setTechnicianNotes(e.target.value)}
+            rows={2}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            placeholder="Internal notes for technician..."
+          />
         </div>
       </div>
-    </div>
+
+      {/* Footer */}
+      <ModalFooter
+        onCancel={onClose}
+        onConfirm={handleSave}
+        cancelText="Cancel"
+        confirmText={saving ? "Saving..." : "Save Changes"}
+        isLoading={saving}
+      />
+    </Modal>
   );
 }
 
@@ -559,6 +535,9 @@ function ServicesPageContent() {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
+
+                  {/* Print Button */}
+                  <PrintServiceButton service={service} />
 
                   {/* Edit Button */}
                   <button

@@ -26,9 +26,6 @@ export function CustomerCombobox({
   onAddNew,
   placeholder = "Type 3+ characters to search customer...",
 }: CustomerComboboxProps) {
-  const { data: customersData } = useCustomers({ limit: 500 });
-  const customers: CustomerOption[] = (customersData?.customers || []) as any[];
-
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,16 +33,13 @@ export function CustomerCombobox({
 
   const shouldSearch = query.trim().length >= MIN_SEARCH_LENGTH;
 
-  const filteredCustomers = useMemo(() => {
-    if (!shouldSearch) return [];
-    const q = query.toLowerCase();
-    return customers
-      .filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) || c.phone?.includes(q),
-      )
-      .slice(0, 10);
-  }, [query, shouldSearch, customers]);
+  // Fetch only when user has typed enough chars to search
+  const { data: customersData, isFetching } = useCustomers(
+    { search: query.trim(), limit: 10 },
+    shouldSearch
+  );
+  
+  const filteredCustomers = shouldSearch ? (customersData?.customers || [] as CustomerOption[]) : [];
 
   // Close dropdown on outside click
   useEffect(() => {

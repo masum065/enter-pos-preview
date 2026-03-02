@@ -26,9 +26,10 @@ export const customerKeys = {
   detail: (id: string) => [...customerKeys.all, "detail", id] as const,
 };
 
-export function useCustomers(filters: { search?: string; page?: number; limit?: number } = {}) {
+export function useCustomers(filters: { search?: string; page?: number; limit?: number } = {}, enabled = true) {
   return useQuery({
     queryKey: customerKeys.list(filters),
+    enabled,
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (filters.search) params.search = filters.search;

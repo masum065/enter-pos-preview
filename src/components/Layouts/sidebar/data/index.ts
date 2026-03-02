@@ -136,13 +136,6 @@ export const NAV_DATA = [
         icon: Icons.SettingsGearIcon,
         items: [],
       },
-      {
-        title: "Sign In",
-        url: "/auth/sign-in",
-        icon: Icons.Authentication,
-        items: [],
-      },
     ],
   },
 ];
-

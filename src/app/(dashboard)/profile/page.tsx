@@ -1,153 +1,180 @@
 "use client";
 
 import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
-import Image from "next/image";
-
+import { useSession } from "@/hooks/useSession";
+import { apiClient } from "@/lib/api-client";
 import { useState } from "react";
-import { CameraIcon } from "./_components/icons";
-import { SocialAccounts } from "./_components/social-accounts";
+import { useRouter } from "next/navigation";
 
-export default function Page() {
-  const [data, setData] = useState({
-    name: "Danish Heilium",
-    profilePhoto: "/images/user/user-03.png",
-    coverPhoto: "/images/cover/cover-01.png",
-  });
+// SVG User Icon (large, for profile)
+function UserAvatarLarge({ name }: { name: string }) {
+  const initials = name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
-  const handleChange = (e: any) => {
-    if (e.target.name === "profilePhoto" ) {
-      const file = e.target?.files[0];
+  return (
+    <div className="flex size-full items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-4xl select-none">
+      {initials || (
+        <svg viewBox="0 0 24 24" fill="currentColor" className="size-16">
+          <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+        </svg>
+      )}
+    </div>
+  );
+}
 
-      setData({
-        ...data,
-        profilePhoto: file && URL.createObjectURL(file),
+const roleBadge: Record<string, { label: string; cls: string }> = {
+  admin:    { label: "Admin",    cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  manager:  { label: "Manager",  cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  employee: { label: "Employee", cls: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400" },
+};
+
+export default function ProfilePage() {
+  const { data: sessionData } = useSession();
+  const router = useRouter();
+
+  const user = (sessionData as any)?.user || sessionData;
+  const name   = user?.name   || "User";
+  const email  = user?.email  || "";
+  const userId = user?.userId || "";
+  const role   = user?.role   || "employee";
+  const badge  = roleBadge[role] || roleBadge.employee;
+
+  // Change password state
+  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [pwLoading, setPwLoading] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
+      setPwMsg({ text: "New passwords do not match.", ok: false });
+      return;
+    }
+    if (pwForm.newPassword.length < 6) {
+      setPwMsg({ text: "Password must be at least 6 characters.", ok: false });
+      return;
+    }
+    setPwLoading(true);
+    try {
+      // Find current user's id from session
+      const sid = user?.id;
+      if (!sid) throw new Error("Session not found");
+      await apiClient.patch(`/api/users/${sid}`, {
+        currentPassword: pwForm.currentPassword,
+        newPassword: pwForm.newPassword,
       });
-    } else if (e.target.name === "coverPhoto") {
-      const file = e.target?.files[0];
-
-      setData({
-        ...data,
-        coverPhoto: file && URL.createObjectURL(file),
-      });
-    } else {
-      setData({
-        ...data,
-        [e.target.name]: e.target.value,
-      });
+      setPwMsg({ text: "Password changed successfully!", ok: true });
+      setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (err: any) {
+      setPwMsg({ text: err?.message || "Failed to change password.", ok: false });
+    } finally {
+      setPwLoading(false);
+      setTimeout(() => setPwMsg(null), 4000);
     }
   };
 
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/auth/sign-in");
+  };
+
+  const inputCls = "w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
+
   return (
-    <div className="mx-auto w-full max-w-[970px]">
+    <div className="mx-auto w-full max-w-[970px] space-y-6">
       <Breadcrumb pageName="Profile" />
 
-      <div className="overflow-hidden rounded-[10px] bg-white shadow-1 dark:bg-gray-dark dark:shadow-card">
-        <div className="relative z-20 h-35 md:h-65">
-          <Image
-            src={data?.coverPhoto}
-            alt="profile cover"
-            className="h-full w-full rounded-tl-[10px] rounded-tr-[10px] object-cover object-center"
-            width={970}
-            height={260}
-            style={{
-              width: "auto",
-              height: "auto",
-            }}
-          />
-          <div className="absolute bottom-1 right-1 z-10 xsm:bottom-4 xsm:right-4">
-            <label
-              htmlFor="cover"
-              className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-[15px] py-[5px] text-body-sm font-medium text-white hover:bg-opacity-90"
-            >
-              <input
-                type="file"
-                name="coverPhoto"
-                id="coverPhoto"
-                className="sr-only"
-                onChange={handleChange}
-                accept="image/png, image/jpg, image/jpeg"
-              />
+      {/* Profile Card */}
+      <div className="overflow-hidden rounded-2xl bg-white shadow-sm dark:bg-gray-dark">
+        {/* Cover */}
+        <div className="h-36 bg-gradient-to-r from-blue-600 to-indigo-600 md:h-52" />
 
-              <CameraIcon />
+        {/* Avatar + Info */}
+        <div className="px-6 pb-8 text-center">
+          <div className="relative mx-auto -mt-16 mb-4 h-32 w-32 rounded-full border-4 border-white bg-white p-0.5 shadow-lg dark:border-gray-dark dark:bg-gray-dark">
+            <UserAvatarLarge name={name} />
+          </div>
 
-              <span>Edit</span>
-            </label>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{name}</h1>
+          {email && <p className="mt-1 text-gray-500">{email}</p>}
+          <p className="mt-1 text-sm text-gray-400">@{userId}</p>
+
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <span className={`rounded-full px-4 py-1 text-sm font-medium capitalize ${badge.cls}`}>
+              {badge.label}
+            </span>
           </div>
         </div>
-        <div className="px-4 pb-6 text-center lg:pb-8 xl:pb-11.5">
-          <div className="relative z-30 mx-auto -mt-22 h-30 w-full max-w-30 rounded-full bg-white/20 p-1 backdrop-blur sm:h-44 sm:max-w-[176px] sm:p-3">
-            <div className="relative drop-shadow-2">
-              {data?.profilePhoto && (
-                <>
-                  <Image
-                    src={data?.profilePhoto}
-                    width={160}
-                    height={160}
-                    className="overflow-hidden rounded-full"
-                    alt="profile"
-                  />
+      </div>
 
-                  <label
-                    htmlFor="profilePhoto"
-                    className="absolute bottom-0 right-0 flex size-8.5 cursor-pointer items-center justify-center rounded-full bg-primary text-white hover:bg-opacity-90 sm:bottom-2 sm:right-2"
-                  >
-                    <CameraIcon />
-
-                    <input
-                      type="file"
-                      name="profilePhoto"
-                      id="profilePhoto"
-                      className="sr-only"
-                      onChange={handleChange}
-                      accept="image/png, image/jpg, image/jpeg"
-                    />
-                  </label>
-                </>
-              )}
-            </div>
+      {/* Account Info */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-dark">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Account Information</h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500">Full Name</label>
+            <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">{name}</p>
           </div>
-          <div className="mt-4">
-            <h3 className="mb-1 text-heading-6 font-bold text-dark dark:text-white">
-              {data?.name}
-            </h3>
-            <p className="font-medium">Ui/Ux Designer</p>
-            <div className="mx-auto mb-5.5 mt-5 grid max-w-[370px] grid-cols-3 rounded-[5px] border border-stroke py-[9px] shadow-1 dark:border-dark-3 dark:bg-dark-2 dark:shadow-card">
-              <div className="flex flex-col items-center justify-center gap-1 border-r border-stroke px-4 dark:border-dark-3 xsm:flex-row">
-                <span className="font-medium text-dark dark:text-white">
-                  259
-                </span>
-                <span className="text-body-sm">Posts</span>
-              </div>
-              <div className="flex flex-col items-center justify-center gap-1 border-r border-stroke px-4 dark:border-dark-3 xsm:flex-row">
-                <span className="font-medium text-dark dark:text-white">
-                  129K
-                </span>
-                <span className="text-body-sm">Followers</span>
-              </div>
-              <div className="flex flex-col items-center justify-center gap-1 px-4 xsm:flex-row">
-                <span className="font-medium text-dark dark:text-white">
-                  2K
-                </span>
-                <span className="text-body-sm-sm">Following</span>
-              </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500">User ID (login)</label>
+            <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">@{userId}</p>
+          </div>
+          {email && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-500">Email</label>
+              <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">{email}</p>
             </div>
-
-            <div className="mx-auto max-w-[720px]">
-              <h4 className="font-medium text-dark dark:text-white">
-                About Me
-              </h4>
-              <p className="mt-4">
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                Pellentesque posuere fermentum urna, eu condimentum mauris
-                tempus ut. Donec fermentum blandit aliquet. Etiam dictum dapibus
-                ultricies. Sed vel aliquet libero. Nunc a augue fermentum,
-                pharetra ligula sed, aliquam lacus.
-              </p>
-            </div>
-
-            <SocialAccounts />
+          )}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500">Role</label>
+            <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white capitalize">{role}</p>
           </div>
         </div>
+      </div>
+
+      {/* Change Password */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-dark">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Change Password</h2>
+        <form onSubmit={handleChangePassword} className="max-w-md space-y-4">
+          {pwMsg && (
+            <div className={`rounded-lg px-4 py-2.5 text-sm ${pwMsg.ok ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
+              {pwMsg.text}
+            </div>
+          )}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Current Password</label>
+            <input type="password" className={inputCls} value={pwForm.currentPassword}
+              onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })} required />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">New Password</label>
+            <input type="password" className={inputCls} value={pwForm.newPassword}
+              onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })} required minLength={6} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm New Password</label>
+            <input type="password" className={inputCls} value={pwForm.confirmPassword}
+              onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })} required />
+          </div>
+          <button type="submit" disabled={pwLoading}
+            className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+            {pwLoading ? "Saving…" : "Update Password"}
+          </button>
+        </form>
+      </div>
+
+      {/* Sign Out */}
+      <div className="rounded-2xl border border-red-100 bg-red-50 p-6 dark:border-red-900/30 dark:bg-red-900/10">
+        <h2 className="mb-1 text-lg font-semibold text-red-800 dark:text-red-400">Sign Out</h2>
+        <p className="mb-4 text-sm text-red-600 dark:text-red-300">You will be redirected to the login page.</p>
+        <button onClick={handleLogout}
+          className="rounded-lg bg-red-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-700">
+          Sign Out
+        </button>
       </div>
     </div>
   );

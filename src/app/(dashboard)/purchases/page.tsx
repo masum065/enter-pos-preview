@@ -179,7 +179,7 @@ function PurchaseHistoryPageContent() {
 
   const { startDate, endDate } = getDateRange();
 
-  const { data: purchasesData, isLoading } = usePurchases({
+  const { data: purchasesData, isLoading, isFetching } = usePurchases({
     page,
     limit: 20,
     search: activeSearch || undefined,
@@ -209,8 +209,8 @@ function PurchaseHistoryPageContent() {
     router.push(`?${params.toString()}`);
   };
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-  if (isLoading) {
+  // True initial load only (no data at all)
+  if (isLoading && !purchasesData) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
@@ -342,8 +342,13 @@ function PurchaseHistoryPageContent() {
         </form>
       </div>
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+      <div className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900 transition-opacity ${isFetching ? "opacity-60" : "opacity-100"}`}>
+        {/* Subtle fetching indicator */}
+        {isFetching && (
+          <div className="absolute right-4 top-4 z-10">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>

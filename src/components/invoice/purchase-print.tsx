@@ -101,7 +101,7 @@ function buildPurchaseHTML(p: Purchase): string {
   <table>
     <thead>
       <tr>
-        <th style="width:28px">SL.</th>
+        <th style="width:40px;white-space:nowrap;">SL.</th>
         <th>PRODUCT</th>
         <th class="mono" style="width:120px">SERIAL NO.</th>
         ${p.imei ? '<th class="mono" style="width:110px">IMEI</th>' : ''}
@@ -142,6 +142,19 @@ function buildPurchaseHTML(p: Purchase): string {
   </table>
 
   ${p.notes ? `<p class="note" style="margin-top:6px;"><strong>Notes:</strong> ${p.notes}</p>` : ''}
+
+  <p class="note" style="margin-top:8px;">VAT and TAX not included if not mentioned above.</p>
+
+  <div style="margin-top:10px;">
+    <div class="fw7" style="font-size:11px;margin-bottom:4px;">Terms &amp; Conditions:</div>
+    <ol style="padding-left:16px;">
+      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Goods once purchased will not be refunded without valid reason.</li>
+      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Seller guarantees the product is genuine and free from defects.</li>
+      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Serial number must match the product at the time of delivery.</li>
+      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Payment disputes must be raised within 3 days of purchase date.</li>
+      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Please retain this voucher for all future references.</li>
+    </ol>
+  </div>
 
   <div class="sig-section">
     <div class="sig-box">
@@ -230,7 +243,7 @@ export function PurchasePrintModal({
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
             <tr>
-              <th style={th({ width: 28 })}>SL.</th>
+              <th style={th({ width: 40, whiteSpace: "nowrap" })}>SL.</th>
               <th style={th()}>PRODUCT</th>
               <th style={th({ width: 120, fontFamily: "monospace" })}>SERIAL NO.</th>
               {purchase.imei && <th style={th({ width: 110, fontFamily: "monospace" })}>IMEI</th>}
@@ -277,6 +290,24 @@ export function PurchasePrintModal({
         {purchase.notes && (
           <p style={{ fontSize: 10, color: "#555", margin: "6px 0" }}><strong>Notes:</strong> {purchase.notes}</p>
         )}
+
+        <p style={{ fontSize: 10, color: "#555", margin: "8px 0" }}>VAT and TAX not included if not mentioned above.</p>
+
+        {/* Terms */}
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Terms &amp; Conditions:</div>
+          <ol style={{ paddingLeft: 16 }}>
+            {[
+              "Goods once purchased will not be refunded without valid reason.",
+              "Seller guarantees the product is genuine and free from defects.",
+              "Serial number must match the product at the time of delivery.",
+              "Payment disputes must be raised within 3 days of purchase date.",
+              "Please retain this voucher for all future references.",
+            ].map((t, i) => (
+              <li key={i} style={{ fontSize: 10, color: "#444", lineHeight: 1.5, marginBottom: 2 }}>{t}</li>
+            ))}
+          </ol>
+        </div>
 
         {/* Signature — right aligned, no date */}
         <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>

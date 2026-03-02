@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/hooks/useSession";
 
 type Tab = "general" | "users";
 
@@ -228,6 +229,10 @@ export default function SettingsPage() {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
+  // Current logged-in user
+  const { data: sessionData } = useSession();
+  const currentUserId = (sessionData as any)?.user?.userId || (sessionData as any)?.userId || "";
+
   // ── General settings ──────────────────────────────────────────────────
   const [settings, setSettings] = useState({
     shopName: "Enter Computer",
@@ -338,6 +343,23 @@ export default function SettingsPage() {
       showToast(`User "${user.name}" deactivated.`);
     } catch (e: any) {
       showToast(e?.message || "Failed to deactivate user.", "error");
+    }
+  };
+
+  // ── Activate user ─────────────────────────────────────────────────────
+  const handleActivate = async (user: User) => {
+    if (!confirm(`Re-activate user "${user.name}" (${user.userId})?`)) return;
+    try {
+      await apiClient.put(`/api/users/${user.id}`, {
+        name:     user.name,
+        email:    user.email || undefined,
+        role:     user.role,
+        isActive: true,
+      });
+      qc.invalidateQueries({ queryKey: ["settings", "users"] });
+      showToast(`User "${user.name}" activated.`);
+    } catch (e: any) {
+      showToast(e?.message || "Failed to activate user.", "error");
     }
   };
 
@@ -489,6 +511,7 @@ export default function SettingsPage() {
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-end gap-2">
+                            {/* Edit & Reset Pass — not for self (can use profile page) */}
                             <button
                               onClick={() => { setModalError(""); setEditUser(user); }}
                               className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -501,13 +524,28 @@ export default function SettingsPage() {
                             >
                               Reset Pass
                             </button>
-                            {user.isActive && (
-                              <button
-                                onClick={() => handleDeactivate(user)}
-                                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20"
-                              >
-                                Deactivate
-                              </button>
+                            {/* Activate / Deactivate — protected: cannot act on own account */}
+                            {user.userId !== currentUserId && (
+                              user.isActive ? (
+                                <button
+                                  onClick={() => handleDeactivate(user)}
+                                  className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20"
+                                >
+                                  Deactivate
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleActivate(user)}
+                                  className="rounded-lg border border-green-200 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 dark:border-green-800 dark:hover:bg-green-900/20"
+                                >
+                                  Activate
+                                </button>
+                              )
+                            )}
+                            {user.userId === currentUserId && (
+                              <span className="rounded-lg border border-gray-100 px-3 py-1.5 text-xs text-gray-400 dark:border-gray-800">
+                                You
+                              </span>
                             )}
                           </div>
                         </td>

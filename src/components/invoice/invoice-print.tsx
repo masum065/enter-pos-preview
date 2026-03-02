@@ -124,8 +124,8 @@ function buildInvoiceHTML(sale: Sale): string {
   .inv-box-row:last-child{border-bottom:none;}
   hr{border:none;border-top:1px solid #9ca3af;margin:8px 0;}
   .cust-row{display:flex;flex-wrap:wrap;gap:0 20px;margin-bottom:4px;}
-  table{width:100%;border-collapse:collapse;}
-  th,td{border:1px solid #9ca3af;padding:4px 8px;font-size:11px;}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  th,td{border:1px solid #9ca3af;padding:4px 8px;font-size:11px;word-break:break-word;}
   thead th{background:#f3f4f6;font-weight:700;}
   .tr{text-align:right;} .tc{text-align:center;} .at{vertical-align:top;}
   .mono{font-family:monospace;} .fw7{font-weight:700;} .fw6{font-weight:600;}
@@ -134,7 +134,7 @@ function buildInvoiceHTML(sale: Sale): string {
   .due-red{color:#dc2626;}
   ol.terms{padding-left:16px;}
   ol.terms li{font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;}
-  .footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:20px;}
+  .footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:20px;padding-top:12px;border-top:1px solid #f3f4f6;}
   @media print{
     @page{size:A4;margin:10mm 12mm;}
     body{padding:0!important;}
@@ -154,8 +154,7 @@ function buildInvoiceHTML(sale: Sale): string {
       <div class="inv-box-row">Date: ${fmtDate(sale.invoiceDate)}</div>
     </div>
   </div>
-  <hr/>
-  <div style="margin-bottom:8px;">
+  <div style="padding-top:8px;margin-bottom:8px;">
     <div class="cust-row">
       <span><strong>Customer:</strong> ${sale.customerName}</span>
       <span><strong>Phone:</strong> ${sale.customerPhone}</span>
@@ -185,15 +184,19 @@ function buildInvoiceHTML(sale: Sale): string {
     </tfoot>
   </table>
 
-  <div style="font-size:11px;margin-bottom:2px;"><strong>Amount In Words:</strong> ${amountInWords(grandTotal)}</div>
-  <div class="paid-due">
-    <span>Paid: ${fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
-    <span class="${dueAmount > 0 ? "due-red" : ""}">Due: ${fmt(dueAmount)} Tk</span>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
+    <div style="font-size:11px;border:1px solid #e5e7eb;padding:4px 8px;max-width:60%;">
+      <strong>Amount In Words:</strong> ${amountInWords(grandTotal)}
+    </div>
+    <div class="paid-due">
+      <span>Paid: ${fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
+      <span class="${dueAmount > 0 ? 'due-red' : ''}">Due: ${fmt(dueAmount)} Tk</span>
+    </div>
   </div>
   <p class="note">Good received by customer in good condition.</p>
 
   ${sale.payments?.length > 0 ? `
-  <div style="margin-top:10px;margin-bottom:10px;">
+  <div style="margin-top:16px;margin-bottom:10px;">
     <div class="fw7" style="font-size:11px;margin-bottom:4px;">Payment History</div>
     <table>
       <thead><tr><th style="width:28px">Sl.</th><th>Date</th><th style="width:80px">Method</th><th>Reference</th><th class="tr" style="width:90px">Amount</th></tr></thead>
@@ -213,16 +216,15 @@ function buildInvoiceHTML(sale: Sale): string {
       <li>Please retain this invoice for all warranty claims.</li>
     </ol>
   </div>
-  <div style="margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;">
-    <div style="display:inline-block;text-align:center;min-width:200px;">
+  <div style="margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;display:flex;justify-content:flex-end;">
+    <div style="text-align:center;min-width:200px;">
       <div style="height:48px;"></div>
       <div style="border-top:1px dotted #9ca3af;padding-top:4px;font-size:10px;">Issued By</div>
       <div style="font-size:10px;color:#555;margin-top:2px;">Enter Computers</div>
-      <div style="margin-top:6px;font-size:10px;color:#555;">Date: _______________</div>
     </div>
   </div>
 
-  <div class="footer-note" style="margin-top:12px;">This is a system generated invoice &mdash; seal &amp; sign are not mandatory.</div>
+  <div class="footer-note">This is a system generated invoice &mdash; seal &amp; sign are not mandatory.</div>
 
   <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
 </body>
@@ -277,10 +279,8 @@ export function InvoicePrintModal({
           </div>
         </div>
 
-        <hr style={{ border: "none", borderTop: "1px solid #9ca3af", margin: "8px 0" }} />
-
-        {/* Customer */}
-        <div style={{ marginBottom: 8 }}>
+        {/* Customer — no hr above, top padding */}
+        <div style={{ paddingTop: 8, marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
             <span><strong>Customer:</strong> {sale.customerName}</span>
             <span><strong>Phone:</strong> {sale.customerPhone}</span>
@@ -339,19 +339,21 @@ export function InvoicePrintModal({
           </tfoot>
         </table>
 
-        {/* Amount words + paid/due */}
-        <div style={{ fontSize: 11, marginBottom: 2 }}>
-          <strong>Amount In Words:</strong> {amountInWords(grandTotal)}
-        </div>
-        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 11, margin: "4px 0" }}>
-          <span>Paid: {fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
-          <span style={{ color: dueAmount > 0 ? "#dc2626" : "inherit" }}>Due: {fmt(dueAmount)} Tk</span>
+        {/* Amount words + paid/due — side by side box */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
+          <div style={{ fontSize: 11, border: "1px solid #e5e7eb", padding: "4px 8px", maxWidth: "60%" }}>
+            <strong>Amount In Words:</strong> {amountInWords(grandTotal)}
+          </div>
+          <div style={{ textAlign: "right", fontWeight: 700, fontSize: 11 }}>
+            <span>Paid: {fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
+            <span style={{ color: dueAmount > 0 ? "#dc2626" : "inherit" }}>Due: {fmt(dueAmount)} Tk</span>
+          </div>
         </div>
         <p style={{ fontSize: 10, color: "#555", margin: "4px 0" }}>Good received by customer in good condition.</p>
 
         {/* Payments */}
         {(sale.payments || []).length > 0 && (
-          <div style={{ marginTop: 10, marginBottom: 10 }}>
+          <div style={{ marginTop: 16, marginBottom: 10 }}>
             <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Payment History</div>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
@@ -402,17 +404,17 @@ export function InvoicePrintModal({
           </ol>
         </div>
 
-        {/* Signature — Issued By only */}
-        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16 }}>
-          <div style={{ display: "inline-block", textAlign: "center", minWidth: 200 }}>
+        {/* Signature — right aligned, no date */}
+        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ textAlign: "center", minWidth: 200 }}>
             <div style={{ height: 48 }} />
             <div style={{ borderTop: "1px dotted #9ca3af", paddingTop: 4, fontSize: 10 }}>Issued By</div>
             <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>Enter Computers</div>
-            <div style={{ marginTop: 6, fontSize: 10, color: "#6b7280" }}>Date: _______________</div>
           </div>
         </div>
 
-        <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 12 }}>
+        {/* Footer note — very bottom */}
+        <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 20, paddingTop: 12, borderTop: "1px solid #f3f4f6" }}>
           This is a system generated invoice — seal &amp; sign are not mandatory.
         </div>
       </div>

@@ -205,12 +205,28 @@ function buildInvoiceHTML(sale: Sale): string {
     <ol class="terms">
       <li>Goods once sold will not be refunded &amp; exchanged without valid reason.</li>
       <li>Products under warranty will be repaired or replaced per manufacturer policy.</li>
-      <li>Warranty timing is controlled by the manufacturing company.</li>
       <li>Warranty does not cover: physical damage, liquid spillage, removed stickers, software/data, or accessories.</li>
       <li>Please retain this invoice for all warranty claims.</li>
     </ol>
   </div>
-  <div class="footer-note">This is a system generated invoice — seal &amp; sign are not mandatory.</div>
+
+  <div style="margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;display:flex;justify-content:space-between;align-items:flex-end;">
+    <div style="text-align:center;min-width:160px;">
+      <div style="border-top:1px dotted #9ca3af;margin-bottom:4px;padding-top:4px;font-size:10px;">Prepared By / Issued By</div>
+      <div style="font-size:10px;color:#555;">Enter Computers</div>
+      <div style="margin-top:6px;font-size:10px;color:#555;">Date: _______________</div>
+    </div>
+    <div style="text-align:center;min-width:160px;">
+      <div style="height:40px;"></div>
+      <div style="border-top:1px dotted #9ca3af;padding-top:4px;font-size:10px;">Authorized Signatory &amp; Seal</div>
+    </div>
+    <div style="text-align:center;min-width:160px;">
+      <div style="border-top:1px dotted #9ca3af;margin-bottom:4px;padding-top:4px;font-size:10px;">Received By (Customer)</div>
+      <div style="margin-top:6px;font-size:10px;color:#555;">Date: _______________</div>
+    </div>
+  </div>
+
+  <div class="footer-note" style="margin-top:12px;">This is a system generated invoice — seal &amp; sign are not mandatory.</div>
 
   <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
 </body>
@@ -384,7 +400,19 @@ export function InvoicePrintModal({
           </ol>
         </div>
 
-        <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 20 }}>
+        {/* Signature row */}
+        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          {["Prepared By / Issued By", "Authorized Signatory & Seal", "Received By (Customer)"].map((label, i) => (
+            <div key={i} style={{ textAlign: "center", minWidth: 140 }}>
+              <div style={{ height: 36 }} />
+              <div style={{ borderTop: "1px dotted #9ca3af", paddingTop: 4, fontSize: 10 }}>{label}</div>
+              {i !== 1 && <div style={{ marginTop: 4, fontSize: 10, color: "#6b7280" }}>Date: _______________</div>}
+              {i === 0 && <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>Enter Computers</div>}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 12 }}>
           This is a system generated invoice — seal &amp; sign are not mandatory.
         </div>
       </div>

@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { usePurchases } from "@/hooks/usePurchases";
 import { Pagination } from "@/components/ui/pagination";
 import { Modal } from "@/components/ui/modal";
+import { PrintPurchaseButton } from "@/components/invoice/purchase-print";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 
@@ -434,6 +435,8 @@ function PurchaseHistoryPageContent() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
                         </button>
+                        {/* Print button */}
+                        <PrintPurchaseButton purchase={purchase} />
                       </td>
                     </tr>
                   );

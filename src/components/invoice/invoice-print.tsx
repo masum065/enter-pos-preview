@@ -159,6 +159,10 @@ function buildInvoiceHTML(sale: Sale): string {
     <div class="cust-row">
       <span><strong>Customer:</strong> ${sale.customerName}</span>
       <span><strong>Phone:</strong> ${sale.customerPhone}</span>
+      ${(sale as any).customerAddress ? `<span><strong>Address:</strong> ${(sale as any).customerAddress}</span>` : ''}
+    </div>
+    <div class="cust-row" style="margin-top:2px;">
+      <span><strong>Salesman:</strong> ${(sale as any).createdByName || 'Admin'}</span>
     </div>
   </div>
 
@@ -276,9 +280,15 @@ export function InvoicePrintModal({
         <hr style={{ border: "none", borderTop: "1px solid #9ca3af", margin: "8px 0" }} />
 
         {/* Customer */}
-        <div style={{ marginBottom: 8, display: "flex", gap: 20, flexWrap: "wrap" }}>
-          <span><strong>Customer:</strong> {sale.customerName}</span>
-          <span><strong>Phone:</strong> {sale.customerPhone}</span>
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+            <span><strong>Customer:</strong> {sale.customerName}</span>
+            <span><strong>Phone:</strong> {sale.customerPhone}</span>
+            {(sale as any).customerAddress && <span><strong>Address:</strong> {(sale as any).customerAddress}</span>}
+          </div>
+          <div style={{ marginTop: 2, fontSize: 11 }}>
+            <strong>Salesman:</strong> {(sale as any).createdByName || "Admin"}
+          </div>
         </div>
 
         {/* Items */}

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { PurchaseInvoiceInput } from "@/lib/validations/purchases";
 
@@ -58,7 +58,8 @@ export function usePurchases(filters: PurchaseFilters = {}) {
       if (filters.limit) params.limit = String(filters.limit);
       return apiClient.get<PurchasesResponse>("/api/purchases", params);
     },
-    staleTime: 60 * 1000, // 1min
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 }
 

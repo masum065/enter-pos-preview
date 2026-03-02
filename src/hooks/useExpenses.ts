@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { ExpenseInput } from "@/lib/validations/services";
 
@@ -59,6 +59,8 @@ export function useExpenses(filters: ExpenseFilters = {}) {
       if (filters.limit) params.limit = String(filters.limit);
       return apiClient.get<ExpensesResponse>("/api/expenses", params);
     },
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
   });
 }
 

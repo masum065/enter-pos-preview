@@ -30,7 +30,7 @@ interface ReportData {
   };
 }
 
-type ReportTab = "profit" | "sales" | "service" | "expense" | "inventory" | "activity";
+type ReportTab = "profit" | "sales" | "purchase" | "service" | "expense" | "inventory" | "activity";
 type DatePreset = "today" | "week" | "month" | "year" | "custom";
 
 // ── Date helpers ──────────────────────────────────────────────────────────
@@ -214,6 +214,206 @@ tfoot td{background:#f3f4f6;font-weight:700;}
 </body></html>`;
 }
 
+// ── HTML template helper (shared structure) ───────────────────────────────
+function reportShell(title: string, dateLabel: string, today: string, records: number, summaryCards: string, tableHTML: string, noteHTML = ""): string {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+<title>${title}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding:24px 28px;}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+.logo{font-size:26px;font-weight:900;font-style:italic;letter-spacing:-0.5px;}
+.shop-name{font-weight:700;font-size:11px;margin-top:4px;}
+.shop-addr{font-size:10px;color:#555;line-height:1.4;margin-top:2px;}
+.rep-box{border:1px solid #9ca3af;font-size:11px;min-width:190px;}
+.rep-box-title{text-align:center;font-weight:700;border-bottom:1px solid #9ca3af;padding:4px 16px;background:#f3f4f6;}
+.rep-box-row{padding:4px 16px;border-bottom:1px solid #e5e7eb;}
+.rep-box-row:last-child{border-bottom:none;}
+.summary{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 10px;}
+.sc{border:1px solid #e5e7eb;border-radius:4px;padding:5px 12px;min-width:100px;}
+.sc .lbl{font-size:9px;color:#555;}.sc .val{font-size:12px;font-weight:700;margin-top:1px;}
+table{width:100%;border-collapse:collapse;border:1px solid #9ca3af;}
+th,td{border:1px solid #9ca3af;padding:4px 7px;font-size:10px;word-break:break-word;}
+thead th{background:#f3f4f6;font-weight:700;}
+tfoot td{background:#f3f4f6;font-weight:700;}
+.note{font-size:9px;color:#555;margin-top:8px;}
+.footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:16px;padding-top:10px;border-top:1px solid #f3f4f6;}
+@media print{@page{size:A4;margin:10mm 12mm;}body{padding:0!important;}}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <div class="logo">ENTER</div>
+    <div class="shop-name">Enter Computers</div>
+    <div class="shop-addr">Dhaka, Bangladesh | Phone: +880 1234-567890 | info@entercomputers.com</div>
+  </div>
+  <div class="rep-box">
+    <div class="rep-box-title">${title}</div>
+    <div class="rep-box-row">Period: <strong>${dateLabel}</strong></div>
+    <div class="rep-box-row">Printed: ${today}</div>
+    <div class="rep-box-row">Records: <strong>${records}</strong></div>
+  </div>
+</div>
+<div class="summary">${summaryCards}</div>
+${tableHTML}
+${noteHTML}
+<p class="note">* Showing current page records. Export XLSX for complete dataset.</p>
+<div class="footer-note">System Generated Report — Enter Computers © ${new Date().getFullYear()}</div>
+<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
+</body></html>`;
+}
+
+function sc(lbl: string, val: string) { return `<div class="sc"><div class="lbl">${lbl}</div><div class="val">${val}</div></div>`; }
+const fmtN = (n: number | string) => Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtToday = () => new Date().toLocaleDateString("en-BD", { day: "2-digit", month: "short", year: "numeric" });
+const fmtDate2 = (d: string) => { try { return new Date(d).toLocaleDateString("en-BD", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; } };
+
+// Purchase Report HTML
+function buildPurchaseReportHTML(rows: any[], dateLabel: string, report: any): string {
+  const totalPurchase = rows.reduce((s: number, r: any) => s + Number(r.purchasePrice), 0);
+  const totalPaid     = rows.reduce((s: number, r: any) => s + Number(r.paidAmount), 0);
+  const totalDue      = rows.reduce((s: number, r: any) => s + Number(r.dueAmount ?? 0), 0);
+
+  const tbody = rows.map((r: any, i: number) => {
+    const bg = i % 2 === 1 ? "background:#fafafa;" : "";
+    return `<tr style="${bg}">
+      <td style="font-family:monospace;font-size:9px;">${r.invoiceNumber}</td>
+      <td>${fmtDate2(r.purchaseDate || r.createdAt)}</td>
+      <td>${r.sellerName}</td><td>${r.sellerPhone || ""}</td>
+      <td>${r.productName || ""}</td>
+      <td style="font-family:monospace;font-size:9px;">${r.serialNumber || ""}</td>
+      <td style="text-align:right;">${fmtN(r.purchasePrice)}</td>
+      <td style="text-align:right;">${fmtN(r.paidAmount)}</td>
+      <td style="text-align:right;">${Number(r.dueAmount ?? 0) > 0 ? fmtN(r.dueAmount) : "—"}</td>
+      <td style="text-align:center;">${r.paymentStatus || ""}</td>
+    </tr>`;
+  }).join("");
+
+  const cards = sc("Total", String(rows.length))
+    + (report ? sc("Purchase Value", "৳" + fmtN(report.purchases?.totalValue ?? totalPurchase)) : "")
+    + sc("Paid", "৳" + fmtN(totalPaid))
+    + sc("Due", "৳" + fmtN(totalDue));
+
+  const table = `<table>
+  <thead><tr>
+    <th style="width:96px">Invoice #</th><th style="width:68px">Date</th>
+    <th>Seller</th><th style="width:82px">Phone</th><th>Product</th>
+    <th style="width:80px">Serial #</th>
+    <th style="text-align:right;width:76px">Price (৳)</th>
+    <th style="text-align:right;width:68px">Paid (৳)</th>
+    <th style="text-align:right;width:60px">Due (৳)</th>
+    <th style="text-align:center;width:52px">Status</th>
+  </tr></thead>
+  <tbody>${tbody || "<tr><td colspan='10' style='text-align:center;padding:10px;color:#999;'>No records</td></tr>"}</tbody>
+  <tfoot><tr>
+    <td colspan="6">Total (${rows.length} records)</td>
+    <td style="text-align:right;">${fmtN(totalPurchase)}</td>
+    <td style="text-align:right;">${fmtN(totalPaid)}</td>
+    <td style="text-align:right;">${fmtN(totalDue)}</td>
+    <td></td>
+  </tr></tfoot>
+</table>`;
+  return reportShell("Purchase Audit Report", dateLabel, fmtToday(), rows.length, cards, table);
+}
+
+// Service Report HTML
+function buildServiceReportHTML(rows: any[], dateLabel: string, summary: any): string {
+  const totalCost = rows.reduce((s: number, r: any) => s + Number(r.totalCost), 0);
+  const totalPaid = rows.reduce((s: number, r: any) => s + Number(r.paidAmount), 0);
+  const totalDue  = rows.reduce((s: number, r: any) => s + Number(r.dueAmount), 0);
+
+  const tbody = rows.map((r: any, i: number) => {
+    const bg = i % 2 === 1 ? "background:#fafafa;" : "";
+    const due = Number(r.dueAmount);
+    return `<tr style="${bg}">
+      <td style="font-family:monospace;font-size:9px;">${r.serviceNumber}</td>
+      <td>${fmtDate2(r.receivedDate || r.createdAt)}</td>
+      <td>${r.customerName}</td><td>${r.customerPhone || ""}</td>
+      <td>${r.deviceBrand} ${r.deviceModel}</td>
+      <td style="text-align:center;">${r.status}</td>
+      <td style="text-align:right;">${fmtN(r.totalCost)}</td>
+      <td style="text-align:right;">${fmtN(r.paidAmount)}</td>
+      <td style="text-align:right;">${due > 0 ? fmtN(due) : "—"}</td>
+      <td style="text-align:center;">${r.paymentStatus}</td>
+    </tr>`;
+  }).join("");
+
+  const cards = sc("Total", String(summary?.count ?? rows.length))
+    + sc("Completed", String(summary?.completed ?? ""))
+    + sc("Pending", String(summary?.pending ?? ""))
+    + sc("Revenue", "৳" + fmtN(summary?.revenue ?? totalCost))
+    + sc("Collected", "৳" + fmtN(summary?.collected ?? totalPaid))
+    + sc("Due", "৳" + fmtN(summary?.due ?? totalDue));
+
+  const table = `<table>
+  <thead><tr>
+    <th style="width:90px">Service #</th><th style="width:68px">Date</th>
+    <th>Customer</th><th style="width:82px">Phone</th><th>Device</th>
+    <th style="text-align:center;width:68px">Status</th>
+    <th style="text-align:right;width:72px">Total (৳)</th>
+    <th style="text-align:right;width:68px">Paid (৳)</th>
+    <th style="text-align:right;width:60px">Due (৳)</th>
+    <th style="text-align:center;width:52px">Payment</th>
+  </tr></thead>
+  <tbody>${tbody || "<tr><td colspan='10' style='text-align:center;padding:10px;color:#999;'>No records</td></tr>"}</tbody>
+  <tfoot><tr>
+    <td colspan="6">Total (${rows.length} records)</td>
+    <td style="text-align:right;">${fmtN(totalCost)}</td>
+    <td style="text-align:right;">${fmtN(totalPaid)}</td>
+    <td style="text-align:right;">${fmtN(totalDue)}</td>
+    <td></td>
+  </tr></tfoot>
+</table>`;
+  return reportShell("Service Audit Report", dateLabel, fmtToday(), rows.length, cards, table);
+}
+
+// Inventory Report HTML
+function buildInventoryReportHTML(rows: any[], summary: any): string {
+  const totalValue = rows.reduce((s: number, r: any) => s + Number(r.stockItem?.purchasePrice ?? 0), 0);
+
+  const tbody = rows.map((r: any, i: number) => {
+    const si = r.stockItem || r;
+    const pr = r.product || {};
+    const bg = i % 2 === 1 ? "background:#fafafa;" : "";
+    return `<tr style="${bg}">
+      <td>${pr.brand || ""} ${pr.modelName || si.productName || ""}</td>
+      <td style="font-family:monospace;font-size:9px;">${si.serialNumber || ""}</td>
+      <td style="font-family:monospace;font-size:9px;">${si.imei || ""}</td>
+      <td style="text-align:center;">${si.purchaseSource || ""}</td>
+      <td>${si.supplierName || ""}</td>
+      <td style="text-align:right;">${fmtN(si.purchasePrice)}</td>
+      <td style="text-align:center;">${si.status}</td>
+      <td>${fmtDate2(si.createdAt)}</td>
+    </tr>`;
+  }).join("");
+
+  const cards = sc("Total Items", String(summary?.total ?? rows.length))
+    + sc("Available", String(summary?.available ?? ""))
+    + sc("Sold", String(summary?.sold ?? ""))
+    + sc("In Service", String(summary?.inService ?? ""))
+    + sc("Stock Value", "৳" + fmtN(summary?.stockValue ?? totalValue));
+
+  const table = `<table>
+  <thead><tr>
+    <th>Product</th>
+    <th style="width:90px">Serial #</th>
+    <th style="width:90px">IMEI</th>
+    <th style="text-align:center;width:64px">Source</th>
+    <th>Supplier / Seller</th>
+    <th style="text-align:right;width:76px">Cost (৳)</th>
+    <th style="text-align:center;width:60px">Status</th>
+    <th style="width:72px">Added</th>
+  </tr></thead>
+  <tbody>${tbody || "<tr><td colspan='8' style='text-align:center;padding:10px;color:#999;'>No records</td></tr>"}</tbody>
+  <tfoot><tr>
+    <td colspan="5">Total (${rows.length} records)</td>
+    <td style="text-align:right;">${fmtN(totalValue)}</td>
+    <td colspan="2"></td>
+  </tr></tfoot>
+</table>`;
+  return reportShell("Inventory Report", "Live Snapshot", fmtToday(), rows.length, cards, table,
+    `<p class="note">⚠ Inventory is a live snapshot — not filtered by date.</p>`);
+}
+
 // ── Main component ────────────────────────────────────────────────────────
 export default function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>("profit");
@@ -228,6 +428,10 @@ export default function ReportsPage() {
 
   // Sales list state (audit table)
   const [salesListPage, setSalesListPage] = useState(1);
+  // Purchase / Service / Inventory list states
+  const [purchaseListPage, setPurchaseListPage] = useState(1);
+  const [serviceListPage, setServiceListPage]   = useState(1);
+  const [stockListPage, setStockListPage]       = useState(1);
 
   // Compute active date range
   const { start, end } = preset === "custom"
@@ -287,6 +491,52 @@ export default function ReportsPage() {
   });
   const salesList: any[] = (salesListData as any)?.sales || [];
   const salesListPagination = (salesListData as any)?.pagination;
+
+  // Fetch purchases list
+  const { data: purchaseListData } = useQuery({
+    queryKey: ["reports", "purchaseList", start, end, purchaseListPage],
+    queryFn: () => {
+      const p: Record<string, string> = { page: String(purchaseListPage), limit: "50" };
+      if (start) p.startDate = start;
+      if (end)   p.endDate   = end;
+      return apiClient.get<any>("/api/purchases", p);
+    },
+    enabled: tab === "purchase",
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  });
+  const purchaseList: any[] = (purchaseListData as any)?.purchases || [];
+  const purchaseListPagination = (purchaseListData as any)?.pagination;
+
+  // Fetch services list
+  const { data: serviceListData } = useQuery({
+    queryKey: ["reports", "serviceList", start, end, serviceListPage],
+    queryFn: () => {
+      const p: Record<string, string> = { page: String(serviceListPage), limit: "50" };
+      if (start) p.startDate = start;
+      if (end)   p.endDate   = end;
+      return apiClient.get<any>("/api/services", p);
+    },
+    enabled: tab === "service",
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  });
+  const serviceList: any[] = (serviceListData as any)?.services || [];
+  const serviceListPagination = (serviceListData as any)?.pagination;
+
+  // Fetch inventory/stock list
+  const { data: stockListData } = useQuery({
+    queryKey: ["reports", "stockList", stockListPage],
+    queryFn: () => {
+      const p: Record<string, string> = { page: String(stockListPage), limit: "50" };
+      return apiClient.get<any>("/api/stock", p);
+    },
+    enabled: tab === "inventory",
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  });
+  const stockList: any[] = (stockListData as any)?.stockItems || [];
+  const stockListPagination = (stockListData as any)?.pagination;
 
   // ── Export ────────────────────────────────────────────────────────────────
   const handleExportXLSX = async () => {
@@ -372,12 +622,25 @@ export default function ReportsPage() {
       const rows: (string | number)[][] = report.expenses.byCategory.map(c => [c.category, c.count, formatCurrency(c.total)]);
       await exportPDF("Expense Report", dateLabel, ["Category", "Count", "Amount"], rows, `expense-report-${start || "all"}`);
     } else if (tab === "sales") {
-      // Open invoice-style HTML print popup
       const html = buildSalesReportHTML(salesList, dateLabel, report.sales);
       const w = window.open("", "_blank", "width=1000,height=700");
       if (!w) { alert("Please allow pop-ups to print/download"); return; }
-      w.document.write(html);
-      w.document.close();
+      w.document.write(html); w.document.close();
+    } else if (tab === "purchase") {
+      const html = buildPurchaseReportHTML(purchaseList, dateLabel, report);
+      const w = window.open("", "_blank", "width=1000,height=700");
+      if (!w) { alert("Please allow pop-ups to print/download"); return; }
+      w.document.write(html); w.document.close();
+    } else if (tab === "service" && serviceList.length > 0) {
+      const html = buildServiceReportHTML(serviceList, dateLabel, report.services);
+      const w = window.open("", "_blank", "width=1000,height=700");
+      if (!w) { alert("Please allow pop-ups to print/download"); return; }
+      w.document.write(html); w.document.close();
+    } else if (tab === "inventory" && stockList.length > 0) {
+      const html = buildInventoryReportHTML(stockList, (stockListData as any)?.stats);
+      const w = window.open("", "_blank", "width=1000,height=700");
+      if (!w) { alert("Please allow pop-ups to print/download"); return; }
+      w.document.write(html); w.document.close();
     }
   };
 
@@ -430,6 +693,7 @@ export default function ReportsPage() {
         {([
           ["profit",    "Profit & Loss"],
           ["sales",     "Sales"],
+          ["purchase",  "Purchases"],
           ["service",   "Services"],
           ["expense",   "Expenses"],
           ["inventory", "Inventory"],
@@ -659,16 +923,161 @@ export default function ReportsPage() {
         </div>
       )}
 
+      {/* PURCHASE */}
+      {tab === "purchase" && (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Total Purchases" value={String(purchaseListPagination?.total ?? purchaseList.length)} />
+            <StatCard label="Total Value" value={formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.purchasePrice), 0))} color="blue" />
+            <StatCard label="Paid" value={formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.paidAmount), 0))} color="green" />
+            <StatCard label="Due" value={formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.dueAmount ?? 0), 0))} color="red" />
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Purchase Audit List — {dateLabel}</h3>
+              <span className="text-sm text-gray-400">{purchaseListPagination?.total ?? purchaseList.length} records</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/50">
+                    {["Invoice #","Date","Seller","Phone","Product","Serial #","Price","Paid","Due","Status"].map(h => (
+                      <th key={h} className="px-3 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {purchaseList.length === 0 ? (
+                    <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400">No purchases found for this period.</td></tr>
+                  ) : purchaseList.map((r: any) => {
+                    const due = Number(r.dueAmount ?? 0);
+                    return (
+                      <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                        <td className="px-3 py-3 font-mono text-xs font-medium text-blue-600 dark:text-blue-400">{r.invoiceNumber}</td>
+                        <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{formatDate(r.purchaseDate || r.createdAt)}</td>
+                        <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">{r.sellerName}</td>
+                        <td className="px-3 py-3 text-gray-500">{r.sellerPhone}</td>
+                        <td className="px-3 py-3 text-gray-800 dark:text-gray-200">{r.productName}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-gray-500">{r.serialNumber}</td>
+                        <td className="px-3 py-3 text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(Number(r.purchasePrice))}</td>
+                        <td className="px-3 py-3 text-right text-gray-600">{formatCurrency(Number(r.paidAmount))}</td>
+                        <td className={`px-3 py-3 text-right font-medium ${due > 0 ? "text-red-600" : "text-gray-400"}`}>{due > 0 ? formatCurrency(due) : "—"}</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                            r.paymentStatus === "paid" ? "bg-green-100 text-green-700"
+                            : r.paymentStatus === "partial" ? "bg-yellow-100 text-yellow-700"
+                            : "bg-red-100 text-red-700"
+                          }`}>{r.paymentStatus}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {purchaseList.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
+                      <td colSpan={6} className="px-3 py-3 font-semibold text-gray-700">Total ({purchaseList.length} records)</td>
+                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.purchasePrice), 0))}</td>
+                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.paidAmount), 0))}</td>
+                      <td className="px-3 py-3 text-right font-bold text-red-600">{formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.dueAmount ?? 0), 0))}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+            {purchaseListPagination && purchaseListPagination.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3">
+                <span className="text-sm text-gray-400">Page {purchaseListPage} of {purchaseListPagination.totalPages}</span>
+                <div className="flex gap-2">
+                  <button disabled={purchaseListPage <= 1} onClick={() => setPurchaseListPage(p => p - 1)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">← Prev</button>
+                  <button disabled={purchaseListPage >= purchaseListPagination.totalPages} onClick={() => setPurchaseListPage(p => p + 1)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">Next →</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* SERVICES */}
       {tab === "service" && report && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total Services" value={String(report.services.count)} />
-          <StatCard label="Completed" value={String(report.services.completed)} color="green" />
-          <StatCard label="Pending" value={String(report.services.pending)} color="orange" />
-          <StatCard label="Revenue" value={formatCurrency(report.services.revenue)} color="blue" />
-          <StatCard label="Collected" value={formatCurrency(report.services.collected)} color="green" />
-          <StatCard label="Due" value={formatCurrency(report.services.due)} color="red" />
-          <StatCard label="Gross Profit" value={formatCurrency(report.services.grossProfit)} color="green" sub="Charge - Parts" />
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Total Services" value={String(report.services.count)} />
+            <StatCard label="Completed" value={String(report.services.completed)} color="green" />
+            <StatCard label="Pending" value={String(report.services.pending)} color="orange" />
+            <StatCard label="Revenue" value={formatCurrency(report.services.revenue)} color="blue" />
+            <StatCard label="Collected" value={formatCurrency(report.services.collected)} color="green" />
+            <StatCard label="Due" value={formatCurrency(report.services.due)} color="red" />
+            <StatCard label="Gross Profit" value={formatCurrency(report.services.grossProfit)} color="green" sub="Charge - Parts" />
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Service Audit List — {dateLabel}</h3>
+              <span className="text-sm text-gray-400">{serviceListPagination?.total ?? serviceList.length} records</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/50">
+                    {["Service #","Date","Customer","Phone","Device","Status","Total","Paid","Due","Payment"].map(h => (
+                      <th key={h} className="px-3 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {serviceList.length === 0 ? (
+                    <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400">No services found for this period.</td></tr>
+                  ) : serviceList.map((r: any) => {
+                    const due = Number(r.dueAmount);
+                    const ps = r.paymentStatus;
+                    return (
+                      <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                        <td className="px-3 py-3 font-mono text-xs font-medium text-purple-600 dark:text-purple-400">{r.serviceNumber}</td>
+                        <td className="px-3 py-3 text-gray-600">{formatDate(r.receivedDate || r.createdAt)}</td>
+                        <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">{r.customerName}</td>
+                        <td className="px-3 py-3 text-gray-500">{r.customerPhone}</td>
+                        <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{r.deviceBrand} {r.deviceModel}</td>
+                        <td className="px-3 py-3"><span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">{r.status}</span></td>
+                        <td className="px-3 py-3 text-right font-semibold">{formatCurrency(Number(r.totalCost))}</td>
+                        <td className="px-3 py-3 text-right text-gray-600">{formatCurrency(Number(r.paidAmount))}</td>
+                        <td className={`px-3 py-3 text-right ${due > 0 ? "text-red-600 font-medium" : "text-gray-400"}`}>{due > 0 ? formatCurrency(due) : "—"}</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                            ps === "Paid" ? "bg-green-100 text-green-700" : ps === "Partial" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"
+                          }`}>{ps}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {serviceList.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
+                      <td colSpan={6} className="px-3 py-3 font-semibold text-gray-700">Total ({serviceList.length} records)</td>
+                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(serviceList.reduce((s: number, r: any) => s + Number(r.totalCost), 0))}</td>
+                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(serviceList.reduce((s: number, r: any) => s + Number(r.paidAmount), 0))}</td>
+                      <td className="px-3 py-3 text-right font-bold text-red-600">{formatCurrency(serviceList.reduce((s: number, r: any) => s + Number(r.dueAmount), 0))}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+            {serviceListPagination && serviceListPagination.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3">
+                <span className="text-sm text-gray-400">Page {serviceListPage} of {serviceListPagination.totalPages}</span>
+                <div className="flex gap-2">
+                  <button disabled={serviceListPage <= 1} onClick={() => setServiceListPage(p => p - 1)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">← Prev</button>
+                  <button disabled={serviceListPage >= serviceListPagination.totalPages} onClick={() => setServiceListPage(p => p + 1)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">Next →</button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -716,6 +1125,71 @@ export default function ReportsPage() {
             <StatCard label="Sold" value={String(report.inventory.sold)} color="blue" />
             <StatCard label="In Service" value={String(report.inventory.inService)} color="orange" />
             <StatCard label="Stock Value" value={formatCurrency(report.inventory.stockValue)} color="purple" sub="Available items cost" />
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Stock Inventory List</h3>
+              <span className="text-sm text-gray-400">{stockListPagination?.total ?? stockList.length} records</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/50">
+                    {["Product","Serial #","IMEI","Source","Supplier/Seller","Cost","Status","Added"].map(h => (
+                      <th key={h} className="px-3 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {stockList.length === 0 ? (
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No stock items found.</td></tr>
+                  ) : stockList.map((r: any) => {
+                    const si = r.stockItem || r;
+                    const pr = r.product || {};
+                    return (
+                      <tr key={si.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                        <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">{pr.brand} {pr.modelName}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-gray-600">{si.serialNumber}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-gray-500">{si.imei || "—"}</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="inline-flex rounded-full px-2 py-0.5 text-xs bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">{si.purchaseSource}</span>
+                        </td>
+                        <td className="px-3 py-3 text-gray-600">{si.supplierName || "—"}</td>
+                        <td className="px-3 py-3 text-right font-semibold text-gray-900">{formatCurrency(Number(si.purchasePrice))}</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                            si.status === "Available" ? "bg-green-100 text-green-700"
+                            : si.status === "Sold" ? "bg-blue-100 text-blue-700"
+                            : "bg-orange-100 text-orange-700"
+                          }`}>{si.status}</span>
+                        </td>
+                        <td className="px-3 py-3 text-gray-500">{formatDate(si.createdAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {stockList.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
+                      <td colSpan={5} className="px-3 py-3 font-semibold text-gray-700">Total ({stockList.length} items)</td>
+                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(stockList.reduce((s: number, r: any) => s + Number((r.stockItem || r).purchasePrice), 0))}</td>
+                      <td colSpan={2} />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+            {stockListPagination && stockListPagination.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3">
+                <span className="text-sm text-gray-400">Page {stockListPage} of {stockListPagination.totalPages}</span>
+                <div className="flex gap-2">
+                  <button disabled={stockListPage <= 1} onClick={() => setStockListPage(p => p - 1)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">← Prev</button>
+                  <button disabled={stockListPage >= stockListPagination.totalPages} onClick={() => setStockListPage(p => p + 1)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">Next →</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

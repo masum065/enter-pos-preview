@@ -54,7 +54,17 @@ export async function GET(request: NextRequest) {
       .from(expenses)
       .where(whereClause);
 
-    // Category breakdown (from ALL data, not filtered)
+    // Category breakdown — filtered by the same date/search conditions
+    // Build date-only conditions (exclude category filter for breakdown)
+    const dateConditions = [];
+    if (startDate) dateConditions.push(gte(expenses.date, new Date(startDate)));
+    if (endDate) {
+      const endD = new Date(endDate);
+      endD.setHours(23, 59, 59, 999);
+      dateConditions.push(lte(expenses.date, endD));
+    }
+    const breakdownWhere = dateConditions.length > 0 ? and(...dateConditions) : undefined;
+
     const breakdown = await db
       .select({
         category: expenses.category,
@@ -62,6 +72,7 @@ export async function GET(request: NextRequest) {
         count: sql<number>`count(*)`,
       })
       .from(expenses)
+      .where(breakdownWhere)
       .groupBy(expenses.category)
       .orderBy(sql`SUM(${expenses.amount}) DESC`);
 

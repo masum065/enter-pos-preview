@@ -39,7 +39,7 @@ function ExpensesPageContent() {
   // ── Local UI state (no router.push — no reload) ───────────────────────────
   const [searchInput, setSearchInput] = useState(activeSearch);
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("today");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("month");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -146,38 +146,91 @@ function ExpensesPageContent() {
         </div>
       </div>
 
-      {/* Category Breakdown Chips */}
-      {apiCategoryBreakdown.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Category Breakdown</h3>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setCategoryFilter("all")}
-              className={`rounded-lg border px-4 py-2 text-sm transition-all ${
-                categoryFilter === "all"
-                  ? "border-orange-500 bg-orange-50 font-medium text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                  : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400"
-              }`}
-            >
-              All
-            </button>
-            {apiCategoryBreakdown.map(({ category, total }: { category: string; total: string }) => (
-              <button
-                key={category}
-                onClick={() => setCategoryFilter(category === categoryFilter ? "all" : category)}
-                className={`rounded-lg border px-4 py-2 text-sm transition-all ${
-                  categoryFilter === category
-                    ? "border-orange-500 bg-orange-50 font-medium text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                    : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400"
-                }`}
-              >
-                <span className="font-medium">{category}</span>
-                <span className="ml-2 text-gray-400">{formatCurrency(Number(total))}</span>
-              </button>
-            ))}
+      {/* Category Breakdown — progress bar style, date-aware */}
+      {apiCategoryBreakdown.length > 0 && (() => {
+        const maxTotal = Math.max(...apiCategoryBreakdown.map((c: any) => Number(c.total)));
+        const CATEGORY_COLORS: Record<string, string> = {
+          Rent:          "bg-rose-500",
+          Utilities:     "bg-blue-500",
+          Salary:        "bg-purple-500",
+          Transport:     "bg-amber-500",
+          Food:          "bg-green-500",
+          Repairs:       "bg-cyan-500",
+          Marketing:     "bg-pink-500",
+          Supplies:      "bg-indigo-500",
+          Miscellaneous: "bg-gray-500",
+        };
+        const getCategoryColor = (cat: string) => CATEGORY_COLORS[cat] ?? "bg-orange-500";
+
+        return (
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">
+                Category Breakdown
+                <span className="ml-2 text-xs font-normal text-gray-400">
+                  ({dateFilter === "today" ? "Today" : dateFilter === "week" ? "This Week" : dateFilter === "month" ? "This Month" : dateFilter === "custom" ? "Custom Range" : "All Time"})
+                </span>
+              </h3>
+              {categoryFilter !== "all" && (
+                <button
+                  onClick={() => setCategoryFilter("all")}
+                  className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400"
+                >
+                  ✕ {categoryFilter}
+                </button>
+              )}
+            </div>
+            <div className="space-y-2">
+              {apiCategoryBreakdown.map(({ category, total, count }: { category: string; total: string; count: number }) => {
+                const amount = Number(total);
+                const pct = maxTotal > 0 ? Math.round((amount / maxTotal) * 100) : 0;
+                const isActive = categoryFilter === category;
+                const barColor = getCategoryColor(category);
+
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setCategoryFilter(isActive ? "all" : category)}
+                    className={`group w-full rounded-lg border px-4 py-3 text-left transition-all ${
+                      isActive
+                        ? "border-orange-400 bg-orange-50 dark:border-orange-500 dark:bg-orange-900/20"
+                        : "border-gray-100 hover:border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-800/50"
+                    }`}
+                  >
+                    {/* Top row: name + count badge + amount */}
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${barColor}`} />
+                        <span className={`truncate text-sm font-semibold ${
+                          isActive ? "text-orange-700 dark:text-orange-300" : "text-gray-800 dark:text-gray-200"
+                        }`}>
+                          {category}
+                        </span>
+                        <span className="flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                          {count}
+                        </span>
+                      </div>
+                      <span className={`flex-shrink-0 text-sm font-bold ${
+                        isActive ? "text-orange-600 dark:text-orange-400" : "text-gray-900 dark:text-white"
+                      }`}>
+                        {formatCurrency(amount)}
+                      </span>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${barColor} ${isActive ? "opacity-100" : "opacity-60 group-hover:opacity-80"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Filters */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center">

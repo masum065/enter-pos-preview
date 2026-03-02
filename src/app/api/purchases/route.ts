@@ -51,14 +51,25 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Paginated results
-    const allPurchases = await db
-      .select()
-      .from(purchaseInvoices)
-      .where(whereClause)
-      .orderBy(desc(purchaseInvoices.purchaseDate))
-      .limit(limit)
-      .offset(offset);
+    // Execute all 3 queries in parallel
+    const [allPurchases, totalCountResult, purchaseAggResult] = await Promise.all([
+      db.select()
+        .from(purchaseInvoices)
+        .where(whereClause)
+        .orderBy(desc(purchaseInvoices.purchaseDate))
+        .limit(limit)
+        .offset(offset),
+        
+      db.select({ count: sql<number>`count(*)` })
+        .from(purchaseInvoices)
+        .where(whereClause),
+        
+      db.select({
+        totalAmount: sql<string>`COALESCE(SUM(${purchaseInvoices.purchasePrice}), 0)`,
+        totalPaid: sql<string>`COALESCE(SUM(${purchaseInvoices.paidAmount}), 0)`,
+        totalCount: sql<number>`count(*)`,
+      }).from(purchaseInvoices).where(whereClause)
+    ]);
 
     // Apply paymentStatus filter in-memory (derived field)
     let filteredPurchases = allPurchases;
@@ -74,18 +85,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Total count for pagination (filtered)
-    const [{ count: totalCount }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(purchaseInvoices)
-      .where(whereClause);
-
-    // Aggregate stats from ALL data (not paginated, not date-filtered)
-    const [purchaseAgg] = await db.select({
-      totalAmount: sql<string>`COALESCE(SUM(${purchaseInvoices.purchasePrice}), 0)`,
-      totalPaid: sql<string>`COALESCE(SUM(${purchaseInvoices.paidAmount}), 0)`,
-      totalCount: sql<number>`count(*)`,
-    }).from(purchaseInvoices).where(whereClause);
+    const purchaseAgg = purchaseAggResult[0];
 
     return NextResponse.json({
       purchases: filteredPurchases,
@@ -98,9 +98,13 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         limit,
-        total: Number(totalCount),
-        totalPages: Math.ceil(Number(totalCount) / limit),
-      },
+        total: Number(totalCountResult[0].count),
+        totalPages: Math.ceil(Number(totalCountResult[0].count) / limit),
+      }
+    }, {
+      headers: {
+        "Cache-Control": "private, max-age=10",
+      }
     });
   } catch (error) {
     console.error("Error fetching purchases:", error);

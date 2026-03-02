@@ -64,48 +64,62 @@ export async function GET(request: NextRequest) {
     const serviceWhere = buildDateWhere(serviceRecords.receivedDate);
     const expenseWhere = buildDateWhere(expenses.date);
 
-    // Sales stats
-    const [salesStats] = await db.select({
-      count:       sql<number>`COUNT(*)`,
-      revenue:     sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
-      collected:   sql<string>`COALESCE(SUM(${sales.paidAmount}), 0)`,
-      due:         sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
-      grossProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
-      returned:    sql<string>`COALESCE(SUM(${sales.totalReturned}), 0)`,
-    }).from(sales).where(salesWhere);
+    // Execute all 6 stats queries in parallel
+    const [
+      salesStatsResult,
+      serviceStatsResult,
+      expenseStatsResult,
+      expenseByCategory,
+      inventoryStatsResult
+    ] = await Promise.all([
+      // Sales stats
+      db.select({
+        count:       sql<number>`COUNT(*)`,
+        revenue:     sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
+        collected:   sql<string>`COALESCE(SUM(${sales.paidAmount}), 0)`,
+        due:         sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
+        grossProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
+        returned:    sql<string>`COALESCE(SUM(${sales.totalReturned}), 0)`,
+      }).from(sales).where(salesWhere),
 
-    // Service stats
-    const [serviceStats] = await db.select({
-      count:     sql<number>`COUNT(*)`,
-      completed: sql<number>`COUNT(*) FILTER (WHERE ${serviceRecords.status} IN ('Completed','Delivered'))`,
-      pending:   sql<number>`COUNT(*) FILTER (WHERE ${serviceRecords.status} NOT IN ('Completed','Delivered','Cancelled'))`,
-      revenue:   sql<string>`COALESCE(SUM(${serviceRecords.totalCost}), 0)`,
-      collected: sql<string>`COALESCE(SUM(${serviceRecords.paidAmount}), 0)`,
-      due:       sql<string>`COALESCE(SUM(${serviceRecords.dueAmount}), 0)`,
-      // Service profit = serviceCharge - partsCost (parts are cost/purchase expense)
-      grossProfit: sql<string>`COALESCE(SUM(${serviceRecords.serviceCharge} - ${serviceRecords.partsCost}), 0)`,
-    }).from(serviceRecords).where(serviceWhere);
+      // Service stats
+      db.select({
+        count:     sql<number>`COUNT(*)`,
+        completed: sql<number>`COUNT(*) FILTER (WHERE ${serviceRecords.status} IN ('Completed','Delivered'))`,
+        pending:   sql<number>`COUNT(*) FILTER (WHERE ${serviceRecords.status} NOT IN ('Completed','Delivered','Cancelled'))`,
+        revenue:   sql<string>`COALESCE(SUM(${serviceRecords.totalCost}), 0)`,
+        collected: sql<string>`COALESCE(SUM(${serviceRecords.paidAmount}), 0)`,
+        due:       sql<string>`COALESCE(SUM(${serviceRecords.dueAmount}), 0)`,
+        grossProfit: sql<string>`COALESCE(SUM(${serviceRecords.serviceCharge} - ${serviceRecords.partsCost}), 0)`,
+      }).from(serviceRecords).where(serviceWhere),
 
-    // Expense stats + by-category
-    const [expenseStats] = await db.select({
-      count:  sql<number>`COUNT(*)`,
-      total:  sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-    }).from(expenses).where(expenseWhere);
+      // Expense stats
+      db.select({
+        count:  sql<number>`COUNT(*)`,
+        total:  sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+      }).from(expenses).where(expenseWhere),
 
-    const expenseByCategory = await db.select({
-      category: expenses.category,
-      total:    sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-      count:    sql<number>`COUNT(*)`,
-    }).from(expenses).where(expenseWhere).groupBy(expenses.category).orderBy(sql`SUM(${expenses.amount}) DESC`);
+      // Expense by-category
+      db.select({
+        category: expenses.category,
+        total:    sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+        count:    sql<number>`COUNT(*)`,
+      }).from(expenses).where(expenseWhere).groupBy(expenses.category).orderBy(sql`SUM(${expenses.amount}) DESC`),
 
-    // Inventory stats (not date-filtered — live snapshot)
-    const [inventoryStats] = await db.select({
-      total:     sql<number>`COUNT(*)`,
-      available: sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Available')`,
-      sold:      sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Sold')`,
-      inService: sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Service')`,
-      stockValue: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}) FILTER (WHERE ${stockItems.status} = 'Available'), 0)`,
-    }).from(stockItems);
+      // Inventory stats
+      db.select({
+        total:     sql<number>`COUNT(*)`,
+        available: sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Available')`,
+        sold:      sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Sold')`,
+        inService: sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Service')`,
+        stockValue: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}) FILTER (WHERE ${stockItems.status} = 'Available'), 0)`,
+      }).from(stockItems)
+    ]);
+
+    const salesStats = salesStatsResult[0];
+    const serviceStats = serviceStatsResult[0];
+    const expenseStats = expenseStatsResult[0];
+    const inventoryStats = inventoryStatsResult[0];
 
     // Derived profit figures
     const salesRevenue     = Number(salesStats.revenue);

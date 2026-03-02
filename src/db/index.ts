@@ -11,19 +11,27 @@ if (!connectionString) {
   );
 }
 
+const globalForPostgres = globalThis as unknown as {
+  postgresClient: postgres.Sql | undefined;
+};
+
 /**
  * Supabase Transaction Pooler (port 6543) config:
  * - prepare: false — required for pgBouncer transaction mode
- * - max: 5       — small pool, avoids exhausting Supabase free tier (25 limit)
+ * - max: 15        — increased so parallel queries don't block each other
  * - idle_timeout: 20 — release idle connections quickly
  * - connect_timeout: 10 — fail fast on network issues
  */
-const client = postgres(connectionString!, {
+const client = globalForPostgres.postgresClient ?? postgres(connectionString!, {
   prepare: false,
-  max: 5,
+  max: 15,
   idle_timeout: 20,
   connect_timeout: 10,
 });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPostgres.postgresClient = client;
+}
 
 export const db = drizzle(client, { schema });
 

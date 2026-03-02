@@ -20,30 +20,22 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     let queryBuilder = db.select().from(customers).$dynamic();
-
-    if (search) {
-      const searchTerm = `%${search.trim()}%`;
-      queryBuilder = queryBuilder.where(
-        sql`(${customers.name} ILIKE ${searchTerm} OR ${customers.phone} ILIKE ${searchTerm} OR ${customers.nid} ILIKE ${searchTerm} OR ${customers.email} ILIKE ${searchTerm})`
-      );
-    }
-
-    const allCustomers = await queryBuilder
-      .orderBy(desc(customers.createdAt))
-      .limit(limit)
-      .offset(offset);
-
-    // Count query — must apply same search conditions
     let countQuery = db.select({ count: sql<number>`count(*)` }).from(customers).$dynamic();
+
     if (search) {
       const searchTerm = `%${search.trim()}%`;
-      countQuery = countQuery.where(
-        sql`(${customers.name} ILIKE ${searchTerm} OR ${customers.phone} ILIKE ${searchTerm} OR ${customers.nid} ILIKE ${searchTerm} OR ${customers.email} ILIKE ${searchTerm})`
-      );
+      const whereClause = sql`(${customers.name} ILIKE ${searchTerm} OR ${customers.phone} ILIKE ${searchTerm} OR ${customers.nid} ILIKE ${searchTerm} OR ${customers.email} ILIKE ${searchTerm})`;
+      queryBuilder = queryBuilder.where(whereClause);
+      countQuery = countQuery.where(whereClause);
     }
-    const totalCount = await countQuery;
 
-    return NextResponse.json({
+    // Run data + count in parallel
+    const [allCustomers, totalCount] = await Promise.all([
+      queryBuilder.orderBy(desc(customers.createdAt)).limit(limit).offset(offset),
+      countQuery,
+    ]);
+
+    const response = NextResponse.json({
       customers: allCustomers,
       pagination: {
         page,
@@ -52,6 +44,8 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(Number(totalCount[0].count) / limit),
       },
     });
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+    return response;
   } catch (error) {
     console.error("Error fetching customers:", error);
     return NextResponse.json({ error: "Failed to fetch customers" }, { status: 500 });

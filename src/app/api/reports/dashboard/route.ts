@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { sales, saleItems, expenses, serviceRecords, stockItems, customers } from "@/db/schema";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { sales, expenses, serviceRecords, stockItems, customers } from "@/db/schema";
+import { and, gte, lte, sql } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 
 // GET /api/reports/dashboard - Dashboard overview stats
@@ -15,89 +15,81 @@ export async function GET(request: NextRequest) {
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Today's sales
-    const todaySales = await db
-      .select({
-        count: sql<number>`count(*)`,
-        total: sql<string>`COALESCE(SUM(${sales.grandTotal}::numeric), 0)`,
-        profit: sql<string>`COALESCE(SUM(${sales.totalProfit}::numeric), 0)`,
-      })
-      .from(sales)
-      .where(and(
-        gte(sales.invoiceDate, todayStart),
-        lte(sales.invoiceDate, todayEnd)
-      ));
+    // ── Run ALL 7 queries in parallel (was sequential — huge speed improvement) ──
+    const [
+      todaySales,
+      monthSales,
+      totalDue,
+      todayExpenses,
+      monthExpenses,
+      stockStats,
+      pendingServices,
+      totalCustomers,
+    ] = await Promise.all([
+      // Today's sales
+      db
+        .select({
+          count: sql<number>`count(*)`,
+          total: sql<string>`COALESCE(SUM(${sales.grandTotal}::numeric), 0)`,
+          profit: sql<string>`COALESCE(SUM(${sales.totalProfit}::numeric), 0)`,
+        })
+        .from(sales)
+        .where(and(gte(sales.invoiceDate, todayStart), lte(sales.invoiceDate, todayEnd))),
 
-    // This month's sales
-    const monthSales = await db
-      .select({
-        count: sql<number>`count(*)`,
-        total: sql<string>`COALESCE(SUM(${sales.grandTotal}::numeric), 0)`,
-        profit: sql<string>`COALESCE(SUM(${sales.totalProfit}::numeric), 0)`,
-      })
-      .from(sales)
-      .where(and(
-        gte(sales.invoiceDate, monthStart),
-        lte(sales.invoiceDate, todayEnd)
-      ));
+      // This month's sales
+      db
+        .select({
+          count: sql<number>`count(*)`,
+          total: sql<string>`COALESCE(SUM(${sales.grandTotal}::numeric), 0)`,
+          profit: sql<string>`COALESCE(SUM(${sales.totalProfit}::numeric), 0)`,
+        })
+        .from(sales)
+        .where(and(gte(sales.invoiceDate, monthStart), lte(sales.invoiceDate, todayEnd))),
 
-    // Total due amount
-    const totalDue = await db
-      .select({
-        total: sql<string>`COALESCE(SUM(${sales.dueAmount}::numeric), 0)`,
-      })
-      .from(sales)
-      .where(sql`${sales.dueAmount}::numeric > 0`);
+      // Total due
+      db
+        .select({ total: sql<string>`COALESCE(SUM(${sales.dueAmount}::numeric), 0)` })
+        .from(sales)
+        .where(sql`${sales.dueAmount}::numeric > 0`),
 
-    // Today's expenses
-    const todayExpenses = await db
-      .select({
-        total: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
-      })
-      .from(expenses)
-      .where(and(
-        gte(expenses.date, todayStart),
-        lte(expenses.date, todayEnd)
-      ));
+      // Today's expenses
+      db
+        .select({ total: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)` })
+        .from(expenses)
+        .where(and(gte(expenses.date, todayStart), lte(expenses.date, todayEnd))),
 
-    // This month's expenses
-    const monthExpenses = await db
-      .select({
-        total: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
-      })
-      .from(expenses)
-      .where(and(
-        gte(expenses.date, monthStart),
-        lte(expenses.date, todayEnd)
-      ));
+      // This month's expenses
+      db
+        .select({ total: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)` })
+        .from(expenses)
+        .where(and(gte(expenses.date, monthStart), lte(expenses.date, todayEnd))),
 
-    // Stock overview
-    const stockStats = await db
-      .select({
-        total: sql<number>`count(*)`,
-        available: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'available')`,
-        sold: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'sold')`,
-        service: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'service')`,
-        returned: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'returned')`,
-        damaged: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'damaged')`,
-      })
-      .from(stockItems);
+      // Stock overview — single query with conditional aggregates
+      db
+        .select({
+          total: sql<number>`count(*)`,
+          available: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'available')`,
+          sold: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'sold')`,
+          service: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'service')`,
+          returned: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'returned')`,
+          damaged: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'damaged')`,
+        })
+        .from(stockItems),
 
-    // Pending services
-    const pendingServices = await db
-      .select({
-        count: sql<number>`count(*)`,
-        dueAmount: sql<string>`COALESCE(SUM(${serviceRecords.dueAmount}::numeric), 0)`,
-      })
-      .from(serviceRecords)
-      .where(sql`${serviceRecords.status} NOT IN ('Delivered', 'Cancelled')`);
+      // Pending services
+      db
+        .select({
+          count: sql<number>`count(*)`,
+          dueAmount: sql<string>`COALESCE(SUM(${serviceRecords.dueAmount}::numeric), 0)`,
+        })
+        .from(serviceRecords)
+        .where(sql`${serviceRecords.status} NOT IN ('Delivered', 'Cancelled')`),
 
-    // Total customers
-    const totalCustomers = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(customers);
+      // Total customers
+      db.select({ count: sql<number>`count(*)` }).from(customers),
+    ]);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       today: {
         sales: Number(todaySales[0].count),
         revenue: todaySales[0].total,
@@ -118,6 +110,10 @@ export async function GET(request: NextRequest) {
       },
       totalCustomers: Number(totalCustomers[0].count),
     });
+
+    // Cache for 30 seconds (dashboard stats don't need real-time precision)
+    response.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
+    return response;
   } catch (error) {
     console.error("Error fetching dashboard:", error);
     return NextResponse.json({ error: "Failed to fetch dashboard" }, { status: 500 });

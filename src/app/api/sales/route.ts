@@ -61,37 +61,37 @@ export async function GET(request: NextRequest) {
       queryBuilder = queryBuilder.where(and(...conditions));
     }
 
-    const allSales = await queryBuilder
-      .orderBy(desc(sales.createdAt))
-      .limit(limit)
-      .offset(offset);
+    const allSales = queryBuilder.orderBy(desc(sales.createdAt)).limit(limit).offset(offset);
 
-    // Get total count — must apply same filters
+    // Count query — same filters
     let countQuery = db.select({ count: sql<number>`count(*)` }).from(sales).$dynamic();
     if (conditions.length > 0) {
       countQuery = countQuery.where(and(...conditions));
     }
-    const totalCount = await countQuery;
 
-    // Aggregate stats (from ALL data, not paginated)
-    const [salesAgg] = await db.select({
+    // Stats — one combined query instead of two separate ones
+    const statsQuery = db.select({
       totalAmount: sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
       totalProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
       totalDue: sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
+      dueCount: sql<number>`count(*) FILTER (WHERE ${sales.dueAmount}::numeric > 0)`,
     }).from(sales);
 
-    const [dueStats] = await db.select({
-      count: sql<number>`count(*)`,
-    }).from(sales).where(sql`${sales.dueAmount} > 0`);
+    // Run all 3 in parallel instead of sequentially
+    const [fetchedSales, totalCount, [salesAgg]] = await Promise.all([
+      allSales,
+      countQuery,
+      statsQuery,
+    ]);
 
-    return NextResponse.json({
-      sales: allSales,
+    const response = NextResponse.json({
+      sales: fetchedSales,
       stats: {
         total: Number(totalCount[0].count),
         totalAmount: Number(salesAgg.totalAmount),
         totalProfit: Number(salesAgg.totalProfit),
         totalDue: Number(salesAgg.totalDue),
-        dueCount: Number(dueStats.count),
+        dueCount: Number(salesAgg.dueCount),
       },
       pagination: {
         page,
@@ -100,6 +100,9 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(Number(totalCount[0].count) / limit),
       },
     });
+
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+    return response;
   } catch (error) {
     console.error("Error fetching sales:", error);
     return NextResponse.json(

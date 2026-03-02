@@ -38,49 +38,59 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const services = await db.select().from(serviceRecords)
-      .where(whereClause)
-      .orderBy(desc(serviceRecords.createdAt))
-      .limit(limit)
-      .offset(offset);
-
-    // Filtered count (for pagination)
-    const totalCount = await db.select({ count: sql<number>`count(*)` })
-      .from(serviceRecords)
-      .where(whereClause);
-
-    // Status breakdown (from ALL data, not filtered)
-    const [totalAll] = await db.select({ count: sql<number>`count(*)` }).from(serviceRecords);
-    
-    const statusBreakdown = await db.select({
-      status: serviceRecords.status,
-      count: sql<number>`count(*)`,
-    }).from(serviceRecords).groupBy(serviceRecords.status);
-
-    const statusCounts: Record<string, number> = { All: Number(totalAll.count) };
-    statusBreakdown.forEach((s) => { statusCounts[s.status] = Number(s.count); });
-
-    // Pending = not Completed and not Delivered
-    const [pendingStats] = await db.select({
-      count: sql<number>`count(*)`,
-    }).from(serviceRecords).where(
-      and(
-        sql`${serviceRecords.status} != 'Completed'`,
-        sql`${serviceRecords.status} != 'Delivered'`
+    // Run all database queries in parallel
+    const [
+      services,
+      totalCountResult,
+      totalAllResult,
+      statusBreakdown,
+      pendingStatsResult
+    ] = await Promise.all([
+      db.select().from(serviceRecords)
+        .where(whereClause)
+        .orderBy(desc(serviceRecords.createdAt))
+        .limit(limit)
+        .offset(offset),
+      
+      db.select({ count: sql<number>`count(*)` })
+        .from(serviceRecords)
+        .where(whereClause),
+      
+      db.select({ count: sql<number>`count(*)` }).from(serviceRecords),
+      
+      db.select({
+        status: serviceRecords.status,
+        count: sql<number>`count(*)`,
+      }).from(serviceRecords).groupBy(serviceRecords.status),
+      
+      db.select({
+        count: sql<number>`count(*)`,
+      }).from(serviceRecords).where(
+        and(
+          sql`${serviceRecords.status} != 'Completed'`,
+          sql`${serviceRecords.status} != 'Delivered'`
+        )
       )
-    );
+    ]);
+
+    const statusCounts: Record<string, number> = { All: Number(totalAllResult[0].count) };
+    statusBreakdown.forEach((s) => { statusCounts[s.status] = Number(s.count); });
 
     return NextResponse.json({
       services,
       stats: {
         statusCounts,
-        pendingCount: Number(pendingStats.count),
+        pendingCount: Number(pendingStatsResult[0].count),
       },
       pagination: {
         page, limit,
-        total: Number(totalCount[0].count),
-        totalPages: Math.ceil(Number(totalCount[0].count) / limit),
+        total: Number(totalCountResult[0].count),
+        totalPages: Math.ceil(Number(totalCountResult[0].count) / limit),
       },
+    }, {
+      headers: {
+        "Cache-Control": "private, max-age=10",
+      }
     });
   } catch (error) {
     console.error("Error fetching services:", error);

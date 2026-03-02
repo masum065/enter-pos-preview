@@ -41,21 +41,7 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const allExpenses = await db
-      .select()
-      .from(expenses)
-      .where(whereClause)
-      .orderBy(desc(expenses.date))
-      .limit(limit)
-      .offset(offset);
-
-    const [{ count: totalCount }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(expenses)
-      .where(whereClause);
-
-    // Category breakdown — filtered by the same date/search conditions
-    // Build date-only conditions (exclude category filter for breakdown)
+    // Category breakdown date conditions
     const dateConditions = [];
     if (startDate) dateConditions.push(gte(expenses.date, new Date(startDate)));
     if (endDate) {
@@ -65,53 +51,76 @@ export async function GET(request: NextRequest) {
     }
     const breakdownWhere = dateConditions.length > 0 ? and(...dateConditions) : undefined;
 
-    const breakdown = await db
-      .select({
-        category: expenses.category,
-        total: sql<string>`SUM(${expenses.amount})`,
-        count: sql<number>`count(*)`,
-      })
-      .from(expenses)
-      .where(breakdownWhere)
-      .groupBy(expenses.category)
-      .orderBy(sql`SUM(${expenses.amount}) DESC`);
-
-    // Aggregate stats (from ALL data)
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [totalStats] = await db.select({
-      total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-    }).from(expenses);
-
-    const [monthStats] = await db.select({
-      total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-    }).from(expenses).where(gte(expenses.date, monthStart));
-
-    const [todayStats] = await db.select({
-      total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-    }).from(expenses).where(gte(expenses.date, todayStart));
-
-    // Filtered total (for the specific filter combination)
-    const [filteredStats] = await db.select({
-      total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-    }).from(expenses).where(whereClause);
+    // Execute all 7 queries in parallel
+    const [
+      allExpenses,
+      totalCountResult,
+      breakdown,
+      totalStatsResult,
+      monthStatsResult,
+      todayStatsResult,
+      filteredStatsResult
+    ] = await Promise.all([
+      db.select()
+        .from(expenses)
+        .where(whereClause)
+        .orderBy(desc(expenses.date))
+        .limit(limit)
+        .offset(offset),
+        
+      db.select({ count: sql<number>`count(*)` })
+        .from(expenses)
+        .where(whereClause),
+        
+      db.select({
+          category: expenses.category,
+          total: sql<string>`SUM(${expenses.amount})`,
+          count: sql<number>`count(*)`,
+        })
+        .from(expenses)
+        .where(breakdownWhere)
+        .groupBy(expenses.category)
+        .orderBy(sql`SUM(${expenses.amount}) DESC`),
+        
+      db.select({
+        total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+      }).from(expenses),
+      
+      db.select({
+        total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+      }).from(expenses).where(gte(expenses.date, monthStart)),
+      
+      db.select({
+        total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+      }).from(expenses).where(gte(expenses.date, todayStart)),
+      
+      db.select({
+        total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+      }).from(expenses).where(whereClause)
+    ]);
 
     return NextResponse.json({
       expenses: allExpenses,
       categoryBreakdown: breakdown,
       stats: {
-        totalAmount: Number(totalStats.total),
-        thisMonthAmount: Number(monthStats.total),
-        todayAmount: Number(todayStats.total),
-        filteredAmount: Number(filteredStats.total),
+        totalAmount: Number(totalStatsResult[0].total),
+        thisMonthAmount: Number(monthStatsResult[0].total),
+        todayAmount: Number(todayStatsResult[0].total),
+        filteredAmount: Number(filteredStatsResult[0].total),
       },
       pagination: {
         page, limit,
-        total: Number(totalCount),
-        totalPages: Math.ceil(Number(totalCount) / limit),
+        total: Number(totalCountResult[0].count),
+        totalPages: Math.ceil(Number(totalCountResult[0].count) / limit),
       },
+    }, {
+      headers: {
+        "Cache-Control": "private, max-age=10",
+      }
     });
   } catch (error) {
     console.error("Error fetching expenses:", error);

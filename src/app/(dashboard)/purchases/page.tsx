@@ -266,7 +266,7 @@ function PurchaseHistoryPageContent() {
           {(["all", "paid", "partial", "unpaid"] as const).map((status) => (
             <button
               key={status}
-              onClick={() => { setPaymentStatus(status); setPage(1); }}
+              onClick={() => setPaymentStatus(status)}
               className={`rounded-full px-4 py-2 text-sm font-medium capitalize transition-all ${
                 paymentStatus === status
                   ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
@@ -281,7 +281,7 @@ function PurchaseHistoryPageContent() {
         {/* Date Filter */}
         <select
           value={dateFilter}
-          onChange={(e) => { setDateFilter(e.target.value as typeof dateFilter); setPage(1); }}
+          onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
           className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
         >
           <option value="all">All Time</option>
@@ -297,14 +297,14 @@ function PurchaseHistoryPageContent() {
             <input
               type="date"
               value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+              onChange={(e) => setDateFrom(e.target.value)}
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
             <span className="text-sm text-gray-500">to</span>
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              onChange={(e) => setDateTo(e.target.value)}
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
           </div>

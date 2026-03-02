@@ -266,6 +266,7 @@ export default function NewSalePage() {
   // Completed sale for print
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const { toast, showToast } = useToast();
 
   // Handle new customer added
@@ -358,7 +359,8 @@ export default function NewSalePage() {
   const handleSubmit = async () => {
     if (!selectedCustomer) return;
     if (saleItems.length === 0) return;
-
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const saleData = {
         invoiceDate: new Date().toISOString(),
@@ -394,6 +396,8 @@ export default function NewSalePage() {
     } catch (error) {
       console.error("Error creating sale:", error);
       showToast("Failed to create sale. Please try again.", "error");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -688,9 +692,14 @@ export default function NewSalePage() {
               </button>
               <button
                 onClick={handleSubmit}
-                className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-2.5 font-medium text-white shadow-lg"
+                disabled={submitting}
+                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-2.5 font-medium text-white shadow-lg disabled:opacity-60"
               >
-                Complete Sale
+                {submitting ? (
+                  <><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Processing...</>
+                ) : (
+                  <>Complete Sale</>
+                )}
               </button>
             </div>
           </div>

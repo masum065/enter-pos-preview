@@ -2,9 +2,12 @@
 
 import { useState, useMemo } from "react";
 import { useSales } from "@/hooks/useSales";
+import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Modal, ModalFooter } from "@/components/ui/modal";
+import { Modal } from "@/components/ui/modal";
+import { ToastNotification } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
 
 type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer";
 
@@ -28,22 +31,22 @@ function PaymentModal({
 }: {
   sale: Sale;
   onClose: () => void;
-  onSubmit: (method: PaymentMethod, amount: number) => void;
+  onSubmit: (method: PaymentMethod, amount: number) => Promise<void>;
 }) {
   const [method, setMethod] = useState<PaymentMethod>("Cash");
   const [amount, setAmount] = useState(sale.dueAmount);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    if (amount <= 0) {
-      setError("Amount must be greater than 0");
-      return;
+  const handleSubmit = async () => {
+    if (amount <= 0) { setError("Amount must be greater than 0"); return; }
+    if (amount > sale.dueAmount) { setError("Amount cannot exceed due amount"); return; }
+    setSubmitting(true);
+    try {
+      await onSubmit(method, amount);
+    } finally {
+      setSubmitting(false);
     }
-    if (amount > sale.dueAmount) {
-      setError("Amount cannot exceed due amount");
-      return;
-    }
-    onSubmit(method, amount);
   };
 
   return (
@@ -67,12 +70,11 @@ function PaymentModal({
 
         {/* Payment Method */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Payment Method
-          </label>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Payment Method</label>
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value as PaymentMethod)}
+            disabled={submitting}
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           >
             <option value="Cash">Cash</option>
@@ -85,9 +87,7 @@ function PaymentModal({
 
         {/* Amount */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Amount
-          </label>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Amount</label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">৳</span>
             <input
@@ -95,6 +95,7 @@ function PaymentModal({
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value))}
               max={sale.dueAmount}
+              disabled={submitting}
               className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
           </div>
@@ -103,36 +104,32 @@ function PaymentModal({
 
         {/* Quick Amount Buttons */}
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setAmount(sale.dueAmount)}
-            className="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
-          >
+          <button type="button" onClick={() => setAmount(sale.dueAmount)}
+            disabled={submitting}
+            className="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300">
             Full Amount
           </button>
-          <button
-            type="button"
-            onClick={() => setAmount(Math.round(sale.dueAmount / 2))}
-            className="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
-          >
+          <button type="button" onClick={() => setAmount(Math.round(sale.dueAmount / 2))}
+            disabled={submitting}
+            className="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300">
             Half
           </button>
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer using ModalFooter for consistency */}
       <div className="flex justify-end gap-3 pt-6">
-        <button
-          onClick={onClose}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-700 dark:text-gray-300"
-        >
+        <button onClick={onClose} disabled={submitting}
+          className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300">
           Cancel
         </button>
-        <button
-          onClick={handleSubmit}
-          className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-2 font-medium text-white"
-        >
-          Collect {formatCurrency(amount)}
+        <button onClick={handleSubmit} disabled={submitting}
+          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-2 font-medium text-white disabled:opacity-60">
+          {submitting ? (
+            <><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Processing...</>
+          ) : (
+            <>Collect {formatCurrency(amount)}</>
+          )}
         </button>
       </div>
     </Modal>
@@ -141,6 +138,8 @@ function PaymentModal({
 
 export default function DueCollectionPage() {
   const { data: salesData, isLoading } = useSales();
+  const qc = useQueryClient();
+  const { toast, showToast } = useToast();
   const allSales: Sale[] = (salesData?.sales || []) as any[];
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
 
@@ -152,16 +151,12 @@ export default function DueCollectionPage() {
     return salesWithDue.reduce((sum, s) => sum + parseFloat(String(s.dueAmount || 0)), 0);
   }, [salesWithDue]);
 
-  const handlePayment = async (method: PaymentMethod, amount: number) => {
-    if (selectedSale) {
-      try {
-        await apiClient.post(`/api/sales/${selectedSale.id}/payments`, { method, amount });
-        setSelectedSale(null);
-        // The useSales hook will refetch automatically
-      } catch (error) {
-        console.error("Payment failed:", error);
-      }
-    }
+  const handlePayment = async (method: PaymentMethod, amount: number): Promise<void> => {
+    if (!selectedSale) return;
+    await apiClient.post(`/api/sales/${selectedSale.id}/payments`, { method, amount });
+    await qc.invalidateQueries({ queryKey: ["sales"] });
+    showToast(`Payment of ${formatCurrency(amount)} collected for ${selectedSale.invoiceNumber}`);
+    setSelectedSale(null);
   };
 
   if (isLoading) {
@@ -257,6 +252,8 @@ export default function DueCollectionPage() {
           onSubmit={handlePayment}
         />
       )}
+
+      <ToastNotification toast={toast} />
     </div>
   );
 }

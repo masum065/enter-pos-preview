@@ -195,6 +195,8 @@ export function AddCustomerModal({
         onConfirm={handleSubmit}
         cancelText="Cancel"
         confirmText="Add Customer"
+        isLoading={createCustomer.isPending}
+        confirmDisabled={createCustomer.isPending}
       />
     </Modal>
   );
@@ -388,6 +390,8 @@ export function EditCustomerModal({
         onConfirm={handleSubmit}
         cancelText="Cancel"
         confirmText="Update Customer"
+        isLoading={updateCustomer.isPending}
+        confirmDisabled={updateCustomer.isPending}
       />
     </Modal>
   );

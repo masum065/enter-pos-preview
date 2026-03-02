@@ -1,0 +1,312 @@
+# Enter Computer POS — Complete Knowledge Base
+
+> **Purpose**: This document captures the full application architecture, business logic, coding patterns, and the user's (Masum's) preferences and thinking style. Reference this before starting any task to understand what the user expects.
+
+---
+
+## 🧠 User's Way of Thinking & Preferences
+
+### Communication Style
+- Speaks in **Bangla** (Banglish script). Respond in same style when appropriate.
+- Wants **business logic correctness** above all — relations, data flow, ledger consistency.
+- Prefers **server-side filtering/search/pagination** — never client-side filtering on paginated data.
+- Hates unnecessary `required` fields — if something can't be known at creation time (e.g. parts cost before diagnosis), make it optional.
+- Wants **existing components reused** — e.g. the project's `Modal` component, not custom divs.
+- Thinks in **real-world shop workflow**: "na khular ag porjonto to bola jay na je konta konta problem" (you can't know all problems until you open the device).
+
+### Quality Expectations
+- Always **verify builds** (`npx next build`) after changes.
+- Always **commit** with descriptive messages after verified changes.
+- **Audit related files** when touching a feature — check API, hook, frontend, schema, and validations together.
+- **Check relations** — FK references, ledger updates (supplier balance, customer balance), activity logs.
+- When fixing a page, fix the **entire pattern**: API filters → hook params → frontend URL-based state.
+
+### What Annoys the User
+- Client-side filtering on server-paginated data (broken pattern).
+- Hardcoded values like `createdBy: "admin"` when session exists.
+- Missing API endpoints that the frontend calls (404s).
+- UI bugs like modals not rendering properly (use portal-based Modal component).
+- `useProducts()` or `useCustomers()` without `limit: 500` in selector/combobox contexts (shows only 20 items).
+
+---
+
+## 🏗️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | **Next.js 16** (App Router, `src/` directory) |
+| Language | **TypeScript** |
+| Styling | **Tailwind CSS** (TailAdmin template base) |
+| Database | **PostgreSQL** (Supabase) |
+| ORM | **Drizzle ORM** 0.45 |
+| Auth | **jose** (JWT in HTTP-only cookies via middleware) |
+| State | **React Query** (@tanstack/react-query) for server state |
+| Client State | **Zustand** (legacy stores, mostly replaced by React Query) |
+| Validation | **Zod** 4 |
+| API Client | Custom `apiClient` (`src/lib/api-client.ts`) |
+| Charts | **ApexCharts** |
+| Dates | **date-fns** + **dayjs** |
+
+---
+
+## 📁 Project Structure
+
+```
+src/
+├── app/
+│   ├── api/                    # API routes (Next.js Route Handlers)
+│   │   ├── auth/               # login, logout, session
+│   │   ├── customers/          # CRUD + [id]/ + [id]/transactions
+│   │   ├── products/           # CRUD + [id]/
+│   │   ├── stock/              # CRUD + bulk/ + [id]/
+│   │   ├── sales/              # CRUD + [id]/ + [id]/payments + [id]/returns
+│   │   ├── services/           # CRUD + [id]/
+│   │   ├── expenses/           # CRUD + [id]/
+│   │   ├── suppliers/          # CRUD + [id]/ + [id]/payments
+│   │   ├── purchases/          # Local purchase invoices
+│   │   ├── reports/            # sales, profit, summary
+│   │   ├── users/              # User management + [id]/
+│   │   ├── settings/           # Shop settings
+│   │   └── activity-logs/      # Audit trail
+│   ├── (dashboard)/            # Dashboard layout group
+│   │   ├── page.tsx            # Home dashboard
+│   │   ├── customers/          # Customer management
+│   │   ├── inventory/
+│   │   │   ├── products/       # Product catalog
+│   │   │   └── stock/          # Stock list + add/
+│   │   ├── sales/              # Sales list + new/ + due/
+│   │   ├── services/           # Services list + new/
+│   │   ├── expenses/           # Expenses list + new/
+│   │   ├── purchases/          # Purchase list + new/
+│   │   ├── suppliers/          # Suppliers + ledger/
+│   │   ├── reports/            # Reports page
+│   │   └── settings/           # Settings page
+│   └── auth/                   # Login page
+├── components/
+│   ├── ui/                     # Reusable UI components
+│   │   ├── modal.tsx           # ⚠️ ALWAYS USE THIS for modals
+│   │   ├── pagination.tsx      # Pagination component
+│   │   ├── dropdown.tsx        # Dropdown menu
+│   │   ├── table.tsx           # Table component
+│   │   └── skeleton.tsx        # Loading skeleton
+│   ├── customers/              # Customer-specific modals
+│   └── Layouts/                # Sidebar, Header
+├── hooks/                      # React Query hooks (one per entity)
+│   ├── useCustomers.ts
+│   ├── useProducts.ts
+│   ├── useStock.ts
+│   ├── useSales.ts
+│   ├── useServices.ts
+│   ├── useExpenses.ts
+│   ├── useSuppliers.ts
+│   ├── usePurchases.ts
+│   ├── useReports.ts
+│   ├── useSettings.ts
+│   └── useSession.ts
+├── db/
+│   ├── schema.ts               # Drizzle schema (14 tables)
+│   ├── index.ts                # DB connection
+│   └── seed.ts                 # Seed script
+├── lib/
+│   ├── api-client.ts           # apiClient.get/post/put/patch/delete
+│   ├── session.ts              # getSession() from JWT cookie
+│   ├── utils.ts                # formatCurrency, formatDate, getStatusColor, cn
+│   └── validations/            # Zod schemas
+│       ├── inventory.ts        # product, stockItem schemas
+│       └── services.ts         # serviceRecord, statusUpdate, payment schemas
+└── stores/                     # Zustand stores (legacy, partially used)
+```
+
+---
+
+## 🗄️ Database Schema (14 Tables)
+
+### Core Entities
+| Table | Key Fields | Purpose |
+|-------|-----------|---------|
+| `users` | id, userId, name, email, passwordHash, role | Authentication & RBAC |
+| `products` | id, modelName, brand, category, defaultSalePrice | Product catalog |
+| `customers` | id, name, phone, balance, totalPurchases, totalPaid | Customer ledger |
+| `suppliers` | id, companyName, phone, balance, totalPurchases, totalPaid | Supplier ledger |
+
+### Inventory & Purchasing
+| Table | Key Fields | Purpose |
+|-------|-----------|---------|
+| `stock_items` | id, serialNumber, productId, purchasePrice, purchaseSource, supplierId, sellerId, status | Serial-level stock tracking |
+| `purchase_invoices` | id, invoiceNumber, sellerId, productId, serialNumber, purchasePrice | Local purchase records |
+
+### Sales
+| Table | Key Fields | Purpose |
+|-------|-----------|---------|
+| `sales` | id, invoiceNumber, customerId, grandTotal, paidAmount, dueAmount, totalProfit, status | Sale invoices |
+| `sale_items` | id, saleId, stockItemId, serialNumber, salePrice, purchasePrice, profit | Line items per sale |
+| `payments` | id, saleId, method, amount | Payment records |
+| `sale_returns` | id, saleId, totalReturnAmount, refundMethod | Return headers |
+| `sale_return_items` | id, returnId, saleItemId, serialNumber, returnAmount | Return line items |
+
+### Services & Expenses
+| Table | Key Fields | Purpose |
+|-------|-----------|---------|
+| `service_records` | id, serviceNumber, customerId, deviceBrand, deviceModel, problemDescription, status, totalCost, paidAmount | Device repair tracking |
+| `expenses` | id, expenseNumber, date, category, amount, paymentMethod | Expense tracking |
+
+### System
+| Table | Key Fields | Purpose |
+|-------|-----------|---------|
+| `activity_logs` | id, userId, action, entityId, details, beforeData, afterData | Audit trail |
+| `settings` | id, key, value | Shop configuration |
+| `customer_transactions` | id, customerId, type, amount, balanceAfter | Customer ledger entries |
+| `supplier_transactions` | id, supplierId, type, amount, balanceAfter | Supplier ledger entries |
+
+---
+
+## 🔄 Business Logic Flows
+
+### Stock Entry Flow
+1. **Supplier purchase**: Stock added → supplier transaction created → supplier balance updated → supplier totalPurchases updated
+2. **Local purchase**: Stock added → purchase invoice created → seller (customer) linked
+3. Both: `purchaseSource` = "supplier" or "local", serial number must be unique
+
+### Sales Flow
+1. Customer selected → products searched by serial number → items added
+2. Each item: salePrice set, profit = salePrice - purchasePrice
+3. Payment: multi-method (Cash, Bkash, Nagad, Card, Bank Transfer)
+4. On sale: stock items marked "Sold", customer balance updated (totalPurchases, balance)
+5. Due tracking: dueAmount = grandTotal - paidAmount
+
+### Service Workflow
+```
+Received → Diagnosing → Waiting for Parts → In Progress → Completed → Delivered
+```
+- Problems stored as **newline-separated list** (supports multiple problems)
+- Costs (service charge + parts) can be 0 at creation, updated after diagnosis
+- Payment status: Pending → Partial → Paid (auto-calculated)
+- Auto-dates: completedDate set when → Completed, deliveredDate set when → Delivered
+
+### Ledger Pattern (Customers & Suppliers)
+- Every financial transaction creates a `_transactions` entry with `balanceAfter`
+- Parent entity (customer/supplier) has denormalized `balance`, `totalPurchases`, `totalPaid`
+- These must stay in sync — any update should update both the transaction table AND the parent
+
+---
+
+## 🎨 Coding Patterns (MUST FOLLOW)
+
+### API Route Pattern
+```typescript
+// GET with server-side search, filters, pagination
+export async function GET(request: NextRequest) {
+  const session = await getSession();
+  const { searchParams } = new URL(request.url);
+  
+  // Filters as AND conditions
+  const conditions = [];
+  if (status) conditions.push(eq(table.status, status));
+  if (search) conditions.push(or(ilike(table.name, `%${search}%`), ...));
+  
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  
+  // Filtered data
+  const items = await db.select().from(table).where(whereClause).limit(limit).offset(offset);
+  
+  // Filtered count (for pagination)
+  const totalCount = await db.select({ count: sql`count(*)` }).from(table).where(whereClause);
+  
+  // Status counts from ALL data (for tab badges)
+  const statusCounts = await db.select({ status, count }).from(table).groupBy(status);
+  
+  return { items, pagination: { page, limit, total, totalPages }, stats: { statusCounts } };
+}
+```
+
+### Hook Pattern
+```typescript
+interface Filters { search?: string; status?: string; page?: number; limit?: number; }
+
+export function useEntities(filters: Filters = {}) {
+  return useQuery({
+    queryKey: ["entities", "list", filters],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (filters.search) params.search = filters.search;
+      // ... pass all filters as URL params
+      return apiClient.get("/api/entities", params);
+    },
+  });
+}
+```
+
+### Frontend Page Pattern (URL-based filters)
+```typescript
+// URL as source of truth
+const activeSearch = searchParams.get("search") || "";
+const activeStatus = searchParams.get("status") || "";
+
+// Search via form submit (not on every keystroke)
+const [searchInput, setSearchInput] = useState(activeSearch);
+const handleSearch = (e) => { /* push ?search=xxx */ };
+
+// Status tabs with counts from API
+{STATUS_OPTIONS.map((status) => (
+  <button onClick={() => setStatus(status)}>
+    {status} ({statusCounts[status] || 0})
+  </button>
+))}
+
+// NO client-side filteredItems = useMemo(() => ...) on paginated data!
+```
+
+### Modal Pattern
+```tsx
+// ⚠️ ALWAYS use the existing Modal component
+import { Modal, ModalFooter } from "@/components/ui/modal";
+
+<Modal isOpen={true} onClose={onClose} title="Edit Item" size="lg">
+  {/* form content */}
+  <ModalFooter onCancel={onClose} onConfirm={handleSave} confirmText="Save" isLoading={saving} />
+</Modal>
+```
+
+### Selector/Combobox Pattern
+```typescript
+// When using useProducts() or useCustomers() in dropdowns/selectors,
+// ALWAYS pass limit: 500 to get all items, not just the default 20
+const { data: productsData } = useProducts({ limit: 500 });
+```
+
+---
+
+## 📐 UI Conventions
+
+- **Theme**: Dark mode with TailAdmin base, purple/pink gradient accents for services
+- **Status colors**: Via `getStatusColor()` in `src/lib/utils.ts`
+- **Currency**: ৳ (Bangladeshi Taka), formatted via `formatCurrency()`
+- **Dates**: Formatted via `formatDate()` from utils
+- **Loading**: `<div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent">`
+- **Empty states**: Dashed border box with message
+- **Stats cards**: Gradient cards for primary stat, white/dark cards for secondary
+- **Pagination**: `<Pagination currentPage={page} totalPages={...} onPageChange={setPage} />`
+
+---
+
+## 🔐 Authentication
+
+- JWT stored in HTTP-only cookie (`pos-session`)
+- `getSession()` reads and verifies JWT on every API call
+- Roles: `admin`, `manager`, `employee`
+- All API routes check `session` first
+- `createdBy` field on entities is set from `session.id` in the API, never from frontend
+
+---
+
+## 📋 Checklist for Any Task
+
+1. ☐ Check the **schema** for the entity being modified
+2. ☐ Check the **API route** — does it have proper filters, search, pagination?
+3. ☐ Check the **hook** — does it pass all needed params?
+4. ☐ Check the **frontend** — is filtering server-side or client-side?
+5. ☐ Check **related entities** — ledger updates, status changes, activity logs
+6. ☐ Check **selectors/comboboxes** — do they pass `limit: 500`?
+7. ☐ Use existing **UI components** (Modal, Pagination, etc.)
+8. ☐ **Build** passes (`npx next build`)
+9. ☐ **Commit** with descriptive message

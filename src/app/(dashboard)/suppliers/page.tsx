@@ -28,12 +28,13 @@ interface Supplier {
 
 // Edit Supplier Modal (kept for inline edit; Add is now a separate page)
 function EditSupplierModal({
-  isOpen, onClose, supplier, onSave,
+  isOpen, onClose, supplier, onSave, isPending = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
   supplier: Supplier | null;
   onSave: (data: Partial<Supplier>) => void;
+  isPending?: boolean;
 }) {
   const [formData, setFormData] = useState({ companyName: "", phone: "", email: "", address: "", notes: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -64,7 +65,7 @@ function EditSupplierModal({
       address: formData.address.trim() || undefined,
       notes: formData.notes.trim() || undefined,
     });
-    onClose();
+    // Do NOT call onClose() here — let the parent close on mutation success
   };
 
   return (
@@ -74,6 +75,7 @@ function EditSupplierModal({
           <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Company Name <span className="text-red-500">*</span></label>
           <input type="text" value={formData.companyName}
             onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+            disabled={isPending}
             className={`w-full rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${errors.companyName ? "border-red-500" : "border-gray-300 dark:border-gray-700"}`}
           />
           {errors.companyName && <p className="mt-1 text-sm text-red-500">{errors.companyName}</p>}
@@ -83,6 +85,7 @@ function EditSupplierModal({
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Phone <span className="text-red-500">*</span></label>
             <input type="tel" value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              disabled={isPending}
               className={`w-full rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${errors.phone ? "border-red-500" : "border-gray-300 dark:border-gray-700"}`}
             />
             {errors.phone && <p className="mt-1 text-sm text-red-500">{errors.phone}</p>}
@@ -91,6 +94,7 @@ function EditSupplierModal({
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
             <input type="email" value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              disabled={isPending}
               className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
           </div>
@@ -99,6 +103,7 @@ function EditSupplierModal({
           <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
           <input type="text" value={formData.address}
             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            disabled={isPending}
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
         </div>
@@ -106,11 +111,19 @@ function EditSupplierModal({
           <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
           <textarea value={formData.notes} rows={2}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            disabled={isPending}
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
         </div>
       </div>
-      <ModalFooter onCancel={onClose} onConfirm={handleSubmit} cancelText="Cancel" confirmText="Update" />
+      <ModalFooter
+        onCancel={onClose}
+        onConfirm={handleSubmit}
+        cancelText="Cancel"
+        confirmText="Update"
+        isLoading={isPending}
+        confirmDisabled={isPending}
+      />
     </Modal>
   );
 }
@@ -438,7 +451,8 @@ function SuppliersPageContent() {
 
       {/* Edit Modal */}
       <EditSupplierModal isOpen={showEditModal} onClose={() => setShowEditModal(false)}
-        supplier={selectedSupplier} onSave={handleUpdate} />
+        supplier={selectedSupplier} onSave={handleUpdate}
+        isPending={updateSupplierMutation.isPending} />
 
       {/* Payment Modal */}
       <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)}
@@ -450,7 +464,9 @@ function SuppliersPageContent() {
           Are you sure you want to delete <strong>{selectedSupplier?.companyName}</strong>? This will delete all transaction history.
         </p>
         <ModalFooter onCancel={() => setShowDeleteConfirm(false)} onConfirm={handleDelete}
-          cancelText="Cancel" confirmText="Delete" confirmVariant="danger" />
+          cancelText="Cancel" confirmText="Delete" confirmVariant="danger"
+          isLoading={deleteSupplierMutation.isPending}
+          confirmDisabled={deleteSupplierMutation.isPending} />
       </Modal>
 
       <ToastNotification toast={toast} />

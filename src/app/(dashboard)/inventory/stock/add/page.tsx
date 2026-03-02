@@ -228,7 +228,7 @@ function AddStockContent() {
   const [formData, setFormData] = useState({
     serialNumber: "",
     imei: "",
-    purchasePrice: 0,
+    purchasePrice: "" as number | "",
     purchaseDate: new Date().toISOString().split("T")[0],
     notes: "",
   });
@@ -241,7 +241,7 @@ function AddStockContent() {
 
   // Set initial purchase price when product is pre-selected
   useEffect(() => {
-    if (preSelectedProductId && formData.purchasePrice === 0) {
+    if (preSelectedProductId && (formData.purchasePrice === 0 || formData.purchasePrice === "")) {
       const product = products.find((p) => p.id === preSelectedProductId);
       if (product) {
       setFormData((prev) => ({
@@ -257,7 +257,7 @@ function AddStockContent() {
     
     if (!selectedProduct) newErrors.product = "Please select a product";
     if (!formData.serialNumber.trim()) newErrors.serialNumber = "Serial number is required";
-    if (formData.purchasePrice <= 0) newErrors.purchasePrice = "Purchase price must be greater than 0";
+    if (formData.purchasePrice === "" || Number(formData.purchasePrice) <= 0) newErrors.purchasePrice = "Purchase price must be greater than 0";
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -273,7 +273,7 @@ function AddStockContent() {
         serialNumber: formData.serialNumber.trim(),
         imei: formData.imei.trim() || undefined,
         productId: selectedProduct,
-        purchasePrice: formData.purchasePrice,
+        purchasePrice: Number(formData.purchasePrice),
         supplierId: selectedSupplier?.id || undefined,
         supplierName: selectedSupplier?.companyName || undefined,
         purchaseSource: "supplier",
@@ -286,7 +286,7 @@ function AddStockContent() {
       setFormData({
         serialNumber: "",
         imei: "",
-        purchasePrice: formData.purchasePrice,
+        purchasePrice: Number(formData.purchasePrice),
         purchaseDate: formData.purchaseDate,
         notes: "",
       });
@@ -322,7 +322,7 @@ function AddStockContent() {
     const items = serials.map((serial) => ({
       serialNumber: serial,
       productId: selectedProduct,
-      purchasePrice: formData.purchasePrice,
+      purchasePrice: Number(formData.purchasePrice),
       supplierId: selectedSupplier?.id || undefined,
       supplierName: selectedSupplier?.companyName || undefined,
       purchaseSource: "supplier" as const,
@@ -403,7 +403,7 @@ function AddStockContent() {
               onSelect={(productId) => {
                 setSelectedProduct(productId);
                 const product = products.find((p) => p.id === productId);
-                if (product && formData.purchasePrice === 0) {
+                if (product && (formData.purchasePrice === 0 || formData.purchasePrice === "")) {
                 setFormData((prev) => ({
                     ...prev,
                     purchasePrice: Math.round(parseFloat(product.defaultSalePrice) * 0.85),
@@ -470,11 +470,12 @@ function AddStockContent() {
                     <input
                       type="number"
                       value={formData.purchasePrice}
-                      onChange={(e) => setFormData({ ...formData, purchasePrice: Number(e.target.value) })}
+                      onChange={(e) => setFormData({ ...formData, purchasePrice: e.target.value === "" ? "" : Number(e.target.value) })}
                       className={`w-full rounded-lg border py-3 pl-10 pr-4 text-gray-900 focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
                         errors.purchasePrice ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500 dark:border-gray-700"
                       }`}
                       min="0"
+                      step="0.01"
                     />
                   </div>
                   {errors.purchasePrice && <p className="mt-1 text-sm text-red-500">{errors.purchasePrice}</p>}
@@ -516,9 +517,10 @@ function AddStockContent() {
                     <input
                       type="number"
                       value={formData.purchasePrice}
-                      onChange={(e) => setFormData({ ...formData, purchasePrice: Number(e.target.value) })}
+                      onChange={(e) => setFormData({ ...formData, purchasePrice: e.target.value === "" ? "" : Number(e.target.value) })}
                       className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                       min="0"
+                      step="0.01"
                     />
                   </div>
                 </div>

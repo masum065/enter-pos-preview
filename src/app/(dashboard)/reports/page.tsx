@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -155,6 +155,7 @@ export default function ReportsPage() {
       return apiClient.get<ReportData>("/api/reports", p);
     },
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 
   // Fetch activity logs

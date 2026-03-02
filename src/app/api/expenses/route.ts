@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { expenses, activityLogs } from "@/db/schema";
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, or, ilike } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { expenseSchema } from "@/lib/validations/services";
 
@@ -15,29 +15,46 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
-
-    let queryBuilder = db.select().from(expenses).$dynamic();
 
     const conditions = [];
     if (category) conditions.push(eq(expenses.category, category));
     if (startDate) conditions.push(gte(expenses.date, new Date(startDate)));
-    if (endDate) conditions.push(lte(expenses.date, new Date(endDate)));
-
-    if (conditions.length > 0) {
-      queryBuilder = queryBuilder.where(and(...conditions));
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      conditions.push(lte(expenses.date, end));
+    }
+    if (search) {
+      conditions.push(
+        or(
+          ilike(expenses.description, `%${search}%`),
+          ilike(expenses.category, `%${search}%`),
+          ilike(expenses.expenseNumber, `%${search}%`),
+          ilike(expenses.paidBy, `%${search}%`),
+        )
+      );
     }
 
-    const allExpenses = await queryBuilder
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const allExpenses = await db
+      .select()
+      .from(expenses)
+      .where(whereClause)
       .orderBy(desc(expenses.date))
       .limit(limit)
       .offset(offset);
 
-    const totalCount = await db.select({ count: sql<number>`count(*)` }).from(expenses);
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(expenses)
+      .where(whereClause);
 
-    // Category breakdown (from ALL data, not paginated)
+    // Category breakdown (from ALL data, not filtered)
     const breakdown = await db
       .select({
         category: expenses.category,
@@ -65,6 +82,11 @@ export async function GET(request: NextRequest) {
       total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
     }).from(expenses).where(gte(expenses.date, todayStart));
 
+    // Filtered total (for the specific filter combination)
+    const [filteredStats] = await db.select({
+      total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+    }).from(expenses).where(whereClause);
+
     return NextResponse.json({
       expenses: allExpenses,
       categoryBreakdown: breakdown,
@@ -72,11 +94,12 @@ export async function GET(request: NextRequest) {
         totalAmount: Number(totalStats.total),
         thisMonthAmount: Number(monthStats.total),
         todayAmount: Number(todayStats.total),
+        filteredAmount: Number(filteredStats.total),
       },
       pagination: {
         page, limit,
-        total: Number(totalCount[0].count),
-        totalPages: Math.ceil(Number(totalCount[0].count) / limit),
+        total: Number(totalCount),
+        totalPages: Math.ceil(Number(totalCount) / limit),
       },
     });
   } catch (error) {
@@ -84,6 +107,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch expenses" }, { status: 500 });
   }
 }
+
 
 // POST /api/expenses - Create expense
 export async function POST(request: NextRequest) {

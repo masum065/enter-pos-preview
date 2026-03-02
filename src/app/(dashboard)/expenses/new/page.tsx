@@ -49,7 +49,6 @@ export default function NewExpensePage() {
       paidBy: formData.paidBy,
       receipt: formData.receipt || undefined,
       notes: formData.notes || undefined,
-      createdBy: "admin",
     } as any, {
       onSuccess: () => router.push("/expenses"),
     });
@@ -211,9 +210,10 @@ export default function NewExpensePage() {
             </Link>
             <button
               type="submit"
-              className="rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-8 py-3 font-medium text-white shadow-lg"
+              disabled={createExpenseMutation.isPending}
+              className="rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-8 py-3 font-medium text-white shadow-lg disabled:opacity-60"
             >
-              Add Expense
+              {createExpenseMutation.isPending ? "Saving..." : "Add Expense"}
             </button>
           </div>
         </div>

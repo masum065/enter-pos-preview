@@ -34,6 +34,7 @@ interface ExpenseFilters {
   category?: string;
   startDate?: string;
   endDate?: string;
+  search?: string;
   page?: number;
   limit?: number;
 }
@@ -53,6 +54,7 @@ export function useExpenses(filters: ExpenseFilters = {}) {
       if (filters.category) params.category = filters.category;
       if (filters.startDate) params.startDate = filters.startDate;
       if (filters.endDate) params.endDate = filters.endDate;
+      if (filters.search) params.search = filters.search;
       if (filters.page) params.page = String(filters.page);
       if (filters.limit) params.limit = String(filters.limit);
       return apiClient.get<ExpensesResponse>("/api/expenses", params);

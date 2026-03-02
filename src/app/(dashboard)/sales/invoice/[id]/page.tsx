@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { sales, saleItems, payments as paymentsTable } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { InvoiceActions } from "../invoice-actions";
 
 // ── number → words (BDT) ─────────────────────────────────────────────────
 function numberToWords(n: number): string {
@@ -218,10 +219,7 @@ export default async function InvoicePage({
       <body>
 
         {/* Toolbar — hidden on print */}
-        <div id="print-btn-bar">
-          <button className="btn btn-close" onClick={() => (window as any).close()}>✕ Close</button>
-          <button className="btn btn-print" onClick={() => window.print()}>🖨️ Print / Save PDF</button>
-        </div>
+        <InvoiceActions />
 
         <div id="invoice">
 
@@ -368,8 +366,6 @@ export default async function InvoicePage({
 
         </div>
 
-        {/* Auto-focus so keyboard shortcut Ctrl+P works immediately */}
-        <script dangerouslySetInnerHTML={{ __html: `window.focus();` }} />
       </body>
     </html>
   );

@@ -371,19 +371,19 @@ function CustomersPageContent() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">
                   Customer
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">
                   Phone
                 </th>
-                <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white md:table-cell">
+                <th className="hidden px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white md:table-cell">
                   Address
                 </th>
-                <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">
+                <th className="hidden px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">
                   Added
                 </th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">
+                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 sm:py-4 text-right text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">
                   Actions
                 </th>
               </tr>
@@ -407,39 +407,39 @@ function CustomersPageContent() {
                     onClick={() => handleViewCustomer(customer)}
                     className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 font-semibold text-white">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs sm:text-sm font-semibold text-white">
                           {customer.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs sm:text-sm font-medium text-gray-900 dark:text-white">
                             {customer.name}
                           </p>
                           {customer.email && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="truncate text-xs text-gray-500 dark:text-gray-400">
                               {customer.email}
                             </p>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900 dark:text-white">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
+                      <p className="whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900 dark:text-white">
                         {formatPhone(customer.phone)}
                       </p>
                     </td>
-                    <td className="hidden px-6 py-4 md:table-cell">
+                    <td className="hidden px-3 sm:px-6 py-3 sm:py-4 md:table-cell">
                       <p className="text-gray-600 dark:text-gray-400">
                         {customer.address || "-"}
                       </p>
                     </td>
-                    <td className="hidden px-6 py-4 lg:table-cell">
+                    <td className="hidden px-3 sm:px-6 py-3 sm:py-4 lg:table-cell">
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         {formatDate(customer.createdAt)}
                       </p>
                     </td>
-                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                    <td className="hidden sm:table-cell px-3 sm:px-6 py-3 sm:py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         {/* View Button */}
                         <button

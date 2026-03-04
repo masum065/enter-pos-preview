@@ -346,7 +346,7 @@ function StockPageContent() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 p-5 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -482,12 +482,12 @@ function StockPageContent() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Serial Number</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Product</th>
-                <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white md:table-cell">Purchase Price</th>
-                <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">Source / Seller</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Status</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
+                <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">Serial Number</th>
+                <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">Product</th>
+                <th className="hidden px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white md:table-cell">Purchase Price</th>
+                <th className="hidden px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">Source / Seller</th>
+                <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">Status</th>
+                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 sm:py-4 text-center text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -504,21 +504,21 @@ function StockPageContent() {
                     onClick={() => setViewingStockItem(item)}
                     className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
                       <div>
-                        <p className="font-mono font-medium text-gray-900 dark:text-white">{item.serialNumber}</p>
+                        <p className="font-mono text-xs sm:text-sm font-medium text-gray-900 dark:text-white">{item.serialNumber}</p>
                         {item.imei && (
                           <p className="text-xs text-gray-500 dark:text-gray-400">IMEI: {item.imei}</p>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900 dark:text-white">{getProductName(item.productId)}</p>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
+                      <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">{getProductName(item.productId)}</p>
                     </td>
-                    <td className="hidden px-6 py-4 md:table-cell">
+                    <td className="hidden px-3 sm:px-6 py-3 sm:py-4 md:table-cell">
                       <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(parseFloat(item.purchasePrice))}</p>
                     </td>
-                    <td className="hidden px-6 py-4 lg:table-cell">
+                    <td className="hidden px-3 sm:px-6 py-3 sm:py-4 lg:table-cell">
                       {item.purchaseSource === "local" ? (
                         <div>
                           <span className="mb-1 inline-flex rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
@@ -537,12 +537,12 @@ function StockPageContent() {
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusColor(item.status)}`}>
                         {item.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                    <td className="hidden sm:table-cell px-3 sm:px-6 py-3 sm:py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
                         {/* View Button */}
                         <button

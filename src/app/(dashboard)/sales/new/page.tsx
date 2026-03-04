@@ -632,11 +632,11 @@ export default function NewSalePage() {
               ))}
 
               {remaining > 0 && (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    className="w-full sm:w-auto rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                   >
                     <option value="Cash">Cash</option>
                     <option value="Bkash">Bkash</option>
@@ -648,11 +648,11 @@ export default function NewSalePage() {
                     type="number"
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                    className="flex-1 rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    className="min-w-0 flex-1 rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                     placeholder="Amount"
                     max={remaining}
                   />
-                  <button onClick={handleAddPayment} className="rounded-lg bg-green-600 px-4 py-2 font-medium text-white">
+                  <button onClick={handleAddPayment} className="shrink-0 rounded-lg bg-green-600 px-4 py-2 font-medium text-white">
                     Add
                   </button>
                 </div>

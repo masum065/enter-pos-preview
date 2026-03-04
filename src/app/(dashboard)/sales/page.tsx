@@ -670,9 +670,9 @@ function SalesPageContent() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">
+        <div className="rounded-xl bg-white p-3.5 sm:p-5 shadow-sm dark:bg-gray-900">
           <p className="text-sm text-gray-600 dark:text-gray-400">Total Sales</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
           <p className="text-sm text-gray-500">{formatCurrency(stats.totalAmount)}</p>
         </div>
         <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-900">

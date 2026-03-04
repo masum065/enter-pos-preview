@@ -155,15 +155,15 @@ export default function ProfilePage() {
       {/* Profile Card */}
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm dark:bg-gray-dark">
         {/* Cover */}
-        <div className="h-36 bg-gradient-to-r from-blue-600 to-indigo-600 md:h-52" />
+        <div className="h-24 sm:h-36 bg-gradient-to-r from-blue-600 to-indigo-600 md:h-52" />
 
         {/* Avatar + Info */}
-        <div className="px-6 pb-8 text-center">
-          <div className="relative mx-auto -mt-16 mb-4 h-32 w-32 rounded-full border-4 border-white bg-white p-0.5 shadow-lg dark:border-gray-dark dark:bg-gray-dark">
+        <div className="px-4 sm:px-6 pb-6 sm:pb-8 text-center">
+          <div className="relative mx-auto -mt-12 sm:-mt-16 mb-3 sm:mb-4 h-24 w-24 sm:h-32 sm:w-32 rounded-full border-4 border-white bg-white p-0.5 shadow-lg dark:border-gray-dark dark:bg-gray-dark">
             <UserAvatarLarge name={name} />
           </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{name}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{name}</h1>
           {email && <p className="mt-1 text-gray-500">{email}</p>}
           <p className="mt-1 text-sm text-gray-400">@{userId}</p>
 

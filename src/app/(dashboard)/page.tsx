@@ -158,7 +158,7 @@ function SalesSummaryChart() {
   };
 
   return (
-    <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
+    <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark">
       {/* Header */}
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -243,7 +243,7 @@ function StockByCategoryChart() {
   const soldPercent = categoryData.total > 0 ? (categoryData.sold / categoryData.total) * 100 : 0;
 
   return (
-    <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
+    <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark">
       <h3 className="mb-4 text-lg font-semibold text-dark dark:text-white">Stock Status</h3>
       
       {/* Donut-like visualization */}
@@ -353,14 +353,14 @@ function QuickActions({ isEmployee }: { isEmployee: boolean }) {
   const actions = isEmployee ? allActions.filter(a => a.employeeAllowed) : allActions;
 
   return (
-    <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
+    <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark">
       <h3 className="mb-4 text-lg font-semibold text-dark dark:text-white">Quick Actions</h3>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         {actions.map((action) => (
           <a
             key={action.label}
             href={action.href}
-            className={`flex flex-col items-center justify-center rounded-xl bg-gradient-to-r ${action.color} p-4 text-white shadow-md transition-transform hover:scale-105`}
+            className={`flex flex-col items-center justify-center rounded-xl bg-gradient-to-r ${action.color} p-3 sm:p-4 text-white shadow-md transition-transform hover:scale-105`}
           >
             {action.icon}
             <span className="mt-2 text-sm font-medium">{action.label}</span>
@@ -428,7 +428,7 @@ function RecentActivity() {
   ];
 
   return (
-    <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
+    <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark">
       <h3 className="mb-4 text-lg font-semibold text-dark dark:text-white">Recent Activity</h3>
       <div className="space-y-4">
         {activities.map((activity, i) => (
@@ -459,7 +459,7 @@ function LowStockAlert() {
   if (lowStockItems.length === 0) return null;
 
   return (
-    <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark">
+    <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
@@ -510,9 +510,9 @@ export default function Home() {
   return (
     <>
       {/* Welcome Banner */}
-      <div className="mb-6 rounded-[10px] bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white shadow-lg">
-        <h1 className="text-2xl font-bold">Welcome to Enter Computer POS</h1>
-        <p className="mt-1 text-blue-100">
+      <div className="mb-4 sm:mb-6 rounded-[10px] bg-gradient-to-r from-blue-600 to-indigo-600 p-4 sm:p-6 text-white shadow-lg">
+        <h1 className="text-lg sm:text-2xl font-bold">Welcome to Enter Computer POS</h1>
+        <p className="mt-1 text-sm sm:text-base text-blue-100">
           Manage your laptop &amp; mobile shop efficiently
         </p>
       </div>

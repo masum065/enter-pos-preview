@@ -3,7 +3,7 @@
 import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
 import { useSession } from "@/hooks/useSession";
 import { apiClient } from "@/lib/api-client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 // SVG User Icon (large, for profile)
@@ -48,6 +48,27 @@ export default function ProfilePage() {
   const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [pwLoading, setPwLoading] = useState(false);
 
+  // Lock Screen state
+  const [lockEnabled, setLockEnabled] = useState(false);
+  const [lockTimeout, setLockTimeout] = useState(5);
+  const [hasPin, setHasPin] = useState(false);
+  const [pinVal, setPinVal] = useState("");
+  const [pinConfirmVal, setPinConfirmVal] = useState("");
+  const [pinSaving, setPinSaving] = useState(false);
+  const [lockMsg, setLockMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  // Fetch lock status on mount
+  useEffect(() => {
+    fetch("/api/lock/status")
+      .then((r) => r.json())
+      .then((data) => {
+        setLockEnabled(data.lockEnabled ?? false);
+        setLockTimeout(data.lockTimeoutMinutes ?? 5);
+        setHasPin(data.hasPin ?? false);
+      })
+      .catch(() => {});
+  }, []);
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (pwForm.newPassword !== pwForm.confirmPassword) {
@@ -75,6 +96,49 @@ export default function ProfilePage() {
       setPwLoading(false);
       setTimeout(() => setPwMsg(null), 4000);
     }
+  };
+
+  const handleSetPin = async () => {
+    if (!/^\d{4}$/.test(pinVal)) {
+      setLockMsg({ text: "PIN must be exactly 4 digits.", ok: false });
+      setTimeout(() => setLockMsg(null), 3000);
+      return;
+    }
+    if (pinVal !== pinConfirmVal) {
+      setLockMsg({ text: "PINs do not match.", ok: false });
+      setTimeout(() => setLockMsg(null), 3000);
+      return;
+    }
+    setPinSaving(true);
+    try {
+      await apiClient.post("/api/lock/set-pin", { pin: pinVal });
+      setHasPin(true);
+      setLockEnabled(true);
+      setPinVal("");
+      setPinConfirmVal("");
+      setLockMsg({ text: "PIN set! Lock screen is now enabled.", ok: true });
+    } catch {
+      setLockMsg({ text: "Failed to set PIN.", ok: false });
+    } finally {
+      setPinSaving(false);
+      setTimeout(() => setLockMsg(null), 4000);
+    }
+  };
+
+  const handleToggleLock = async (enabled: boolean) => {
+    setLockEnabled(enabled);
+    try {
+      await apiClient.put("/api/lock/settings", { lockEnabled: enabled });
+    } catch {
+      setLockEnabled(!enabled);
+    }
+  };
+
+  const handleTimeoutChange = async (minutes: number) => {
+    setLockTimeout(minutes);
+    try {
+      await apiClient.put("/api/lock/settings", { lockTimeoutMinutes: minutes });
+    } catch { /* revert silently */ }
   };
 
   const handleLogout = async () => {
@@ -167,6 +231,89 @@ export default function ProfilePage() {
         </form>
       </div>
 
+      {/* Lock Screen */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-dark">
+        <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">Lock Screen</h2>
+        <p className="mb-5 text-sm text-gray-500">Set a PIN to automatically lock the screen when idle</p>
+
+        {lockMsg && (
+          <div className={`mb-4 rounded-lg px-4 py-2.5 text-sm ${lockMsg.ok ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
+            {lockMsg.text}
+          </div>
+        )}
+
+        <div className="max-w-md space-y-5">
+          {/* Set / Update PIN */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">{hasPin ? "Update PIN" : "Set PIN"}</h3>
+            <div>
+              <label className="mb-1.5 block text-xs text-gray-500">PIN (4 digits)</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                className={inputCls}
+                value={pinVal}
+                onChange={(e) => setPinVal(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter 4-digit PIN"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs text-gray-500">Confirm PIN</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                className={inputCls}
+                value={pinConfirmVal}
+                onChange={(e) => setPinConfirmVal(e.target.value.replace(/\D/g, ""))}
+                placeholder="Re-enter PIN"
+              />
+            </div>
+            <button
+              onClick={handleSetPin}
+              disabled={pinSaving || pinVal.length < 4}
+              className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+            >
+              {pinSaving ? "Saving..." : hasPin ? "Update PIN" : "Set PIN"}
+            </button>
+          </div>
+
+          {/* Enable/Disable toggle */}
+          {hasPin && (
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-700">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Lock Screen</span>
+              <button
+                onClick={() => handleToggleLock(!lockEnabled)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  lockEnabled ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  lockEnabled ? "translate-x-6" : "translate-x-1"
+                }`} />
+              </button>
+            </div>
+          )}
+
+          {/* Timeout */}
+          {hasPin && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Lock after idle</label>
+              <select
+                className={inputCls}
+                value={lockTimeout}
+                onChange={(e) => handleTimeoutChange(Number(e.target.value))}
+              >
+                <option value={2}>2 minutes</option>
+                <option value={5}>5 minutes</option>
+                <option value={10}>10 minutes</option>
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Sign Out */}
       <div className="rounded-2xl border border-red-100 bg-red-50 p-6 dark:border-red-900/30 dark:bg-red-900/10">
         <h2 className="mb-1 text-lg font-semibold text-red-800 dark:text-red-400">Sign Out</h2>
@@ -179,3 +326,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

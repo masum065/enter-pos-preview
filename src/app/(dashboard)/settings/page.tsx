@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 
-type Tab = "general" | "users";
+type Tab = "general" | "users" | "security";
 
 type User = {
   id: string;
@@ -269,6 +269,94 @@ export default function SettingsPage() {
     onConfirm: () => void;
   } | null>(null);
 
+  // ── Security / Lock Screen state ──────────────────────────────────────
+  const [lockEnabled, setLockEnabled] = useState(false);
+  const [lockTimeout, setLockTimeout] = useState(5);
+  const [hasPin, setHasPin] = useState(false);
+  const [pinValue, setPinValue] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
+  const [pinSaving, setPinSaving] = useState(false);
+  const [securityLoaded, setSecurityLoaded] = useState(false);
+
+  // Fetch lock status when security tab is active
+  useEffect(() => {
+    if (activeTab !== "security" || securityLoaded) return;
+    (async () => {
+      try {
+        const res: any = await apiClient.get("/api/lock/status");
+        setLockEnabled(res.lockEnabled ?? false);
+        setLockTimeout(res.lockTimeoutMinutes ?? 5);
+        setHasPin(res.hasPin ?? false);
+        setSecurityLoaded(true);
+      } catch { /* ignore */ }
+    })();
+  }, [activeTab, securityLoaded]);
+
+  const handleToggleLock = async (enabled: boolean) => {
+    setLockEnabled(enabled);
+    try {
+      await apiClient.put("/api/lock/settings", { lockEnabled: enabled });
+      showToast(enabled ? "Lock screen enabled" : "Lock screen disabled");
+    } catch {
+      showToast("Failed to update setting", "error");
+      setLockEnabled(!enabled);
+    }
+  };
+
+  const handleTimeoutChange = async (minutes: number) => {
+    setLockTimeout(minutes);
+    try {
+      await apiClient.put("/api/lock/settings", { lockTimeoutMinutes: minutes });
+      showToast(`Timeout set to ${minutes} minutes`);
+    } catch {
+      showToast("Failed to update timeout", "error");
+    }
+  };
+
+  const handleSetPin = async () => {
+    if (!/^\d{4}$/.test(pinValue)) {
+      return showToast("PIN must be exactly 4 digits", "error");
+    }
+    if (pinValue !== pinConfirm) {
+      return showToast("PINs do not match", "error");
+    }
+    setPinSaving(true);
+    try {
+      await apiClient.post("/api/lock/set-pin", { pin: pinValue });
+      setHasPin(true);
+      setLockEnabled(true);
+      setPinValue("");
+      setPinConfirm("");
+      showToast("PIN set successfully! Lock screen is now enabled.");
+    } catch {
+      showToast("Failed to set PIN", "error");
+    } finally {
+      setPinSaving(false);
+    }
+  };
+
+  // Admin: set PIN for another user
+  const [pinTargetUser, setPinTargetUser] = useState<User | null>(null);
+  const [pinForUser, setPinForUser] = useState("");
+  const [pinForUserSaving, setPinForUserSaving] = useState(false);
+
+  const handleSetPinForUser = async () => {
+    if (!pinTargetUser || !/^\d{4}$/.test(pinForUser)) {
+      return showToast("PIN must be exactly 4 digits", "error");
+    }
+    setPinForUserSaving(true);
+    try {
+      await apiClient.post("/api/lock/set-pin", { pin: pinForUser, targetUserId: pinTargetUser.id });
+      showToast(`PIN set for ${pinTargetUser.name}`);
+      setPinTargetUser(null);
+      setPinForUser("");
+    } catch {
+      showToast("Failed to set PIN", "error");
+    } finally {
+      setPinForUserSaving(false);
+    }
+  };
+
   // Fetch real users from API
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ["settings", "users"],
@@ -410,7 +498,7 @@ export default function SettingsPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
-        {(["general", "users"] as Tab[]).map(tab => (
+        {(["general", "users", "security"] as Tab[]).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -547,6 +635,12 @@ export default function SettingsPage() {
                             >
                               Reset Pass
                             </button>
+                            <button
+                              onClick={() => { setPinForUser(""); setPinTargetUser(user); }}
+                              className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-900/20"
+                            >
+                              Set PIN
+                            </button>
                             {/* Activate / Deactivate — protected: cannot act on own account */}
                             {user.userId !== currentUserId && (
                               user.isActive ? (
@@ -616,6 +710,101 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Security Tab */}
+      {activeTab === "security" && (
+        <div className="max-w-2xl space-y-6">
+          {/* Lock Screen Toggle */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Lock Screen</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Automatically lock the screen after idle time
+                </p>
+              </div>
+              <button
+                onClick={() => handleToggleLock(!lockEnabled)}
+                disabled={!hasPin}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                  lockEnabled ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"
+                } ${!hasPin ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+                    lockEnabled ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+            {!hasPin && (
+              <p className="mt-3 rounded-lg bg-yellow-50 px-3 py-2 text-sm text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400">
+                ⚠ Set a PIN first to enable the lock screen
+              </p>
+            )}
+          </div>
+
+          {/* Set / Update PIN */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">
+              {hasPin ? "Update PIN" : "Set PIN"}
+            </h2>
+            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+              {hasPin ? "Enter a new 4-digit PIN to replace your current one" : "Create a 4-digit PIN to secure your POS"}
+            </p>
+            <div className="space-y-4">
+              <Field label="PIN (4 digits)">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  className={inputCls}
+                  value={pinValue}
+                  onChange={(e) => setPinValue(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Enter PIN"
+                />
+              </Field>
+              <Field label="Confirm PIN">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  className={inputCls}
+                  value={pinConfirm}
+                  onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Re-enter PIN"
+                />
+              </Field>
+              <button
+                onClick={handleSetPin}
+                disabled={pinSaving || pinValue.length < 4}
+                className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                {pinSaving ? "Saving..." : hasPin ? "Update PIN" : "Set PIN"}
+              </button>
+            </div>
+          </div>
+
+          {/* Idle Timeout */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">Idle Timeout</h2>
+            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+              How long before the screen locks after no activity
+            </p>
+            <Field label="Lock after">
+              <select
+                className={inputCls}
+                value={lockTimeout}
+                onChange={(e) => handleTimeoutChange(Number(e.target.value))}
+              >
+                <option value={2}>2 minutes</option>
+                <option value={5}>5 minutes</option>
+                <option value={10}>10 minutes</option>
+              </select>
+            </Field>
+          </div>
+        </div>
+      )}
+
       {/* Add User Modal */}
       {showAddModal && (
         <UserModal
@@ -665,6 +854,40 @@ export default function SettingsPage() {
             cancelText="Cancel"
             confirmText={confirmModal.confirmLabel}
             confirmVariant={confirmModal.confirmColor === "red" ? "danger" : "success"}
+          />
+        </Modal>
+      )}
+
+      {/* Set PIN Modal for user management */}
+      {pinTargetUser && (
+        <Modal
+          isOpen={!!pinTargetUser}
+          onClose={() => setPinTargetUser(null)}
+          title={`Set PIN for ${pinTargetUser.name}`}
+          size="sm"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Set a 4-digit lock screen PIN for this user. This will auto-enable the lock screen for them.
+            </p>
+            <Field label="PIN (4 digits)">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                className={inputCls}
+                value={pinForUser}
+                onChange={(e) => setPinForUser(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter 4-digit PIN"
+              />
+            </Field>
+          </div>
+          <ModalFooter
+            onCancel={() => setPinTargetUser(null)}
+            onConfirm={handleSetPinForUser}
+            cancelText="Cancel"
+            confirmText={pinForUserSaving ? "Saving..." : "Set PIN"}
+            confirmVariant="success"
           />
         </Modal>
       )}

@@ -7,7 +7,8 @@ import {
   supplierTransactions, 
   activityLogs,
   customers,
-  customerTransactions
+  customerTransactions,
+  users
 } from "@/db/schema";
 import { eq, and, gte, lte, desc, sql, or, ilike } from "drizzle-orm";
 import { getSession } from "@/lib/session";
@@ -51,10 +52,14 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Execute all 3 queries in parallel
-    const [allPurchases, totalCountResult, purchaseAggResult] = await Promise.all([
-      db.select()
+    // Execute all 3 queries in parallel — join users to get salesman name
+    const [allRows, totalCountResult, purchaseAggResult] = await Promise.all([
+      db.select({
+          purchase: purchaseInvoices,
+          createdByName: users.name,
+        })
         .from(purchaseInvoices)
+        .leftJoin(users, eq(purchaseInvoices.createdBy, users.id))
         .where(whereClause)
         .orderBy(desc(purchaseInvoices.purchaseDate))
         .limit(limit)
@@ -70,6 +75,12 @@ export async function GET(request: NextRequest) {
         totalCount: sql<number>`count(*)`,
       }).from(purchaseInvoices).where(whereClause)
     ]);
+
+    // Flatten join result
+    let allPurchases = allRows.map(row => ({
+      ...row.purchase,
+      createdByName: row.createdByName || "Admin",
+    }));
 
     // Apply paymentStatus filter in-memory (derived field)
     let filteredPurchases = allPurchases;

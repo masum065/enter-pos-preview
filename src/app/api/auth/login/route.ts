@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import * as bcrypt from "bcryptjs";
 import { createSession } from "@/lib/session";
+import { cookies } from "next/headers";
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,6 +64,20 @@ export async function POST(request: NextRequest) {
       email: user.email || "",
       role: user.role,
     });
+
+    // If user has lock screen enabled, set the unlock cookie so lock
+    // doesn't trigger immediately after login. Idle timer starts fresh.
+    if (user.lockEnabled && user.posPin) {
+      const cookieStore = await cookies();
+      const maxAge = (user.lockTimeoutMinutes || 5) * 60;
+      cookieStore.set("pos_unlocked", "true", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge,
+        path: "/",
+      });
+    }
 
     return NextResponse.json({
       success: true,

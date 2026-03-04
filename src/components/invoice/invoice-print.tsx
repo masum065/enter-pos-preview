@@ -93,8 +93,8 @@ function buildInvoiceHTML(sale: Sale): string {
       </td>
       <td class="at mono">${item.serialNumber || item.serial || ""}</td>
       <td class="at tc">${item.quantity || item.qty || 1}</td>
-      <td class="at tr">${fmt(item.salePrice || item.price || 0)}</td>
-      <td class="at tr">${fmt(item.amount || item.total || 0)}</td>
+      <td class="at tr">${fmt(item.salePrice || item.price || 0)} ৳</td>
+      <td class="at tr">${fmt(item.amount || item.total || 0)} ৳</td>
     </tr>`).join("");
 
   const payRows = (sale.payments || []).map((p: any, i: number) => `
@@ -103,7 +103,7 @@ function buildInvoiceHTML(sale: Sale): string {
       <td>${fmtDateTime(p.paidAt || p.date || new Date())}</td>
       <td>${p.method || p.type || ""}</td>
       <td>${p.reference || ""}</td>
-      <td class="tr">${fmt(Number(p.amount))}</td>
+      <td class="tr">${fmt(Number(p.amount))} ৳</td>
     </tr>`).join("");
 
   return `<!DOCTYPE html>
@@ -113,117 +113,187 @@ function buildInvoiceHTML(sale: Sale): string {
 <title>Invoice ${sale.invoiceNumber}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding:24px 28px;}
-  .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
-  .logo{font-size:26px;font-weight:900;font-style:italic;letter-spacing:-0.5px;}
-  .shop-name{font-weight:700;font-size:11px;margin-top:4px;}
-  .shop-addr{font-size:10px;color:#555;max-width:300px;line-height:1.4;margin-top:2px;}
-  .inv-box{border:1px solid #9ca3af;font-size:11px;}
-  .inv-box-title{text-align:center;font-weight:700;border-bottom:1px solid #9ca3af;padding:4px 16px;}
-  .inv-box-row{padding:4px 16px;border-bottom:1px solid #e5e7eb;}
-  .inv-box-row:last-child{border-bottom:none;}
-  hr{border:none;border-top:1px solid #9ca3af;margin:8px 0;}
-  .cust-row{display:flex;flex-wrap:wrap;gap:0 20px;margin-bottom:4px;}
-  table{width:100%;border-collapse:collapse;table-layout:fixed;border:1px solid #9ca3af;}
-  th,td{border:1px solid #9ca3af;padding:4px 8px;font-size:11px;word-break:break-word;}
-  thead th{background:#f3f4f6;font-weight:700;}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#1a1a1a;background:#fff;padding:24px 28px;}
+
+  /* Header */
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;padding-bottom:12px;border-bottom:2px solid #FF6600;}
+  .hdr-logo img{height:50px;}
+  .hdr-right{text-align:right;}
+  .hdr-right .shop-title{font-size:16px;font-weight:800;color:#FF6600;margin-bottom:2px;}
+  .hdr-right .shop-addr-bn{font-size:9.5px;color:#333;line-height:1.4;}
+  .hdr-right .shop-contact{font-size:9px;color:#555;margin-top:2px;line-height:1.3;}
+
+  /* Bill banner */
+  .bill-banner{background:linear-gradient(135deg,#FF6600,#FF8833);color:#fff;text-align:center;font-size:13px;font-weight:700;font-style:italic;padding:6px 0;margin-bottom:10px;border-radius:3px;letter-spacing:0.5px;}
+
+  /* Customer / Invoice details */
+  .cust-inv-row{display:flex;justify-content:space-between;margin-bottom:10px;font-size:10px;}
+  .cust-info{flex:1;}
+  .cust-info .label{font-weight:700;color:#FF6600;font-size:10px;margin-bottom:3px;}
+  .cust-info div{margin-bottom:1px;}
+  .inv-details{text-align:right;}
+  .inv-details .label{font-weight:700;color:#FF6600;font-size:10px;margin-bottom:3px;}
+  .inv-details div{margin-bottom:1px;}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;margin-bottom:8px;}
+  th,td{border:1px solid #ddd;padding:4px 8px;font-size:10px;word-break:break-word;}
+  thead th{background:#f7941d;color:#fff;font-weight:700;text-transform:uppercase;font-size:10px;}
   .tr{text-align:right;} .tc{text-align:center;} .at{vertical-align:top;}
   .mono{font-family:monospace;} .fw7{font-weight:700;} .fw6{font-weight:600;}
-  .note{font-size:10px;color:#555;margin:4px 0;}
-  .paid-due{text-align:right;font-weight:700;font-size:11px;margin:4px 0;}
-  .due-red{color:#dc2626;}
-  ol.terms{padding-left:16px;}
-  ol.terms li{font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;}
-  .footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:20px;padding-top:12px;border-top:1px solid #f3f4f6;}
+  tfoot td{background:#FFF5EB;font-weight:600;}
+  tfoot tr:last-child td{background:#FFF0E0;font-weight:700;font-size:10px;}
+
+  /* Section headers */
+  .section-header{background:linear-gradient(135deg,#FF6600,#FF8833);color:#fff;font-weight:700;font-size:10px;padding:4px 10px;border-radius:2px;}
+  .section-header-dark{background:#333;color:#fff;font-weight:700;font-size:10px;padding:4px 10px;border-radius:2px;}
+
+  /* Amounts summary */
+  .amounts-wrap{display:flex;gap:0;margin-bottom:10px;}
+  .amounts-left{flex:1;border:1px solid #ddd;border-right:none;}
+  .amounts-right{width:280px;border:1px solid #ddd;}
+  .amounts-left .section-header,.amounts-right .section-header{margin-top:0;border-radius:0;}
+  .amounts-row{display:flex;justify-content:space-between;padding:4px 10px;border-bottom:1px solid #eee;font-size:10px;}
+  .amounts-row:last-child{border-bottom:none;}
+  .amounts-row.total{font-weight:700;font-size:10px;background:#FFF5EB;}
+  .amounts-row.due{color:#dc2626;font-weight:700;}
+
+  .note{font-size:9px;color:#555;margin:3px 0;}
+
+  /* Signature */
+  .signature-area{margin-top:24px;display:flex;justify-content:flex-end;}
+  .signature-block{text-align:center;min-width:220px;}
+  .signature-block img{height:50px;margin-bottom:3px;}
+  .signature-block .sig-label{font-size:10px;font-weight:700;color:#FF6600;border-top:1px solid #FF6600;padding-top:3px;}
+
+  .footer-note{text-align:center;font-size:8px;color:#9ca3af;margin-top:12px;padding-top:8px;border-top:1px solid #f3f4f6;}
+
   @media print{
     @page{size:A4;margin:12mm 14mm;}
     body{padding:0!important;}
+    .bill-banner,.section-header,.section-header-dark,thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    tfoot td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   }
 </style>
 </head>
 <body>
+  <!-- Header -->
   <div class="hdr">
-    <div>
-      <div class="logo">ENTER</div>
-      <div class="shop-name">Enter Computers</div>
-      <div class="shop-addr">Dhaka, Bangladesh<br>Phone: +880 1234-567890 | info@entercomputers.com</div>
+    <div class="hdr-logo">
+      <img src="/enter-logo.png" alt="Enter Computers"/>
     </div>
-    <div class="inv-box">
-      <div class="inv-box-title">Invoice / Bill</div>
-      <div class="inv-box-row">NO: <strong>${sale.invoiceNumber}</strong></div>
-      <div class="inv-box-row">Date: ${fmtDate(sale.invoiceDate)}</div>
-    </div>
-  </div>
-  <div style="padding-top:8px;margin-bottom:8px;">
-    <div class="cust-row">
-      <span><strong>Customer:</strong> ${sale.customerName}</span>
-      <span><strong>Phone:</strong> ${sale.customerPhone}</span>
-      ${(sale as any).customerAddress ? `<span><strong>Address:</strong> ${(sale as any).customerAddress}</span>` : ''}
-    </div>
-    <div class="cust-row" style="margin-top:2px;">
-      <span><strong>Salesman:</strong> ${(sale as any).createdByName || 'Admin'}</span>
+    <div class="hdr-right">
+      <div class="shop-title">Enter Computer's</div>
+      <div class="shop-addr-bn">
+        অলকা নদী বাংলা কমপ্লেক্স, ২য় তলা, দোকান নং - ২৩৮ - রামবাবু রোড,<br>
+        গাংগিনারপার, সদর, ময়মনসিংহ।
+      </div>
+      <div class="shop-contact">
+        Phone no.: 01684-134574, 01789-443043 Email:<br>
+        entercomputersmym@gmail.com
+      </div>
     </div>
   </div>
 
-  <table style="margin-bottom:6px;">
+  <!-- Bill of Supply Banner -->
+  <div class="bill-banner">Bill of Supply</div>
+
+  <!-- Customer + Invoice Details -->
+  <div class="cust-inv-row">
+    <div class="cust-info">
+      <div class="label">Bill To</div>
+      <div><strong>${sale.customerName}</strong></div>
+      <div>${(sale as any).customerAddress || ''}</div>
+      <div>Contact No. : ${sale.customerPhone}</div>
+    </div>
+    <div class="inv-details">
+      <div class="label">Invoice Details</div>
+      <div>Invoice No. : <strong>${sale.invoiceNumber}</strong></div>
+      <div>Date : ${fmtDate(sale.invoiceDate)}</div>
+    </div>
+  </div>
+
+  <!-- Items Table -->
+  <table>
     <thead>
       <tr>
-        <th style="width:28px">SL.</th>
-        <th>ITEM</th>
-        <th class="mono" style="width:120px">SERIAL NO.</th>
-        <th class="tc" style="width:36px">QTY</th>
-        <th class="tr" style="width:80px">PRICE</th>
-        <th class="tr" style="width:80px">TOTAL</th>
+        <th style="width:28px">#</th>
+        <th>Item name</th>
+        <th class="mono" style="width:120px">Serial No.</th>
+        <th class="tc" style="width:40px">Qty</th>
+        <th class="tr" style="width:80px">Price/ Unit</th>
+        <th class="tr" style="width:80px">Amount</th>
       </tr>
     </thead>
     <tbody>${itemRows}</tbody>
     <tfoot>
-      <tr><td colspan="4"></td><td class="tr fw6">Total</td><td class="tr">${fmt(subtotal)}</td></tr>
-      ${discount > 0 ? `<tr><td colspan="4"></td><td class="tr fw6">Discount</td><td class="tr">(${fmt(discount)})</td></tr>` : ""}
       <tr>
-        <td colspan="4" style="font-size:11px;"><strong>Amount In Words:</strong> ${amountInWords(grandTotal)}</td>
-        <td class="tr fw7">Grand Total</td>
-        <td class="tr fw7">${fmt(grandTotal)}</td>
+        <td colspan="3"></td>
+        <td class="fw7">Total</td>
+        <td class="tr"></td>
+        <td class="tr fw7">${fmt(subtotal)} ৳</td>
       </tr>
+      ${discount > 0 ? `<tr>
+        <td colspan="3"></td>
+        <td class="fw6">Discount</td>
+        <td class="tr"></td>
+        <td class="tr fw6">(${fmt(discount)}) ৳</td>
+      </tr>` : ""}
     </tfoot>
   </table>
 
-  <div style="display:flex;justify-content:flex-end;align-items:center;margin:4px 0;font-weight:700;font-size:11px;">
-    <span>Paid: ${fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
-    <span class="${dueAmount > 0 ? 'due-red' : ''}">Due: ${fmt(dueAmount)} Tk</span>
-  </div>
-  <p class="note">Good received by customer in good condition.</p>
-
-  ${sale.payments?.length > 0 ? `
-  <div style="margin-top:16px;margin-bottom:10px;">
-    <div class="fw7" style="font-size:11px;margin-bottom:4px;">Payment History</div>
-    <table>
-      <thead><tr><th style="width:28px">Sl.</th><th>Date</th><th style="width:80px">Method</th><th>Reference</th><th class="tr" style="width:90px">Amount</th></tr></thead>
-      <tbody>${payRows}</tbody>
-      <tfoot><tr><td colspan="4" class="fw7">Total</td><td class="tr fw7">${fmt(paidAmount)}</td></tr></tfoot>
-    </table>
-  </div>` : ""}
-
-  <p class="note">VAT and TAX not included if not mentioned in the item field.</p>
-
-  <div style="margin-top:10px;">
-    <div class="fw7" style="font-size:11px;margin-bottom:4px;">Terms &amp; Conditions:</div>
-    <ol class="terms">
-      <li>Goods once sold will not be refunded &amp; exchanged without valid reason.</li>
-      <li>Products under warranty will be repaired or replaced per manufacturer policy.</li>
-      <li>Warranty does not cover: physical damage, liquid spillage, removed stickers, software/data, or accessories.</li>
-      <li>Please retain this invoice for all warranty claims.</li>
-    </ol>
-  </div>
-  <div style="margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;display:flex;justify-content:flex-end;">
-    <div style="text-align:center;min-width:200px;">
-      <div style="height:48px;"></div>
-      <div style="border-top:1px dotted #9ca3af;padding-top:4px;font-size:10px;">Issued By</div>
-      <div style="font-size:10px;color:#555;margin-top:2px;">Enter Computers</div>
+  <!-- Amounts Summary -->
+  <div class="amounts-wrap">
+    <div class="amounts-left">
+      <div class="section-header">Invoice Amount In Words</div>
+      <div style="padding:8px 12px;font-size:11px;">${amountInWords(grandTotal)}</div>
+      <div class="section-header-dark">Terms and Conditions</div>
+      <div style="padding:6px 12px;">
+        <div style="font-size:10px;color:#444;line-height:1.6;">
+          * 7 Day's Replacement Guarantee with 365 day's Service Warranty (Without parts).<br>
+          * To apply for the warranty, the warranty sticker and serial number must be kept intact.<br>
+          * Warranty is not applicable for any external or electrical damage.
+        </div>
+      </div>
+    </div>
+    <div class="amounts-right">
+      <div class="section-header">Amounts</div>
+      <div class="amounts-row">
+        <span>Sub Total</span>
+        <span>${fmt(subtotal)} ৳</span>
+      </div>
+      ${discount > 0 ? `<div class="amounts-row"><span>Discount</span><span>(${fmt(discount)}) ৳</span></div>` : ""}
+      <div class="amounts-row total">
+        <span>Total</span>
+        <span>${fmt(grandTotal)} ৳</span>
+      </div>
+      <div class="amounts-row">
+        <span>Received</span>
+        <span>${fmt(paidAmount)} ৳</span>
+      </div>
+      ${dueAmount > 0 ? `<div class="amounts-row due"><span>Balance</span><span>${fmt(dueAmount)} ৳</span></div>` : ""}
     </div>
   </div>
 
-  <div class="footer-note">This is a system generated invoice &mdash; seal &amp; sign are not mandatory.</div>
+  ${sale.payments?.length > 0 ? `
+  <div style="margin-top:10px;margin-bottom:10px;">
+    <div class="section-header" style="margin-bottom:6px;">Payment History</div>
+    <table>
+      <thead><tr><th style="width:36px">SL.</th><th>Date</th><th style="width:80px">Method</th><th>Reference</th><th class="tr" style="width:90px">Amount</th></tr></thead>
+      <tbody>${payRows}</tbody>
+      <tfoot><tr><td colspan="4" class="fw7">Total</td><td class="tr fw7">${fmt(paidAmount)} ৳</td></tr></tfoot>
+    </table>
+  </div>` : ""}
+
+  <!-- Signature -->
+  <div class="signature-area">
+    <div class="signature-block">
+      <img src="/entersign.png" alt="Authorized Signature"/>
+      <div class="sig-label">Authorized Signatory</div>
+    </div>
+  </div>
+
+  <div class="footer-note">This is a computer generated invoice.</div>
 
   <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
 </body>
@@ -258,48 +328,58 @@ export function InvoicePrintModal({
     <Modal isOpen={isOpen} onClose={onClose} title="Invoice Preview" size="lg">
       {/* ── Invoice preview ─────────────────────────────────── */}
       <div
-        style={{ fontFamily: "Arial, Helvetica, sans-serif", fontSize: 11, color: "#1a1a1a" }}
+        style={{ fontFamily: "Arial, Helvetica, sans-serif", fontSize: 10, color: "#1a1a1a" }}
         className="max-h-[65vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-5 text-left dark:border-gray-700 dark:bg-white"
       >
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+       {/* Header — logo left, shop info right */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12, paddingBottom: 12, borderBottom: "2px solid #FF6600" }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 900, fontStyle: "italic", letterSpacing: -0.5 }}>ENTER</div>
-            <div style={{ fontWeight: 700, fontSize: 11, marginTop: 3 }}>Enter Computers</div>
-            <div style={{ fontSize: 10, color: "#555", lineHeight: 1.4, marginTop: 2, maxWidth: 260 }}>
-              Dhaka, Bangladesh<br />
-              Phone: +880 1234-567890 | info@entercomputers.com
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/enter-logo.png" alt="Enter Computers" style={{ height: 45 }} />
           </div>
-          <div style={{ border: "1px solid #9ca3af", fontSize: 11 }}>
-            <div style={{ textAlign: "center", fontWeight: 700, borderBottom: "1px solid #9ca3af", padding: "4px 16px" }}>Invoice / Bill</div>
-            <div style={{ padding: "4px 16px", borderBottom: "1px solid #e5e7eb" }}>NO: <strong>{sale.invoiceNumber}</strong></div>
-            <div style={{ padding: "4px 16px" }}>Date: {fmtDate(sale.invoiceDate)}</div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#FF6600", marginBottom: 2 }}>Enter Computer&apos;s</div>
+            <div style={{ fontSize: 9, color: "#333", lineHeight: 1.4 }}>
+              অলকা নদী বাংলা কমপ্লেক্স, ২য় তলা, দোকান নং - ২৩৮ - রামবাবু রোড,<br />
+              গাংগিনারপার, সদর, ময়মনসিংহ।
+            </div>
+            <div style={{ fontSize: 8, color: "#555", marginTop: 2, lineHeight: 1.3 }}>
+              Phone no.: 01684-134574, 01789-443043 Email:<br />
+              entercomputersmym@gmail.com
+            </div>
           </div>
         </div>
 
-        {/* Customer — no hr above, top padding */}
-        <div style={{ paddingTop: 8, marginBottom: 8 }}>
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-            <span><strong>Customer:</strong> {sale.customerName}</span>
-            <span><strong>Phone:</strong> {sale.customerPhone}</span>
-            {(sale as any).customerAddress && <span><strong>Address:</strong> {(sale as any).customerAddress}</span>}
+        {/* Bill of Supply Banner */}
+        <div style={{ background: "linear-gradient(135deg, #FF6600, #FF8833)", color: "#fff", textAlign: "center", fontSize: 13, fontWeight: 700, fontStyle: "italic", padding: "5px 0", marginBottom: 10, borderRadius: 3, letterSpacing: 0.5 }}>
+          Bill of Supply
+        </div>
+
+        {/* Customer + Invoice Details Row */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: "#FF6600", fontSize: 10, marginBottom: 3 }}>Bill To</div>
+            <div><strong>{sale.customerName}</strong></div>
+            {(sale as any).customerAddress && <div>{(sale as any).customerAddress}</div>}
+            <div>Contact No. : {sale.customerPhone}</div>
           </div>
-          <div style={{ marginTop: 2, fontSize: 11 }}>
-            <strong>Salesman:</strong> {(sale as any).createdByName || "Admin"}
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontWeight: 700, color: "#FF6600", fontSize: 10, marginBottom: 3 }}>Invoice Details</div>
+            <div>Invoice No. : <strong>{sale.invoiceNumber}</strong></div>
+            <div>Date : {fmtDate(sale.invoiceDate)}</div>
           </div>
         </div>
 
         {/* Items */}
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 6 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 8 }}>
           <thead>
             <tr>
-              <th style={thStyle({ width: 28 })}>SL.</th>
-              <th style={thStyle()}>ITEM</th>
-              <th style={thStyle({ width: 110, fontFamily: "monospace" })}>SERIAL NO.</th>
-              <th style={thStyle({ width: 36, textAlign: "center" })}>QTY</th>
-              <th style={thStyle({ width: 80, textAlign: "right" })}>PRICE</th>
-              <th style={thStyle({ width: 80, textAlign: "right" })}>TOTAL</th>
+              <th style={thStyle({ width: 28 })}>#</th>
+              <th style={thStyle()}>Item name</th>
+              <th style={thStyle({ width: 110, fontFamily: "monospace" })}>Serial No.</th>
+              <th style={thStyle({ width: 40, textAlign: "center" })}>Qty</th>
+              <th style={thStyle({ width: 80, textAlign: "right" })}>Price/ Unit</th>
+              <th style={thStyle({ width: 80, textAlign: "right" })}>Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -312,49 +392,75 @@ export function InvoicePrintModal({
                 </td>
                 <td style={tdStyle({ verticalAlign: "top", fontFamily: "monospace" })}>{item.serialNumber || item.serial}</td>
                 <td style={tdStyle({ verticalAlign: "top", textAlign: "center" })}>{item.quantity || item.qty || 1}</td>
-                <td style={tdStyle({ verticalAlign: "top", textAlign: "right" })}>{fmt(item.salePrice || item.price || 0)}</td>
-                <td style={tdStyle({ verticalAlign: "top", textAlign: "right" })}>{fmt(item.amount || item.total || 0)}</td>
+                <td style={tdStyle({ verticalAlign: "top", textAlign: "right" })}>{fmt(item.salePrice || item.price || 0)} ৳</td>
+                <td style={tdStyle({ verticalAlign: "top", textAlign: "right" })}>{fmt(item.amount || item.total || 0)} ৳</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={4}></td>
-              <td style={tdStyle({ textAlign: "right", fontWeight: 600 })}>Total</td>
-              <td style={tdStyle({ textAlign: "right" })}>{fmt(subtotal)}</td>
+              <td colSpan={3} style={tdStyle({ background: "#FFF5EB" })}></td>
+              <td style={tdStyle({ fontWeight: 700, background: "#FFF5EB" })}>Total</td>
+              <td style={tdStyle({ textAlign: "right", background: "#FFF5EB" })}></td>
+              <td style={tdStyle({ textAlign: "right", fontWeight: 700, background: "#FFF5EB" })}>{fmt(subtotal)} ৳</td>
             </tr>
             {discount > 0 && (
               <tr>
-                <td colSpan={4}></td>
-                <td style={tdStyle({ textAlign: "right", fontWeight: 600 })}>Discount</td>
-                <td style={tdStyle({ textAlign: "right" })}>({fmt(discount)})</td>
+                <td colSpan={3} style={tdStyle({ background: "#FFF5EB" })}></td>
+                <td style={tdStyle({ fontWeight: 600, background: "#FFF5EB" })}>Discount</td>
+                <td style={tdStyle({ textAlign: "right", background: "#FFF5EB" })}></td>
+                <td style={tdStyle({ textAlign: "right", fontWeight: 600, background: "#FFF5EB" })}>({fmt(discount)}) ৳</td>
               </tr>
             )}
-            <tr>
-              <td colSpan={4} style={tdStyle({ fontSize: 11 })}>
-                <strong>Amount In Words:</strong> {amountInWords(grandTotal)}
-              </td>
-              <td style={tdStyle({ textAlign: "right", fontWeight: 700 })}>Grand Total</td>
-              <td style={tdStyle({ textAlign: "right", fontWeight: 700 })}>{fmt(grandTotal)}</td>
-            </tr>
           </tfoot>
         </table>
 
-        {/* Paid / Due */}
-        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 11, margin: "4px 0" }}>
-          <span>Paid: {fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
-          <span style={{ color: dueAmount > 0 ? "#dc2626" : "inherit" }}>Due: {fmt(dueAmount)} Tk</span>
+        {/* Amounts Summary — side by side */}
+        <div style={{ display: "flex", marginBottom: 10 }}>
+          {/* Left — words + terms */}
+          <div style={{ flex: 1, border: "1px solid #ddd", borderRight: "none" }}>
+            <div style={{ background: "linear-gradient(135deg, #FF6600, #FF8833)", color: "#fff", fontWeight: 700, fontSize: 10, padding: "4px 10px" }}>Invoice Amount In Words</div>
+            <div style={{ padding: "6px 10px", fontSize: 10 }}>{amountInWords(grandTotal)}</div>
+            <div style={{ background: "#333", color: "#fff", fontWeight: 700, fontSize: 10, padding: "4px 10px" }}>Terms and Conditions</div>
+            <div style={{ padding: "5px 10px", fontSize: 9, color: "#444", lineHeight: 1.5 }}>
+              * 7 Day&apos;s Replacement Guarantee with 365 day&apos;s Service Warranty (Without parts).<br />
+              * To apply for the warranty, the warranty sticker and serial number must be kept intact.<br />
+              * Warranty is not applicable for any external or electrical damage.
+            </div>
+          </div>
+          {/* Right — amounts */}
+          <div style={{ width: 240, border: "1px solid #ddd" }}>
+            <div style={{ background: "linear-gradient(135deg, #FF6600, #FF8833)", color: "#fff", fontWeight: 700, fontSize: 10, padding: "4px 10px" }}>Amounts</div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", borderBottom: "1px solid #eee", fontSize: 10 }}>
+              <span>Sub Total</span><span>{fmt(subtotal)} ৳</span>
+            </div>
+            {discount > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", borderBottom: "1px solid #eee", fontSize: 10 }}>
+                <span>Discount</span><span>({fmt(discount)}) ৳</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", borderBottom: "1px solid #eee", fontSize: 10, fontWeight: 700, background: "#FFF5EB" }}>
+              <span>Total</span><span>{fmt(grandTotal)} ৳</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", borderBottom: "1px solid #eee", fontSize: 10 }}>
+              <span>Received</span><span>{fmt(paidAmount)} ৳</span>
+            </div>
+            {dueAmount > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", fontSize: 10, fontWeight: 700, color: "#dc2626" }}>
+                <span>Balance</span><span>{fmt(dueAmount)} ৳</span>
+              </div>
+            )}
+          </div>
         </div>
-        <p style={{ fontSize: 10, color: "#555", margin: "4px 0" }}>Good received by customer in good condition.</p>
 
         {/* Payments */}
         {(sale.payments || []).length > 0 && (
-          <div style={{ marginTop: 16, marginBottom: 10 }}>
-            <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Payment History</div>
+          <div style={{ marginTop: 10, marginBottom: 10 }}>
+            <div style={{ background: "linear-gradient(135deg, #FF6600, #FF8833)", color: "#fff", fontWeight: 700, fontSize: 10, padding: "4px 10px", borderRadius: 2, marginBottom: 5 }}>Payment History</div>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th style={thStyle({ width: 28 })}>Sl.</th>
+                  <th style={thStyle({ width: 36 })}>SL.</th>
                   <th style={thStyle()}>Date</th>
                   <th style={thStyle({ width: 80 })}>Method</th>
                   <th style={thStyle()}>Reference</th>
@@ -368,50 +474,32 @@ export function InvoicePrintModal({
                     <td style={tdStyle()}>{fmtDateTime(p.paidAt || p.date || new Date())}</td>
                     <td style={tdStyle()}>{p.method || p.type || ""}</td>
                     <td style={tdStyle()}>{p.reference || ""}</td>
-                    <td style={tdStyle({ textAlign: "right" })}>{fmt(Number(p.amount))}</td>
+                    <td style={tdStyle({ textAlign: "right" })}>{fmt(Number(p.amount))} ৳</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={4} style={tdStyle({ fontWeight: 700 })}>Total</td>
-                  <td style={tdStyle({ textAlign: "right", fontWeight: 700 })}>{fmt(paidAmount)}</td>
+                  <td colSpan={4} style={tdStyle({ fontWeight: 700, background: "#FFF5EB" })}>Total</td>
+                  <td style={tdStyle({ textAlign: "right", fontWeight: 700, background: "#FFF5EB" })}>{fmt(paidAmount)} ৳</td>
                 </tr>
               </tfoot>
             </table>
           </div>
         )}
 
-        <p style={{ fontSize: 10, color: "#555", margin: "4px 0" }}>VAT and TAX not included if not mentioned in the item field.</p>
-
-        {/* Terms */}
-        <div style={{ marginTop: 10 }}>
-          <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Terms &amp; Conditions:</div>
-          <ol style={{ paddingLeft: 16 }}>
-            {[
-              "Goods once sold will not be refunded & exchanged without valid reason.",
-              "Products under warranty will be repaired or replaced per manufacturer policy.",
-              "Warranty timing is controlled by the manufacturing company.",
-              "Warranty does not cover: physical damage, liquid spillage, removed stickers, software/data, or accessories.",
-              "Please retain this invoice for all warranty claims.",
-            ].map((t, i) => (
-              <li key={i} style={{ fontSize: 10, color: "#444", lineHeight: 1.5, marginBottom: 2 }}>{t}</li>
-            ))}
-          </ol>
-        </div>
-
-        {/* Signature — right aligned, no date */}
-        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
+        {/* Signature */}
+        <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end" }}>
           <div style={{ textAlign: "center", minWidth: 200 }}>
-            <div style={{ height: 48 }} />
-            <div style={{ borderTop: "1px dotted #9ca3af", paddingTop: 4, fontSize: 10 }}>Issued By</div>
-            <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>Enter Computers</div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/entersign.png" alt="Authorized Signature" style={{ height: 45, marginBottom: 3 }} />
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#FF6600", borderTop: "1px solid #FF6600", paddingTop: 3 }}>Authorized Signatory</div>
           </div>
         </div>
 
-        {/* Footer note — very bottom */}
-        <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 20, paddingTop: 12, borderTop: "1px solid #f3f4f6" }}>
-          This is a system generated invoice — seal &amp; sign are not mandatory.
+        {/* Footer note */}
+        <div style={{ textAlign: "center", fontSize: 8, color: "#9ca3af", marginTop: 12, paddingTop: 8, borderTop: "1px solid #f3f4f6" }}>
+          This is a computer generated invoice.
         </div>
       </div>
 
@@ -425,7 +513,7 @@ export function InvoicePrintModal({
         </button>
         <button
           onClick={handlePrint}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-lg px-6 py-2.5 font-medium text-white hover:opacity-90" style={{ background: "#FF6600" }}
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -440,12 +528,12 @@ export function InvoicePrintModal({
 // ── Style helpers ─────────────────────────────────────────────────────────
 function thStyle(extra: React.CSSProperties = {}): React.CSSProperties {
   return {
-    border: "1px solid #9ca3af", padding: "4px 8px", fontSize: 11,
-    background: "#f3f4f6", fontWeight: 700, textAlign: "left", ...extra,
+    border: "1px solid #ddd", padding: "4px 8px", fontSize: 10,
+    background: "#f7941d", color: "#fff", fontWeight: 700, textAlign: "left", textTransform: "uppercase" as const, ...extra,
   };
 }
 function tdStyle(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { border: "1px solid #9ca3af", padding: "4px 8px", fontSize: 11, ...extra };
+  return { border: "1px solid #ddd", padding: "4px 8px", fontSize: 10, ...extra };
 }
 
 // ── Trigger button ────────────────────────────────────────────────────────

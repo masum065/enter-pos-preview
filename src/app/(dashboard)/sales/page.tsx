@@ -54,6 +54,7 @@ interface Sale {
   status: string;
   notes?: string;
   createdBy: string;
+  createdByName?: string;
   createdAt: string;
   [key: string]: any;
 }
@@ -785,6 +786,7 @@ function SalesPageContent() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Invoice</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Customer</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Date</th>
+                <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">Salesman</th>
                 <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">Amount</th>
                 <th className="hidden px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white md:table-cell">Paid</th>
                 <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">Due</th>
@@ -795,7 +797,7 @@ function SalesPageContent() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredSales.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     {sales.length === 0 ? "No sales yet. Create your first invoice!" : "No sales match your filters."}
                   </td>
                 </tr>
@@ -815,6 +817,9 @@ function SalesPageContent() {
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-gray-600 dark:text-gray-400">{formatDate(sale.invoiceDate)}</p>
+                    </td>
+                    <td className="hidden px-6 py-4 lg:table-cell">
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{sale.createdByName || sale.createdBy}</p>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(sale.grandTotal)}</p>

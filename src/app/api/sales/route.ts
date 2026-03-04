@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { sales, saleItems, payments, stockItems, products, activityLogs, customers, customerTransactions } from "@/db/schema";
+import { sales, saleItems, payments, stockItems, products, activityLogs, customers, customerTransactions, users } from "@/db/schema";
 import { eq, and, gte, lte, desc, sql, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { createSaleSchema } from "@/lib/validations/sales";
@@ -22,11 +22,6 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = (page - 1) * limit;
-
-    let queryBuilder = db
-      .select()
-      .from(sales)
-      .$dynamic();
 
     // Apply filters
     const conditions = [];
@@ -60,10 +55,14 @@ export async function GET(request: NextRequest) {
     // Prepare where clause
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Run all 3 in parallel without sharing a mutated query builder
-    const [fetchedSales, totalCountResult, statsAggResult] = await Promise.all([
-      db.select()
+    // Run all 3 in parallel — join users to get salesman name
+    const [fetchedRows, totalCountResult, statsAggResult] = await Promise.all([
+      db.select({
+          sale: sales,
+          createdByName: users.name,
+        })
         .from(sales)
+        .leftJoin(users, eq(sales.createdBy, users.id))
         .where(whereClause)
         .orderBy(desc(sales.createdAt))
         .limit(limit)
@@ -82,6 +81,12 @@ export async function GET(request: NextRequest) {
         .from(sales)
         .where(whereClause),
     ]);
+
+    // Flatten the join result: spread sale fields + add createdByName
+    const fetchedSales = fetchedRows.map(row => ({
+      ...row.sale,
+      createdByName: row.createdByName || "Admin",
+    }));
 
     const salesAgg = statsAggResult[0];
 

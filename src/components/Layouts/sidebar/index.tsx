@@ -208,6 +208,24 @@ export function Sidebar() {
               </div>
             ))}
           </div>
+
+          {/* Sign Out — bottom of sidebar */}
+          <div className="mt-2 border-t border-gray-200 pr-3 pt-4 dark:border-gray-700">
+            <button
+              onClick={async () => {
+                await fetch("/api/auth/logout", { method: "POST" });
+                window.location.href = "/auth/sign-in";
+              }}
+              className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+              <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
       </aside>
     </>

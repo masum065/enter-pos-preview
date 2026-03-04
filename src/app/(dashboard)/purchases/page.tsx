@@ -24,6 +24,7 @@ interface PurchaseInvoice {
   paidAmount: string;
   paymentMethod: string;
   notes?: string;
+  createdByName?: string;
   createdAt: string;
   [key: string]: any;
 }
@@ -359,6 +360,7 @@ function PurchaseHistoryPageContent() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Seller</th>
                 <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white md:table-cell">Product</th>
                 <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">Serial #</th>
+                <th className="hidden px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white lg:table-cell">Salesman</th>
                 <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">Amount</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">Status</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">View</th>
@@ -367,7 +369,7 @@ function PurchaseHistoryPageContent() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {purchases.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     {activeSearch
                       ? `No purchases found for "${activeSearch}"`
                       : "No purchases yet. Create your first purchase!"}
@@ -404,6 +406,9 @@ function PurchaseHistoryPageContent() {
                       </td>
                       <td className="hidden px-6 py-4 lg:table-cell">
                         <p className="font-mono text-sm text-gray-600 dark:text-gray-400">{purchase.serialNumber}</p>
+                      </td>
+                      <td className="hidden px-6 py-4 lg:table-cell">
+                        <p className="text-sm text-gray-700 dark:text-gray-300">{purchase.createdByName || "Admin"}</p>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(purchasePrice)}</p>

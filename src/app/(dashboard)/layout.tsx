@@ -1,11 +1,24 @@
+"use client";
+
 import type { PropsWithChildren } from "react";
 import { Sidebar } from "@/components/Layouts/sidebar";
 import { Header } from "@/components/Layouts/header";
 import { LockWrapper } from "@/components/lock/LockWrapper";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { KeyboardShortcutsModal } from "@/components/ui/keyboard-shortcuts-modal";
 
-export default function DashboardLayout({ children }: PropsWithChildren) {
+function DashboardContent({ children }: PropsWithChildren) {
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+  const { shortcuts, showHelp, setShowHelp } = useKeyboardShortcuts({ toggleFullscreen });
+
   return (
-    <LockWrapper>
+    <>
       <div className="flex min-h-screen">
         <Sidebar />
 
@@ -17,7 +30,20 @@ export default function DashboardLayout({ children }: PropsWithChildren) {
           </main>
         </div>
       </div>
-    </LockWrapper>
+
+      <KeyboardShortcutsModal
+        isOpen={showHelp}
+        onClose={() => setShowHelp(false)}
+        shortcuts={shortcuts}
+      />
+    </>
   );
 }
 
+export default function DashboardLayout({ children }: PropsWithChildren) {
+  return (
+    <LockWrapper>
+      <DashboardContent>{children}</DashboardContent>
+    </LockWrapper>
+  );
+}

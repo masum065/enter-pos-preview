@@ -75,6 +75,7 @@ function ProductForm({
     defaultSalePrice: product?.defaultSalePrice ? parseFloat(product.defaultSalePrice) : 0,
     warranty: product?.warranty || "12 Months Service Warranty",
     imageUrl: product?.imageUrl || "",
+
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -193,6 +194,7 @@ function ProductForm({
           />
         </div>
       </div>
+
 
       <div>
         <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">

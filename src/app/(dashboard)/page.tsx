@@ -6,6 +6,7 @@ import { useSales } from "@/hooks/useSales";
 import { useStockItems } from "@/hooks/useStock";
 import { formatCurrency } from "@/lib/utils";
 import { useSession } from "@/hooks/useSession";
+import Link from "next/link";
 
 interface Sale {
   id: string;
@@ -357,14 +358,14 @@ function QuickActions({ isEmployee }: { isEmployee: boolean }) {
       <h3 className="mb-4 text-lg font-semibold text-dark dark:text-white">Quick Actions</h3>
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         {actions.map((action) => (
-          <a
+          <Link
             key={action.label}
             href={action.href}
             className={`flex flex-col items-center justify-center rounded-xl bg-gradient-to-r ${action.color} p-3 sm:p-4 text-white shadow-md transition-transform hover:scale-105`}
           >
             {action.icon}
             <span className="mt-2 text-sm font-medium">{action.label}</span>
-          </a>
+          </Link>
         ))}
       </div>
     </div>

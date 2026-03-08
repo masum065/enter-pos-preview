@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
 
     const conditions = [];
     conditions.push(eq(products.isDeleted, false));
+
     if (category) {
       conditions.push(eq(products.category, category));
     }

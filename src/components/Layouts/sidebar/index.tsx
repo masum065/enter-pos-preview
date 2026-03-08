@@ -90,7 +90,7 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "max-w-[290px] overflow-hidden border-r border-gray-200 bg-white transition-[width] duration-200 ease-linear dark:border-gray-800 dark:bg-gray-dark",
+          "max-w-[290px] overflow-hidden border-r border-gray-200 bg-white transition-all duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-dark",
           isMobile ? "fixed bottom-0 top-0 z-50" : "sticky top-0 h-screen",
           isOpen ? "w-full" : "w-0",
         )}
@@ -108,28 +108,35 @@ export function Sidebar() {
               <Logo />
             </Link>
 
-            {isMobile && (
-              <button
-                onClick={toggleSidebar}
-                className="absolute left-3/4 right-4.5 top-1/2 -translate-y-1/2 text-right"
-              >
-                <span className="sr-only">Close Menu</span>
-
+            {/* Close sidebar button — desktop: panel icon, mobile: arrow */}
+            <button
+              onClick={toggleSidebar}
+              title="Hide Sidebar"
+              className="absolute right-4.5 top-1/2 -translate-y-1/2"
+            >
+              <span className="sr-only">Hide Sidebar</span>
+              {isMobile ? (
                 <ArrowLeftIcon className="ml-auto size-7" />
-              </button>
-            )}
+              ) : (
+                <svg className="size-6 text-dark/50 hover:text-primary dark:text-white/50 dark:hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M9 3v18" />
+                  <path d="m16 15-3-3 3-3" />
+                </svg>
+              )}
+            </button>
           </div>
 
           {/* Navigation */}
           <div className="custom-scrollbar mt-6 flex-1 overflow-y-auto pr-3 min-[850px]:mt-10">
-            {filteredNav.map((section) => (
-              <div key={section.label} className="mb-6">
-                <h2 className="mb-5 text-sm font-medium text-dark-4 dark:text-dark-6">
-                  {section.label}
-                </h2>
+              {filteredNav.map((section) => (
+                <div key={section.label} className="mb-6">
+                  <h2 className="mb-5 text-sm font-medium text-dark-4 dark:text-dark-6">
+                    {section.label}
+                  </h2>
 
-                <nav role="navigation" aria-label={section.label}>
-                  <ul className="space-y-2">
+                  <nav role="navigation" aria-label={section.label}>
+                    <ul className="space-y-2">
                     {section.items.map((item) => (
                       <li key={item.title}>
                         {item.items.length ? (
@@ -209,7 +216,7 @@ export function Sidebar() {
             ))}
           </div>
 
-          {/* Sign Out — bottom of sidebar */}
+          {/* Sign Out */}
           <div className="mt-2 border-t border-gray-200 pr-3 pt-4 dark:border-gray-700">
             <button
               onClick={async () => {

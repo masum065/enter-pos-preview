@@ -70,6 +70,7 @@ export function useProducts(filters: ProductFilters = {}, enabled = true) {
   });
 }
 
+
 /**
  * Fetch single product by ID
  */

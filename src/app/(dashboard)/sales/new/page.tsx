@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useProducts } from "@/hooks/useProducts";
 import { useStockItems } from "@/hooks/useStock";
@@ -289,7 +289,7 @@ export default function NewSalePage() {
   const addedSerials = useMemo(() => saleItems.map((item) => item.serialNumber), [saleItems]);
 
   // Add item from stock selection
-  const handleAddFromStock = (stockItem: StockItem) => {
+  const handleAddFromStock = useCallback((stockItem: StockItem) => {
     const product = stockItem._product;
     if (!product) return;
 
@@ -313,8 +313,8 @@ export default function NewSalePage() {
       profit,
     };
 
-    setSaleItems([...saleItems, newItem]);
-  };
+    setSaleItems((prev) => [...prev, newItem]);
+  }, []);
 
   // Remove item
   const handleRemoveItem = (itemId: string) => {
@@ -486,10 +486,12 @@ export default function NewSalePage() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Items</h2>
 
             {/* Serial Search Combobox */}
-            <SerialCombobox
-              onSelectSerial={handleAddFromStock}
-              addedSerials={addedSerials}
-            />
+            <div className="space-y-3">
+              <SerialCombobox
+                onSelectSerial={handleAddFromStock}
+                addedSerials={addedSerials}
+              />
+            </div>
 
             {/* Items List */}
             {saleItems.length === 0 ? (

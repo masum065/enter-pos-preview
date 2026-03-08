@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useRef } from "react";
+import { useState, useEffect, Suspense, useMemo, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useProducts } from "@/hooks/useProducts";
 import { useSuppliers } from "@/hooks/useSuppliers";
@@ -390,6 +390,7 @@ function AddStockContent() {
 
       {/* Form */}
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+
         <form onSubmit={mode === "single" ? handleSingleSubmit : handleBulkSubmit} className="space-y-6">
           {/* Product Selection */}
           <div>

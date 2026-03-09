@@ -77,7 +77,7 @@ function amountInWords(amount: number): string {
 }
 
 // ── Build printable HTML ──────────────────────────────────────────────────
-function buildInvoiceHTML(sale: Sale): string {
+function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   const grandTotal = Number(sale.grandTotal);
   const paidAmount = Number(sale.paidAmount);
   const dueAmount  = Number(sale.dueAmount);
@@ -107,288 +107,221 @@ function buildInvoiceHTML(sale: Sale): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Bill of Supply - Enter Computers</title>
-  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif;
-      background: #e5e7eb;
-      padding: 24px;
-      margin: 0;
-    }
-    .bengali {
-      font-family: 'Noto Sans Bengali', 'Hind Siliguri', sans-serif;
-    }
-    .logo-enter { color: #f97316; font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
-    .logo-comp  { color: #1a1a1a; font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
-    .logo-icon  {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 24px; height: 24px; border-radius: 50%;
-      background: #f97316; color: white; font-size: 13px; font-weight: 900;
-      margin: 0 1px; vertical-align: middle; position: relative; top: -2px;
-    }
-    .inv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .inv-table th, .inv-table td { border: 1px solid #9ca3af; padding: 6px 8px; }
-    .inv-table thead tr { background: #f9fafb; }
-    .inv-table th { font-weight: 700; text-align: center; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Invoice ${sale.invoiceNumber}</title>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:'Hind Siliguri','Noto Sans Bengali',sans-serif;
+    font-size:13px;color:#1a1a1a;
+    background:${forPreview ? '#fff' : '#e5e7eb'};
+    ${forPreview ? '' : 'padding:20px;'}
+  }
+  .bn{font-family:'Noto Sans Bengali','Hind Siliguri',sans-serif;}
+  .page{
+    background:#fff;
+    ${forPreview ? '' : 'max-width:210mm; margin:0 auto; box-shadow:0 2px 16px rgba(0,0,0,.12);'}
+    min-height:${forPreview ? 'auto' : '297mm'};
+    display:flex;flex-direction:column;
+  }
+  .content{flex:1;padding:0;}
 
-    /* T&C */
-    .tnc-wrapper {
-      border: 2px solid #222;
-      position: relative;
-      background: #fff;
+  /* ── Header ── */
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 28px 14px;border-bottom:1px solid #ccc;}
+  .hdr-left{display:flex;flex-direction:column;gap:4px;}
+  .hdr-left img{height:48px;object-fit:contain;}
+  .hdr-left .tagline{font-size:11px;color:#555;margin-top:2px;}
+  .hdr-right{text-align:right;}
+  .hdr-right .phones{font-size:19px;font-weight:800;color:#1a1a1a;letter-spacing:0.3px;}
+  .hdr-right .addr{font-size:11.5px;color:#555;margin-top:3px;line-height:1.5;}
+
+  /* ── Title row ── */
+  .title-row{display:flex;align-items:center;justify-content:space-between;padding:8px 28px;border-bottom:1px solid #ccc;}
+  .title-row .bill-title{flex:1;text-align:center;font-size:16px;font-weight:700;font-style:italic;}
+  .title-row .inv-no{font-size:13px;font-weight:600;white-space:nowrap;border:1px solid #aaa;padding:3px 12px;}
+
+  /* ── Customer row ── */
+  .cust-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 28px;border-bottom:1px solid #ccc;font-size:13px;line-height:1.8;}
+  .cust-row .left span,.cust-row .right span{display:inline;}
+  .cust-row .date-box{border:1px solid #9ca3af;padding:2px 14px;display:inline-block;margin-top:2px;}
+
+  /* ── Tables ── */
+  .tbl{width:100%;border-collapse:collapse;font-size:13px;}
+  .tbl th,.tbl td{border:1px solid #9ca3af;padding:5px 8px;}
+  .tbl thead th{background:#f3f4f6;font-weight:700;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;}
+  .tbl .ac{text-align:center;} .tbl .ar{text-align:right;} .tbl .al{text-align:left;padding-left:12px;}
+  .tbl .fw{font-weight:700;} .tbl .bg{background:#f9fafb;}
+  .mono{font-family:'Courier New',monospace;font-size:12px;}
+
+  /* ── Paid / Due ── */
+  .paid-due{padding:6px 28px;text-align:right;font-size:13.5px;font-weight:700;}
+
+  /* ── Note ── */
+  .note{padding:2px 28px 8px;font-size:12px;color:#666;font-style:italic;}
+
+  /* ── T&C wrapper ── */
+  .tnc-wrapper{border:2px solid #222;position:relative;background:#fff;}
+  .tnc-bar{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:13px;font-weight:700;padding:4px 24px;white-space:nowrap;border-radius:3px;}
+  .tnc-body{margin-top:20px;padding:6px 20px 0;font-size:12px;line-height:1.8;color:#111;}
+  .tnc-body .label{font-weight:700;}
+  .tnc-footer{background:#1a1a1a;color:#fff;font-size:12.5px;font-weight:700;text-align:center;padding:7px 16px;margin-top:10px;}
+
+  /* ── Page Footer ── */
+  .pg-footer{background:#2d2d2d;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 28px;font-size:13px;}
+  .pg-footer .fb-icon{background:#1877f2;color:#fff;font-weight:900;font-size:12px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:3px;margin-right:6px;}
+
+  @media print{
+    @page{size:A4;margin:0;}
+    body{background:#fff;padding:0;}
+    .page{box-shadow:none;min-height:auto;}
+    .pg-footer,.tnc-wrapper,.tnc-bar,.tnc-footer,.tbl thead th{
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;
     }
-    .tnc-header-bar {
-      position: absolute;
-      top: -16px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #333;
-      color: #fff;
-      font-size: 13px;
-      font-weight: 700;
-      padding: 5px 22px;
-      white-space: nowrap;
-      border-radius: 3px;
-    }
-    .tnc-row {
-      display: flex;
-      align-items: stretch;
-      border-bottom: 1px solid #d1d5db;
-    }
-    .tnc-row:last-of-type { border-bottom: none; }
-    .tnc-label {
-      background: #1a1a1a;
-      color: #fff;
-      font-weight: 800;
-      font-size: 15px;
-      padding: 10px 16px;
-      border-radius: 8px;
-      margin: 12px 10px 12px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 165px;
-      width: 165px;
-      text-align: center;
-      flex-shrink: 0;
-      line-height: 1.4;
-    }
-    .tnc-text {
-      font-size: 12.5px;
-      line-height: 1.75;
-      padding: 12px 16px 12px 8px;
-      color: #111;
-      flex: 1;
-    }
-    .tnc-footer {
-      background: #1a1a1a;
-      color: #fff;
-      font-size: 13px;
-      font-weight: 700;
-      text-align: center;
-      padding: 9px 16px;
-    }
-    .page-footer {
-      background: #2d2d2d;
-      color: #fff;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 28px;
-      font-size: 13px;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    @media print {
-      body { background: white; padding: 0; }
-      .container { box-shadow: none !important; }
-      .tnc-wrapper, .tnc-header-bar, .tnc-label, .tnc-footer, .page-footer, .logo-icon, .inv-table thead tr {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-    }
-    .mono { font-family: monospace; }
-  </style>
+  }
+</style>
 </head>
 <body>
-
-<div class="container" style="background:#fff; max-width:900px; margin:0 auto; box-shadow:0 2px 16px rgba(0,0,0,0.13);">
+<div class="page">
+<div class="content">
 
   <!-- HEADER -->
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:20px 28px 16px; border-bottom:1px solid #d1d5db;">
-    <div>
-      <div style="line-height:1; display:flex; align-items:center;">
-        <span class="logo-enter">ENTER</span>
-        <span style="display:inline-flex; align-items:center;">
-          <span class="logo-comp">&nbsp;COMP</span>
-          <span class="logo-icon">⊙</span>
-          <span class="logo-comp">TERS</span>
-        </span>
-      </div>
-      <p class="bengali" style="font-size:11px; color:#555; margin-top:5px;">বেস্ট কোয়ালিটির প্রজেক্ট ইউজড ল্যাপটপ &amp; মোবাইল এর বিশ্বস্ত প্রতিষ্ঠান</p>
+  <div class="hdr">
+    <div class="hdr-left">
+      <img src="/enter-logo.png" alt="Enter Computers"/>
+      <span class="tagline bn">বেস্ট কোয়ালিটির প্রজেক্ট ইউজড ল্যাপটপ &amp; মোবাইল এর বিশ্বস্ত প্রতিষ্ঠান</span>
     </div>
-    <div style="text-align:right;">
-      <p style="font-size:20px; font-weight:800; color:#1a1a1a;">01789-443043&nbsp;&nbsp;01684-134574</p>
-      <p class="bengali" style="font-size:11.5px; color:#555; margin-top:4px;">অলকা নদী বাংলা কমপ্লেক্স ২য় তলা দোকান নং ২৩৮</p>
-      <p class="bengali" style="font-size:11.5px; color:#555;">রাম বাবু রোড, গাংগিনারপার, সদর, ময়মনসিংহ।</p>
+    <div class="hdr-right">
+      <div class="phones">01789-443043 &nbsp; 01684-134574</div>
+      <div class="addr bn">অলকা নদী বাংলা কমপ্লেক্স ২য় তলা দোকান নং ২৩৮<br/>রাম বাবু রোড, গাংগিনারপার, সদর, ময়মনসিংহ।</div>
     </div>
   </div>
 
   <!-- TITLE ROW -->
-  <div style="display:flex; align-items:center; justify-content:space-between; padding:9px 28px; border-bottom:1px solid #d1d5db;">
-    <div style="flex:1; text-align:center;">
-      <span style="font-size:17px; font-weight:700;">Bill of Supply</span>
-    </div>
-    <div style="font-size:13px; font-weight:600; white-space:nowrap;">
-      NO: <strong>${sale.invoiceNumber}</strong>
-    </div>
+  <div class="title-row">
+    <div class="bill-title">Bill of Supply</div>
+    <div class="inv-no">NO: <strong>${sale.invoiceNumber}</strong></div>
   </div>
 
   <!-- CUSTOMER -->
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:10px 28px; border-bottom:1px solid #d1d5db;">
-    <div style="font-size:13px; line-height:1.9;">
+  <div class="cust-row">
+    <div class="left">
       <span><strong>Customer:</strong> ${sale.customerName} &nbsp;&nbsp; <strong>Phone:</strong> ${sale.customerPhone}</span><br/>
-      ${sale.customerAddress ? `<span><strong>Address:</strong> ${sale.customerAddress}</span>` : ''}
+      ${(sale as any).customerAddress ? `<span><strong>Address:</strong> ${(sale as any).customerAddress}</span>` : ''}
     </div>
-    <div style="text-align:right; font-size:13px; line-height:1.9;">
+    <div class="right" style="text-align:right;">
       <span><strong>Salesman:</strong> System Administrator</span><br/>
-      <div style="border:1px solid #9ca3af; padding:3px 14px; display:inline-block; font-size:13px; margin-top:2px;">
-        Date: ${fmtDateTime(sale.invoiceDate)}
-      </div>
+      <div class="date-box">Date: ${fmtDate(sale.invoiceDate)}</div>
     </div>
   </div>
 
   <!-- ITEMS TABLE -->
-  <div style="padding:16px 28px 8px;">
-    <table class="inv-table">
+  <div style="padding:14px 28px 6px;">
+    <table class="tbl">
       <thead>
         <tr>
-          <th style="width:38px;">SL.</th>
-          <th style="text-align:left; padding-left:12px;">ITEM</th>
-          <th style="width:74px;">WARRANTY</th>
+          <th style="width:36px;">SL.</th>
+          <th class="al">ITEM</th>
+          <th style="width:72px;">WARRANTY</th>
           <th style="width:108px;">SERIAL NO.</th>
-          <th style="width:42px;">QTY</th>
-          <th style="width:100px;">PRICE</th>
-          <th style="width:100px;">TOTAL</th>
+          <th style="width:40px;">QTY</th>
+          <th style="width:95px;">PRICE</th>
+          <th style="width:95px;">TOTAL</th>
         </tr>
       </thead>
       <tbody>
         ${itemRows}
-        <tr style="height:26px;">
-          <td colspan="5" rowspan="${discount > 0 ? 3 : 2}" style="vertical-align:middle; padding:8px 10px;">
+        <tr>
+          <td colspan="5" rowspan="${discount > 0 ? 3 : 2}" style="vertical-align:middle;padding:8px 10px;">
             <strong>Amount In Words:</strong> ${amountInWords(grandTotal)}
           </td>
-          <td style="text-align:right; font-weight:700; background:#f9fafb;">Total</td>
-          <td style="text-align:right;">${fmt(subtotal)}</td>
+          <td class="ar fw bg">Total</td>
+          <td class="ar">${fmt(subtotal)}</td>
         </tr>
         ${discount > 0 ? `<tr>
-          <td style="text-align:right; font-weight:700; background:#f9fafb;">Discount</td>
-          <td style="text-align:right;">(${fmt(discount)})</td>
-        </tr>` : ""}
+          <td class="ar fw bg">Discount</td>
+          <td class="ar">(${fmt(discount)})</td>
+        </tr>` : ''}
         <tr>
-          <td style="text-align:right; font-weight:700; background:#f9fafb;">Grand Total</td>
-          <td style="text-align:right; font-weight:700;">${fmt(grandTotal)}</td>
+          <td class="ar fw bg">Grand Total</td>
+          <td class="ar fw">${fmt(grandTotal)}</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <!-- PAID DUE -->
-  <div style="padding:6px 28px; text-align:right; font-size:13.5px; font-weight:700;">
+  <!-- PAID / DUE -->
+  <div class="paid-due">
     Paid: ${fmt(paidAmount)} Tk &nbsp;&nbsp; Due: ${fmt(dueAmount)} Tk
   </div>
 
   <!-- NOTE -->
-  <div style="padding:2px 28px 10px; font-size:12px; color:#666; font-style:italic;">
+  <div class="note">
     Good received by customer in good condition.
   </div>
 
   <!-- PAYMENT HISTORY -->
   ${sale.payments?.length > 0 ? `
-  <div style="padding:4px 28px 24px;">
-    <p style="font-size:13px; font-weight:700; margin-bottom:8px;">Payment History</p>
-    <table class="inv-table">
+  <div style="padding:4px 28px 20px;">
+    <p style="font-size:13px;font-weight:700;margin-bottom:6px;">Payment History</p>
+    <table class="tbl">
       <thead>
         <tr>
-          <th style="width:38px;">Sl.</th>
+          <th style="width:36px;">Sl.</th>
           <th>Date</th>
           <th>Method</th>
           <th>Reference</th>
-          <th>Amount</th>
+          <th style="width:110px;">Amount</th>
         </tr>
       </thead>
       <tbody>
         ${payRows}
-        <tr style="background:#f9fafb; font-weight:700;">
-          <td colspan="4" style="padding:6px 8px; text-align:center;">Total</td>
-          <td style="text-align:right;">${fmt(paidAmount)}</td>
+        <tr style="font-weight:700;">
+          <td colspan="4" class="bg" style="padding:5px 8px;"><strong>Total</strong></td>
+          <td class="ar bg">${fmt(paidAmount)}</td>
         </tr>
       </tbody>
     </table>
-  </div>` : ""}
+  </div>` : ''}
 
   <!-- TERMS & CONDITIONS -->
-  <div style="padding:0 28px 30px;">
+  <div style="padding:0 28px 24px;">
     <div class="tnc-wrapper">
-      <div class="tnc-header-bar bengali">
-        বিক্রয় পরবর্তী সেবা ও শর্তাবলী (Terms &amp; Conditions)
+      <div class="tnc-bar bn">বিক্রয় পরবর্তী সেবা ও শর্তাবলী (Terms &amp; Conditions)</div>
+      <div class="tnc-body bn">
+        <span class="label">ল্যাপটপ ওয়ারেন্টি:</span> ১০ দিনের রিপ্লেসমেন্ট গ্যারান্টি (শুধুমাত্র হার্ডওয়্যার সমস্যার জন্য)। ২ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। প্রয়োজনীয় পার্টস বা খুচরা যন্ত্রাংশের মূল্য গ্রাহককে বহন করতে হবে।<br/>
+        <span class="label">মোবাইল ওয়ারেন্টি:</span> ৭ দিনের রিপ্লেসমেন্ট গ্যারান্টি। ১ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। মোবাইলের Display এবং Motherboard কোনো ওয়ারেন্টির অন্তর্ভুক্ত নয়।<br/>
+        <span class="label">রিপ্লেসমেন্ট নীতি:</span> রিপ্লেসমেন্টের ক্ষেত্রে একই মডেলের ডিভাইস প্রদান করা হবে। স্টক না থাকলে আলোচনা সাপেক্ষে অন্য মডেল নির্বাচন করা যাবে।<br/>
+        <span class="label">এক্সচেঞ্জ ও রিটার্ন:</span> ক্রয়ের ২ মাসের মধ্যে Exchange করলে নূন্যতম ২০% মূল্য কর্তন হবে। ক্রয়ের ২ মাসের মধ্যে Return করলে নূন্যতম ৩০% মূল্য কর্তন হবে। ডিভাইসের কন্ডিশন যাচাই করে চূড়ান্ত মূল্য নির্ধারণ করা হবে।<br/>
+        <span class="label">৬. ওয়ারেন্টি বাতিল হবে যদি:</span> ডিভাইসে Physical Damage / Scratch থাকে। পানি বা Liquid Damage হয়। শর্ট সার্কিট বা ভোল্টেজের সমস্যায় ক্ষতি হয়। ওয়ারেন্টি সিল বা স্টিকার নষ্ট করা হয়। অন্য কোনো টেকনিশিয়ান দ্বারা ডিভাইস খোলা হয়।
       </div>
-      <div style="margin-top:22px;">
-        <div class="tnc-row">
-          <div class="tnc-label bengali">ল্যাপটপ ওয়ারেন্টি</div>
-          <div class="tnc-text bengali">
-            ১০ দিনের রিপ্লেসমেন্ট গ্যারান্টি (শুধুমাত্র হার্ডওয়্যার সমস্যার জন্য)। ২ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। প্রয়োজনীয় পার্টস বা খুচরা যন্ত্রাংশের মূল্য গ্রাহককে বহন করতে হবে।
-          </div>
-        </div>
-        <div class="tnc-row">
-          <div class="tnc-label bengali">মোবাইল ওয়ারেন্টি</div>
-          <div class="tnc-text bengali">
-            ৭ দিনের রিপ্লেসমেন্ট গ্যারান্টি। ১ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। মোবাইলের Display এবং Motherboard কোনো ওয়ারেন্টির অন্তর্ভুক্ত নয়।
-          </div>
-        </div>
-        <div class="tnc-row">
-          <div class="tnc-label bengali">রিপ্লেসমেন্ট নীতি</div>
-          <div class="tnc-text bengali">
-            রিপ্লেসমেন্টের ক্ষেত্রে একই মডেলের ডিভাইস প্রদান করা হবে। স্টক না থাকলে আলোচনা সাপেক্ষে অন্য মডেল নির্বাচন করা যাবে।
-            এক্সচেঞ্জ ও রিটার্ন: ক্রয়ের ২ মাসের মধ্যে Exchange করলে নূন্যতম ২০% মূল্য কর্তন হবে। ক্রয়ের ২ মাসের মধ্যে Return করলে নূন্যতম ৩০% মূল্য কর্তন হবে। ডিভাইসের কন্ডিশন যাচাই করে চূড়ান্ত মূল্য নির্ধারণ করা হবে।
-          </div>
-        </div>
-        <div class="tnc-row">
-          <div class="tnc-label bengali">এক্সচেঞ্জ ও রিটার্ন</div>
-          <div class="tnc-text bengali">
-            ওয়ারেন্টি বাতিল হবে যদি: ডিভাইসে Physical Damage / Scratch থাকে। পানি বা Liquid Damage হয়। শর্ট সার্কিট বা ভোল্টেজের সমস্যায় ক্ষতি হয়। ওয়ারেন্টি সিল বা স্টিকার নষ্ট করা হয়। অন্য কোনো টেকনিশিয়ান দ্বারা ডিভাইস খোলা হয়।
-          </div>
-        </div>
-        <div class="tnc-footer bengali">
-          গুরুত্বপূর্ণ: ওয়ারেন্টি সুবিধা পেতে অরিজিনাল ক্যাশ মেমো/বিল অবশ্যই সংরক্ষণ করতে হবে।
-        </div>
+      <div class="tnc-footer bn">
+        গুরুত্বপূর্ণ: ওয়ারেন্টি সুবিধা পেতে অরিজিনাল ক্যাশ মেমো/বিল অবশ্যই সংরক্ষণ করতে হবে।
       </div>
     </div>
   </div>
 
-  <!-- PAGE FOOTER -->
-  <div class="page-footer">
-    <div style="display:flex; align-items:center; gap:8px;">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="2" y1="12" x2="22" y2="12"/>
-        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-      </svg>
-      <span>www.entercomputers.com.bd</span>
-    </div>
-    <div style="display:flex; align-items:center; gap:8px;">
-      <div style="background:#1877f2; color:white; font-weight:900; font-size:13px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:3px; padding-left: 5px;">f</div>
-      <span>fb.com/entercomputersmym</span>
-    </div>
-  </div>
+</div><!-- .content -->
 
+<!-- PAGE FOOTER -->
+<div class="pg-footer">
+  <div style="display:flex;align-items:center;gap:6px;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
+      <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+    <span>www.entercomputers.com.bd</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span class="fb-icon">f</span>
+    <span>fb.com/entercomputersmym</span>
+  </div>
 </div>
 
-<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}</script>
+</div><!-- .page -->
+
+${forPreview ? '' : `<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\\/script>`}
 </body>
 </html>`;
 }
@@ -403,31 +336,25 @@ export function InvoicePrintModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const grandTotal = Number(sale.grandTotal);
-  const paidAmount = Number(sale.paidAmount);
-  const dueAmount  = Number(sale.dueAmount);
-  const discount   = Number(sale.discountAmount);
-  const subtotal   = (sale.items || []).reduce((s: number, i: any) => s + Number(i.amount || i.salePrice || 0), 0);
-
   const handlePrint = () => {
-    const html = buildInvoiceHTML(sale);
+    const html = buildInvoiceHTML(sale, false);
     const w = window.open("", "_blank", "width=900,height=700");
     if (!w) { alert("Please allow pop-ups to print the invoice"); return; }
     w.document.write(html);
     w.document.close();
   };
 
-  
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Invoice Preview" size="lg">
-      <div className="bg-gray-200 p-2 sm:p-4 rounded-lg">
+      <div className="bg-gray-100 dark:bg-gray-800 p-2 sm:p-3 rounded-lg">
         <iframe
-          srcDoc={buildInvoiceHTML(sale).replace('<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}</script>', '')}
-          className="w-full h-[65vh] border-0 bg-transparent rounded-sm shadow-sm outline-none"
+          srcDoc={buildInvoiceHTML(sale, true)}
+          className="w-full border-0 bg-white rounded shadow-sm"
+          style={{ height: '68vh', minHeight: 500 }}
         />
       </div>
 
-      <div className="mt-5 flex justify-center gap-3">
+      <div className="mt-4 flex justify-center gap-3">
         <button
           onClick={onClose}
           className="rounded-lg border border-gray-300 px-6 py-2.5 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -446,12 +373,8 @@ export function InvoicePrintModal({
       </div>
     </Modal>
   );
-
 }
 
-function tdStyle(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { border: "1px solid #ddd", padding: "4px 8px", fontSize: 10, ...extra };
-}
 
 // ── Trigger button ────────────────────────────────────────────────────────
 export function PrintInvoiceButton({

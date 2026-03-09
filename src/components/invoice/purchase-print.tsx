@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { useShopInfo } from "@/hooks/useShopInfo";
+import type { ShopInfo } from "@/lib/shop-info";
+import { DEFAULT_SHOP_INFO } from "@/lib/shop-info";
 
 interface Purchase {
   id: string;
@@ -31,155 +34,274 @@ function fmtDate(d: string | Date): string {
   const mon = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"][date.getMonth()];
   return `${dd}-${mon}-${String(date.getFullYear()).slice(-2)}`;
 }
+function amountInWords(amount: number): string {
+  const whole = Math.floor(amount);
+  const paise = Math.round((amount - whole) * 100);
+  let result = "BDT " + numberToWords(whole);
+  if (paise > 0) result += " and " + numberToWords(paise) + " Paisa";
+  return result + " Only";
+}
+function numberToWords(n: number): string {
+  if (n === 0) return "Zero";
+  const ones = ["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine",
+    "Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen",
+    "Seventeen","Eighteen","Nineteen"];
+  const tens = ["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
+  function below1000(num: number): string {
+    if (num < 20) return ones[num];
+    if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? " " + ones[num % 10] : "");
+    return ones[Math.floor(num / 100)] + " Hundred" + (num % 100 ? " " + below1000(num % 100) : "");
+  }
+  const crore = Math.floor(n / 10000000);
+  const lakh  = Math.floor((n % 10000000) / 100000);
+  const thou  = Math.floor((n % 100000) / 1000);
+  const rest  = Math.floor(n % 1000);
+  const parts: string[] = [];
+  if (crore) parts.push(below1000(crore) + " Crore");
+  if (lakh)  parts.push(below1000(lakh)  + " Lakh");
+  if (thou)  parts.push(below1000(thou)  + " Thousand");
+  if (rest)  parts.push(below1000(rest));
+  return parts.join(" ");
+}
 
 // ── Build printable HTML ──────────────────────────────────────────────────
-function buildPurchaseHTML(p: Purchase): string {
+function buildPurchaseHTML(p: Purchase, forPreview = false, shopInfo: ShopInfo = DEFAULT_SHOP_INFO): string {
+  const s = shopInfo; // short alias
   const price   = Number(p.purchasePrice);
   const paid    = Number(p.paidAmount);
   const balance = price - paid;
   const isPaid  = balance <= 0;
-  const cols    = p.imei ? 4 : 3; // SL + PRODUCT + SERIAL [+ IMEI] + PRICE
+  
+  // Create item row
+  const itemRow = `
+    <tr>
+      <td style="text-align:center;">1</td>
+      <td style="padding-left:12px;">${p.productName || ""}</td>
+      <td style="text-align:center;">N/A</td>
+      <td style="text-align:center;" class="mono">${p.serialNumber || ""}${p.imei ? '<br/>' + p.imei : ''}</td>
+      <td style="text-align:center;">1</td>
+      <td style="text-align:right;">${fmt(price)}</td>
+      <td style="text-align:right;">${fmt(price)}</td>
+    </tr>`;
 
-  const statusText = isPaid ? "Paid" : balance < price ? "Partial" : "Unpaid";
-
-  return `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>Purchase — ${p.invoiceNumber}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Purchase Voucher ${p.invoiceNumber}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding:24px 28px;}
-  .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
-  .logo{font-size:26px;font-weight:900;font-style:italic;letter-spacing:-0.5px;}
-  .shop-name{font-weight:700;font-size:11px;margin-top:4px;}
-  .shop-addr{font-size:10px;color:#555;max-width:300px;line-height:1.4;margin-top:2px;}
-  .inv-box{border:1px solid #9ca3af;font-size:11px;min-width:180px;}
-  .inv-box-title{text-align:center;font-weight:700;border-bottom:1px solid #9ca3af;padding:4px 16px;}
-  .inv-box-row{padding:4px 16px;border-bottom:1px solid #e5e7eb;}
-  .inv-box-row:last-child{border-bottom:none;}
-  .row{display:flex;flex-wrap:wrap;gap:0 20px;margin-bottom:3px;font-size:11px;}
-  table{width:100%;border-collapse:collapse;table-layout:fixed;border:1px solid #9ca3af;}
-  th,td{border:1px solid #9ca3af;padding:4px 8px;font-size:11px;word-break:break-word;}
-  thead th{background:#f3f4f6;font-weight:700;}
-  .tr{text-align:right;}.tc{text-align:center;}.at{vertical-align:top;}
-  .mono{font-family:monospace;}.fw7{font-weight:700;}.fw6{font-weight:600;}
-  .note{font-size:10px;color:#555;margin:4px 0;}
-  .status-badge{display:inline-block;border:1px solid #1a1a1a;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700;color:#1a1a1a;}
-  .sig-section{margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;display:flex;justify-content:flex-end;}
-  .sig-box{text-align:center;min-width:200px;}
-  .footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:20px;padding-top:12px;border-top:1px solid #f3f4f6;}
-  @media print{@page{size:A4;margin:12mm 14mm;}body{padding:0!important;}}
+  body{
+    font-family:'Inter','Noto Sans Bengali',sans-serif;
+    font-size:13px;color:#1a1a1a;
+    background:${forPreview ? '#fff' : '#e5e7eb'};
+    ${forPreview ? '' : 'padding:20px;'}
+  }
+  .bn{font-family:'Noto Sans Bengali','Inter',sans-serif;}
+  .page{
+    background:#fff;
+    ${forPreview ? '' : 'max-width:210mm; margin:0 auto; box-shadow:0 2px 16px rgba(0,0,0,.12);'}
+    min-height:297mm;
+    display:flex;flex-direction:column;
+  }
+  .content{flex:1;padding:36px 32px 0;}
+
+  /* ── Header ── */
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:1px solid #ccc;}
+  .hdr-left{display:flex;flex-direction:column;gap:4px;}
+  .hdr-left img{height:48px;object-fit:contain;}
+  .hdr-left .tagline{font-size:11px;color:#555;margin-top:2px;}
+  .hdr-right{text-align:right;}
+  .hdr-right .phones{font-size:19px;font-weight:800;color:#1a1a1a;letter-spacing:0.3px;}
+  .hdr-right .addr{font-size:11.5px;color:#555;margin-top:3px;line-height:1.5;}
+
+  /* ── Title row ── */
+  .title-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ccc;}
+  .title-row .bill-title{flex:1;text-align:center;font-size:16px;font-weight:700;font-style:italic;}
+  .title-row .inv-no{font-size:13px;font-weight:600;white-space:nowrap;border:1px solid #aaa;padding:3px 12px;}
+
+  /* ── Customer row (adapted for Seller) ── */
+  .cust-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #ccc;font-size:13px;line-height:1.8;}
+  .cust-row .left span,.cust-row .right span{display:inline;}
+  .cust-row .date-box{border:1px solid #9ca3af;padding:2px 14px;display:inline-block;margin-top:2px;}
+
+  /* ── Tables ── */
+  .tbl{width:100%;border-collapse:collapse;font-size:13px;}
+  .tbl th,.tbl td{border:1px solid #9ca3af;padding:5px 8px;}
+  .tbl thead th{background:#f3f4f6;font-weight:700;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;}
+  .tbl .ac{text-align:center;} .tbl .ar{text-align:right;} .tbl .al{text-align:left;padding-left:12px;}
+  .tbl .fw{font-weight:700;} .tbl .bg{background:#f9fafb;}
+  .mono{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;}
+
+  /* ── Paid / Due ── */
+  .paid-due{padding:6px 0;text-align:right;font-size:13.5px;font-weight:700;}
+
+  /* ── Note ── */
+  .note{padding:2px 0 8px;font-size:12px;color:#666;font-style:italic;}
+
+  /* ── Bottom section  ── */
+  .bottom-section{margin-top:auto;}
+
+  /* ── T&C wrapper ── */
+  .tnc-section{padding:0 32px 14px;}
+  .tnc-wrapper{border:2px solid #222;position:relative;background:#fff;}
+  .tnc-bar{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:13px;font-weight:700;padding:4px 24px;white-space:nowrap;border-radius:3px;}
+  .tnc-body{margin-top:22px;padding:8px 14px 4px;font-size:11.5px;line-height:1.75;color:#222;}
+  .tnc-item{margin-bottom:5px;display:flex;gap:8px;align-items:flex-start;}
+  .tnc-label{display:inline-block;background:#1a1a1a;color:#fff;font-weight:700;font-size:11px;padding:4px 12px;border-radius:6px;white-space:nowrap;flex-shrink:0;margin-top:1px;}
+  .tnc-desc{flex:1;}
+  .tnc-footer{background:#1a1a1a;color:#fff;font-size:12.5px;font-weight:700;text-align:center;padding:7px 16px;margin-top:8px;}
+
+  /* ── Signature ── */
+  .sigs{display:flex;justify-content:space-between;padding:30px 40px 20px;}
+  .sig-line{border-top:1px solid #1a1a1a;padding-top:4px;font-weight:600;font-size:14px;text-align:center;width:180px;position:relative;}
+  .cust-sig{margin-left:auto;}
+  .auth-img{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);max-height:60px;max-width:160px;}
+
+  /* ── Page Footer ── */
+  .pg-footer{background:#2d2d2d;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 28px;font-size:13px;}
+  .pg-footer .fb-icon{background:#1877f2;color:#fff;font-weight:900;font-size:12px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:3px;margin-right:6px;}
+
+  @media print{
+    @page{size:A4;margin:0;}
+    body{background:#fff;padding:0;}
+    .page{box-shadow:none;}
+    .pg-footer,.tnc-wrapper,.tnc-bar,.tnc-footer,.tnc-label,.tbl thead th{
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    }
+  }
 </style>
 </head>
 <body>
+<div class="page">
+<div class="content">
+
+  <!-- HEADER -->
   <div class="hdr">
-    <div>
-      <div class="logo">ENTER</div>
-      <div class="shop-name">Enter Computers</div>
-      <div class="shop-addr">Dhaka, Bangladesh<br>Phone: +880 1234-567890 | info@entercomputers.com</div>
+    <div class="hdr-left">
+      <img src="${s.logo || '/enter-logo.png'}" alt="${s.shopName}"/>
+      <span class="tagline bn">${s.tagline}</span>
     </div>
-    <div class="inv-box">
-      <div class="inv-box-title">Purchase Voucher</div>
-      <div class="inv-box-row">NO: <strong>${p.invoiceNumber}</strong></div>
-      <div class="inv-box-row">Date: ${fmtDate(p.purchaseDate)}</div>
+    <div class="hdr-right">
+      <div class="phones">${s.phone1}${s.phone2 ? ' &nbsp; ' + s.phone2 : ''}</div>
+      <div class="addr bn">${s.address.replace(/\\n/g, '<br/>')}</div>
     </div>
   </div>
 
-  <div style="padding-top:8px;margin-bottom:8px;">
-    <div class="row">
-      <span><strong>Seller:</strong> ${p.sellerName}</span>
-      <span><strong>Phone:</strong> ${p.sellerPhone}</span>
+  <!-- TITLE ROW -->
+  <div class="title-row">
+    <div class="bill-title">Purchase Voucher</div>
+    <div class="inv-no"><strong>${p.invoiceNumber}</strong></div>
+  </div>
+
+  <!-- CUSTOMER (Adapted for Seller) -->
+  <div class="cust-row">
+    <div class="left">
+      <span><strong>Seller:</strong> ${p.sellerName} &nbsp;&nbsp; <strong>Phone:</strong> ${p.sellerPhone}</span><br/>
       ${p.sellerAddress ? `<span><strong>Address:</strong> ${p.sellerAddress}</span>` : ''}
     </div>
-    <div class="row">
-      <span><strong>Prepared By:</strong> ${p.createdByName || 'Admin'}</span>
-      <span><strong>Payment:</strong> ${p.paymentMethod}</span>
+    <div class="right" style="text-align:right;">
+      <span><strong>Prepared By:</strong> ${p.createdByName || 'Admin'}</span><br/>
+      <div class="date-box">Date: ${fmtDate(p.purchaseDate)}</div>
     </div>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th style="width:40px;white-space:nowrap;">SL.</th>
-        <th>PRODUCT</th>
-        <th class="mono" style="width:120px">SERIAL NO.</th>
-        ${p.imei ? '<th class="mono" style="width:110px">IMEI</th>' : ''}
-        <th class="tr" style="width:110px">PURCHASE PRICE</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td class="at">1</td>
-        <td class="at">${p.productName}</td>
-        <td class="at mono">${p.serialNumber}</td>
-        ${p.imei ? `<td class="at mono">${p.imei}</td>` : ''}
-        <td class="at tr fw6">${fmt(price)}</td>
-      </tr>
-    </tbody>
-    <tfoot>
-      <tr>
-        <td colspan="${cols - 1}" style="font-size:11px;">
-          <strong>Payment Status:</strong>
-          <span class="status-badge">${statusText}</span>
-          &nbsp; <strong>Method:</strong> ${p.paymentMethod}
-        </td>
-        <td class="tr fw6">Purchase Price</td>
-        <td class="tr fw6">${fmt(price)}</td>
-      </tr>
-      <tr>
-        <td colspan="${cols - 1}"></td>
-        <td class="tr fw6">Paid to Seller</td>
-        <td class="tr fw6">${fmt(paid)}</td>
-      </tr>
-      ${balance > 0 ? `
-      <tr>
-        <td colspan="${cols - 1}"></td>
-        <td class="tr fw7">Balance Due</td>
-        <td class="tr fw7">${fmt(balance)}</td>
-      </tr>` : ''}
-    </tfoot>
-  </table>
-
-  ${p.notes ? `<p class="note" style="margin-top:6px;"><strong>Notes:</strong> ${p.notes}</p>` : ''}
-
-  <p class="note" style="margin-top:8px;">VAT and TAX not included if not mentioned above.</p>
-
-  <div style="margin-top:10px;">
-    <div class="fw7" style="font-size:11px;margin-bottom:4px;">Terms &amp; Conditions:</div>
-    <ol style="padding-left:16px;">
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Goods once purchased will not be refunded without valid reason.</li>
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Seller guarantees the product is genuine and free from defects.</li>
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Serial number must match the product at the time of delivery.</li>
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Payment disputes must be raised within 3 days of purchase date.</li>
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Please retain this voucher for all future references.</li>
-    </ol>
+  <!-- ITEMS TABLE -->
+  <div style="padding:14px 0 6px;">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width:36px;">SL.</th>
+          <th class="al">ITEM</th>
+          <th style="width:72px;">WARRANTY</th>
+          <th style="width:108px;">SERIAL NO.</th>
+          <th style="width:40px;">QTY</th>
+          <th style="width:95px;">PRICE</th>
+          <th style="width:95px;">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRow}
+        <tr>
+          <td colspan="5" rowspan="2" style="vertical-align:middle;padding:8px 10px;">
+            <strong>Amount In Words:</strong> ${amountInWords(price)}
+          </td>
+          <td class="ar fw bg">Total Date</td>
+          <td class="ar">${fmt(price)}</td>
+        </tr>
+        <tr>
+          <td class="ar fw bg">Grand Total</td>
+          <td class="ar fw">${fmt(price)}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
-  <div class="sig-section">
-    <div class="sig-box">
-      <div style="height:48px;"></div>
-      <div style="border-top:1px dotted #9ca3af;padding-top:4px;font-size:10px;">Issued By</div>
-      <div style="font-size:10px;color:#555;margin-top:2px;">Enter Computers</div>
+  <div class="paid-due">
+    <div>Paid to Seller: <span style="display:inline-block;width:95px;">${fmt(paid)}</span></div>
+    <div>Balance Due: <span style="display:inline-block;width:95px;">${balance > 0 ? fmt(balance) : '0.00'}</span></div>
+  </div>
+
+  <div class="note">
+    Payment Method: ${p.paymentMethod} &nbsp;|&nbsp; Status: ${isPaid ? "Paid" : balance < price ? "Partial" : "Unpaid"}<br>
+    ${p.notes ? `Notes: ${p.notes}<br>` : ''}
+    * Showing current page records. VAT and TAX not included if not mentioned above.
+  </div>
+
+  <!-- SIGNATURES -->
+  <div class="sigs">
+    <div class="sig-line">
+      ${s.signature ? `<img src="${s.signature}" class="auth-img"/>` : ''}
+      Authorised Signatory
     </div>
+    <div class="sig-line cust-sig">Seller's Signature</div>
   </div>
 
-  <div class="footer-note">This is a system generated purchase voucher.</div>
+</div><!-- .content -->
 
-  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
+<div class="bottom-section">
+<!-- TERMS & CONDITIONS -->
+<div class="tnc-section">
+  <div class="tnc-wrapper">
+    <div class="tnc-bar bn">ক্রয় সম্পর্কিত শর্তাবলী (Terms &amp; Conditions)</div>
+    <div class="tnc-body bn">
+      <div class="tnc-item"><span class="tnc-label">Purchase Policy</span><span class="tnc-desc">Goods once purchased will not be refunded without valid reason. Seller guarantees the product is genuine and free from defects.</span></div>
+      <div class="tnc-item"><span class="tnc-label">Verification</span><span class="tnc-desc">Serial number must match the product at the time of delivery. Payment disputes must be raised within 3 days.</span></div>
+    </div>
+    <div class="tnc-footer bn">System Generated Purchase Voucher</div>
+  </div>
+</div>
+
+<!-- PAGE FOOTER -->
+<div class="pg-footer">
+  <div style="display:flex;align-items:center;gap:6px;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
+      <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+    <span>${s.website}</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span class="fb-icon">f</span>
+    <span>${s.facebook}</span>
+  </div>
+</div>
+</div><!-- .bottom-section -->
+
+</div><!-- .page -->
+
 </body>
 </html>`;
+  if (!forPreview) {
+    const printScript = '<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>';
+    return html.replace('</body>', printScript + '</body>');
+  }
+  return html;
 }
 
-// ── Style helpers ─────────────────────────────────────────────────────────
-function th(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { border: "1px solid #9ca3af", padding: "4px 8px", fontSize: 11, background: "#f3f4f6", fontWeight: 700, textAlign: "left", ...extra };
-}
-function td(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { border: "1px solid #9ca3af", padding: "4px 8px", fontSize: 11, wordBreak: "break-word", ...extra };
-}
-
-// ── Modal ─────────────────────────────────────────────────────────────────
+// ── Modal Component ───────────────────────────────────────────────────────
 export function PurchasePrintModal({
   purchase,
   isOpen,
@@ -189,153 +311,39 @@ export function PurchasePrintModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const price   = Number(purchase.purchasePrice);
-  const paid    = Number(purchase.paidAmount);
-  const balance = price - paid;
-  const isPaid  = balance <= 0;
-  const cols    = purchase.imei ? 4 : 3;
-  const statusText = isPaid ? "Paid" : balance < price ? "Partial" : "Unpaid";
+  const { data: shopInfo } = useShopInfo();
+  const info = shopInfo || DEFAULT_SHOP_INFO;
 
   const handlePrint = () => {
-    const html = buildPurchaseHTML(purchase);
+    const html = buildPurchaseHTML(purchase, false, info);
     const w = window.open("", "_blank", "width=900,height=700");
-    if (!w) { alert("Please allow pop-ups to print"); return; }
+    if (!w) { alert("Please allow pop-ups to print the voucher"); return; }
     w.document.write(html);
     w.document.close();
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Purchase Voucher Preview" size="lg">
-      <div
-        style={{ fontFamily: "Arial, Helvetica, sans-serif", fontSize: 11, color: "#1a1a1a" }}
-        className="max-h-[65vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-5 text-left dark:border-gray-700 dark:bg-white"
-      >
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 900, fontStyle: "italic", letterSpacing: -0.5 }}>ENTER</div>
-            <div style={{ fontWeight: 700, fontSize: 11, marginTop: 3 }}>Enter Computers</div>
-            <div style={{ fontSize: 10, color: "#555", lineHeight: 1.4, marginTop: 2, maxWidth: 260 }}>
-              Dhaka, Bangladesh<br />Phone: +880 1234-567890 | info@entercomputers.com
-            </div>
-          </div>
-          <div style={{ border: "1px solid #9ca3af", fontSize: 11, minWidth: 180 }}>
-            <div style={{ textAlign: "center", fontWeight: 700, borderBottom: "1px solid #9ca3af", padding: "4px 16px" }}>Purchase Voucher</div>
-            <div style={{ padding: "4px 16px", borderBottom: "1px solid #e5e7eb" }}>NO: <strong>{purchase.invoiceNumber}</strong></div>
-            <div style={{ padding: "4px 16px" }}>Date: {fmtDate(purchase.purchaseDate)}</div>
-          </div>
-        </div>
-
-        {/* Seller — no hr, top padding */}
-        <div style={{ paddingTop: 8, marginBottom: 8 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0 20px", marginBottom: 3 }}>
-            <span><strong>Seller:</strong> {purchase.sellerName}</span>
-            <span><strong>Phone:</strong> {purchase.sellerPhone}</span>
-            {purchase.sellerAddress && <span><strong>Address:</strong> {purchase.sellerAddress}</span>}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0 20px" }}>
-            <span><strong>Prepared By:</strong> {purchase.createdByName || "Admin"}</span>
-            <span><strong>Payment:</strong> {purchase.paymentMethod}</span>
-          </div>
-        </div>
-
-        {/* Product table — table-layout fixed, border stable */}
-        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-          <thead>
-            <tr>
-              <th style={th({ width: 40, whiteSpace: "nowrap" })}>SL.</th>
-              <th style={th()}>PRODUCT</th>
-              <th style={th({ width: 120, fontFamily: "monospace" })}>SERIAL NO.</th>
-              {purchase.imei && <th style={th({ width: 110, fontFamily: "monospace" })}>IMEI</th>}
-              <th style={th({ width: 110, textAlign: "right" })}>PURCHASE PRICE</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={td({ verticalAlign: "top" })}>1</td>
-              <td style={td({ verticalAlign: "top" })}>{purchase.productName}</td>
-              <td style={td({ verticalAlign: "top", fontFamily: "monospace" })}>{purchase.serialNumber}</td>
-              {purchase.imei && <td style={td({ verticalAlign: "top", fontFamily: "monospace" })}>{purchase.imei}</td>}
-              <td style={td({ verticalAlign: "top", textAlign: "right", fontWeight: 600 })}>{fmt(price)}</td>
-            </tr>
-          </tbody>
-          <tfoot>
-            {/* Payment status inside table — left side, Purchase Price right */}
-            <tr>
-              <td colSpan={cols - 1} style={td({ fontSize: 11 })}>
-                <strong>Payment Status:</strong>{" "}
-                <span style={{ display: "inline-block", border: "1px solid #1a1a1a", borderRadius: 3, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>
-                  {statusText}
-                </span>
-                &nbsp;&nbsp;<strong>Method:</strong> {purchase.paymentMethod}
-              </td>
-              <td style={td({ textAlign: "right", fontWeight: 600 })}>Purchase Price</td>
-              <td style={td({ textAlign: "right", fontWeight: 600 })}>{fmt(price)}</td>
-            </tr>
-            <tr>
-              <td colSpan={cols - 1}></td>
-              <td style={td({ textAlign: "right", fontWeight: 600 })}>Paid to Seller</td>
-              <td style={td({ textAlign: "right", fontWeight: 600 })}>{fmt(paid)}</td>
-            </tr>
-            {balance > 0 && (
-              <tr>
-                <td colSpan={cols - 1}></td>
-                <td style={td({ textAlign: "right", fontWeight: 700 })}>Balance Due</td>
-                <td style={td({ textAlign: "right", fontWeight: 700 })}>{fmt(balance)}</td>
-              </tr>
-            )}
-          </tfoot>
-        </table>
-
-        {purchase.notes && (
-          <p style={{ fontSize: 10, color: "#555", margin: "6px 0" }}><strong>Notes:</strong> {purchase.notes}</p>
-        )}
-
-        <p style={{ fontSize: 10, color: "#555", margin: "8px 0" }}>VAT and TAX not included if not mentioned above.</p>
-
-        {/* Terms */}
-        <div style={{ marginTop: 10 }}>
-          <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Terms &amp; Conditions:</div>
-          <ol style={{ paddingLeft: 16 }}>
-            {[
-              "Goods once purchased will not be refunded without valid reason.",
-              "Seller guarantees the product is genuine and free from defects.",
-              "Serial number must match the product at the time of delivery.",
-              "Payment disputes must be raised within 3 days of purchase date.",
-              "Please retain this voucher for all future references.",
-            ].map((t, i) => (
-              <li key={i} style={{ fontSize: 10, color: "#444", lineHeight: 1.5, marginBottom: 2 }}>{t}</li>
-            ))}
-          </ol>
-        </div>
-
-        {/* Signature — right aligned, no date */}
-        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
-          <div style={{ textAlign: "center", minWidth: 200 }}>
-            <div style={{ height: 48 }} />
-            <div style={{ borderTop: "1px dotted #9ca3af", paddingTop: 4, fontSize: 10 }}>Issued By</div>
-            <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>Enter Computers</div>
-          </div>
-        </div>
-
-        {/* Footer note — very bottom */}
-        <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 20, paddingTop: 12, borderTop: "1px solid #f3f4f6" }}>
-          This is a system generated purchase voucher.
+    <Modal isOpen={isOpen} onClose={onClose} title="Purchase Voucher Preview" size="xl">
+      <div className="bg-gray-100 p-4 sm:p-8 dark:bg-gray-950 flex justify-center overflow-x-auto">
+        {/* Scale the visual representation down a bit if needed for desktop view */}
+        <div style={{ width: "210mm", minWidth: "210mm", overflow: "hidden" }}>
+          <div
+            style={{ transformOrigin: "top left" }}
+            dangerouslySetInnerHTML={{ __html: buildPurchaseHTML(purchase, true, info) }}
+          />
         </div>
       </div>
-
-      {/* Buttons */}
-      <div className="mt-5 flex justify-center gap-3">
+      <div className="mt-5 flex justify-end gap-3 px-4 pb-4">
         <button onClick={onClose}
-          className="rounded-lg border border-gray-300 px-6 py-2.5 font-medium text-gray-700 hover:bg-gray-50">
+          className="rounded-lg border border-gray-300 px-6 py-2.5 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
           Close
         </button>
         <button onClick={handlePrint}
-          className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-6 py-2.5 font-medium text-white hover:bg-purple-700">
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white hover:bg-blue-700">
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
           </svg>
-          Print / Download PDF
+          Print Voucher
         </button>
       </div>
     </Modal>
@@ -354,7 +362,8 @@ export function PrintPurchaseButton({
   const [fullPurchase, setFullPurchase] = useState<Purchase | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleOpen = async () => {
+  const handleOpen = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setLoading(true);
     try {
       const res = await fetch(`/api/purchases/${initialPurchase.id}`);

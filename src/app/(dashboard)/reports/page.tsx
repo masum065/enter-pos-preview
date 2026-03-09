@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { Pagination } from "@/components/ui/pagination";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface ReportData {
@@ -462,7 +463,7 @@ export default function ReportsPage() {
   const { data: activityData, isLoading: activityLoading } = useQuery({
     queryKey: ["reports", "activity", logSearch, logAction, logPage, start, end],
     queryFn: () => {
-      const p: Record<string, string> = { type: "activity", page: String(logPage), limit: "50" };
+      const p: Record<string, string> = { type: "activity", page: String(logPage), limit: "10" };
       if (logSearch) p.search = logSearch;
       if (logAction !== "all") p.action = logAction;
       if (start) p.startDate = start;
@@ -1264,16 +1265,12 @@ export default function ReportsPage() {
               </div>
             )}
             {activityPagination && activityPagination.totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4 dark:border-gray-700">
-                <button disabled={logPage <= 1} onClick={() => setLogPage(p => p - 1)}
-                  className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
-                  ← Prev
-                </button>
-                <span className="text-sm text-gray-500">Page {logPage} of {activityPagination.totalPages}</span>
-                <button disabled={logPage >= activityPagination.totalPages} onClick={() => setLogPage(p => p + 1)}
-                  className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
-                  Next →
-                </button>
+              <div className="border-t border-gray-200 py-4 dark:border-gray-700">
+                <Pagination
+                  currentPage={logPage}
+                  totalPages={activityPagination.totalPages}
+                  onPageChange={setLogPage}
+                />
               </div>
             )}
           </div>

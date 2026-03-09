@@ -61,6 +61,7 @@ export function useExpenses(filters: ExpenseFilters = {}) {
     },
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
+    retry: 1, // Limit retries to prevent connection pool exhaustion
   });
 }
 

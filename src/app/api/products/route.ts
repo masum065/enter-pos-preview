@@ -57,27 +57,25 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    // Run all 3 queries in parallel without sharing a mutated query builder
-    const [allProducts, totalCountResult, categoryCounts] = await Promise.all([
-      db.select()
-        .from(products)
-        .where(whereClause)
-        .orderBy(orderByClause)
-        .limit(limit)
-        .offset(offset),
-        
-      db.select({ count: sql<number>`count(*)` })
-        .from(products)
-        .where(whereClause),
-        
-      db.select({
-          category: products.category,
-          count: sql<number>`count(*)`,
-        })
-        .from(products)
-        .where(eq(products.isDeleted, false))
-        .groupBy(products.category),
-    ]);
+    // Run queries sequentially to prevent connection pool exhaustion
+    const allProducts = await db.select()
+      .from(products)
+      .where(whereClause)
+      .orderBy(orderByClause)
+      .limit(limit)
+      .offset(offset);
+      
+    const totalCountResult = await db.select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(whereClause);
+      
+    const categoryCounts = await db.select({
+        category: products.category,
+        count: sql<number>`count(*)`,
+      })
+      .from(products)
+      .where(eq(products.isDeleted, false))
+      .groupBy(products.category);
 
     const totalNonDeleted = categoryCounts.reduce((sum, c) => sum + Number(c.count), 0);
 

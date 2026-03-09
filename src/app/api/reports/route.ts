@@ -51,10 +51,8 @@ export async function GET(request: NextRequest) {
       const where = conds.length > 0 ? and(...conds) : undefined;
       const offset = (page - 1) * limit;
 
-      const [logs, [{ count }]] = await Promise.all([
-        db.select().from(activityLogs).where(where).orderBy(desc(activityLogs.createdAt)).limit(limit).offset(offset),
-        db.select({ count: sql<number>`count(*)` }).from(activityLogs).where(where),
-      ]);
+      const logs = await db.select().from(activityLogs).where(where).orderBy(desc(activityLogs.createdAt)).limit(limit).offset(offset);
+      const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(activityLogs).where(where);
 
       return NextResponse.json({ logs, pagination: { page, limit, total: Number(count), totalPages: Math.ceil(Number(count) / limit) } });
     }
@@ -64,57 +62,44 @@ export async function GET(request: NextRequest) {
     const serviceWhere = buildDateWhere(serviceRecords.receivedDate);
     const expenseWhere = buildDateWhere(expenses.date);
 
-    // Execute all 6 stats queries in parallel
-    const [
-      salesStatsResult,
-      serviceStatsResult,
-      expenseStatsResult,
-      expenseByCategory,
-      inventoryStatsResult
-    ] = await Promise.all([
-      // Sales stats
-      db.select({
-        count:       sql<number>`COUNT(*)`,
-        revenue:     sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
-        collected:   sql<string>`COALESCE(SUM(${sales.paidAmount}), 0)`,
-        due:         sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
-        grossProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
-        returned:    sql<string>`COALESCE(SUM(${sales.totalReturned}), 0)`,
-      }).from(sales).where(salesWhere),
+    // Execute all 5 stats queries sequentially to prevent connection pool exhaustion
+    const salesStatsResult = await db.select({
+      count:       sql<number>`COUNT(*)`,
+      revenue:     sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
+      collected:   sql<string>`COALESCE(SUM(${sales.paidAmount}), 0)`,
+      due:         sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
+      grossProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
+      returned:    sql<string>`COALESCE(SUM(${sales.totalReturned}), 0)`,
+    }).from(sales).where(salesWhere);
 
-      // Service stats
-      db.select({
-        count:     sql<number>`COUNT(*)`,
-        completed: sql<number>`COUNT(*) FILTER (WHERE ${serviceRecords.status} IN ('Completed','Delivered'))`,
-        pending:   sql<number>`COUNT(*) FILTER (WHERE ${serviceRecords.status} NOT IN ('Completed','Delivered','Cancelled'))`,
-        revenue:   sql<string>`COALESCE(SUM(${serviceRecords.totalCost}), 0)`,
-        collected: sql<string>`COALESCE(SUM(${serviceRecords.paidAmount}), 0)`,
-        due:       sql<string>`COALESCE(SUM(${serviceRecords.dueAmount}), 0)`,
-        grossProfit: sql<string>`COALESCE(SUM(${serviceRecords.serviceCharge} - ${serviceRecords.partsCost}), 0)`,
-      }).from(serviceRecords).where(serviceWhere),
+    const serviceStatsResult = await db.select({
+      count:     sql<number>`COUNT(*)`,
+      completed: sql<number>`COUNT(*) FILTER (WHERE ${serviceRecords.status} IN ('Completed','Delivered'))`,
+      pending:   sql<number>`COUNT(*) FILTER (WHERE ${serviceRecords.status} NOT IN ('Completed','Delivered','Cancelled'))`,
+      revenue:   sql<string>`COALESCE(SUM(${serviceRecords.totalCost}), 0)`,
+      collected: sql<string>`COALESCE(SUM(${serviceRecords.paidAmount}), 0)`,
+      due:       sql<string>`COALESCE(SUM(${serviceRecords.dueAmount}), 0)`,
+      grossProfit: sql<string>`COALESCE(SUM(${serviceRecords.serviceCharge} - ${serviceRecords.partsCost}), 0)`,
+    }).from(serviceRecords).where(serviceWhere);
 
-      // Expense stats
-      db.select({
-        count:  sql<number>`COUNT(*)`,
-        total:  sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-      }).from(expenses).where(expenseWhere),
+    const expenseStatsResult = await db.select({
+      count:  sql<number>`COUNT(*)`,
+      total:  sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+    }).from(expenses).where(expenseWhere);
 
-      // Expense by-category
-      db.select({
-        category: expenses.category,
-        total:    sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-        count:    sql<number>`COUNT(*)`,
-      }).from(expenses).where(expenseWhere).groupBy(expenses.category).orderBy(sql`SUM(${expenses.amount}) DESC`),
+    const expenseByCategory = await db.select({
+      category: expenses.category,
+      total:    sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+      count:    sql<number>`COUNT(*)`,
+    }).from(expenses).where(expenseWhere).groupBy(expenses.category).orderBy(sql`SUM(${expenses.amount}) DESC`);
 
-      // Inventory stats
-      db.select({
-        total:     sql<number>`COUNT(*)`,
-        available: sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Available')`,
-        sold:      sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Sold')`,
-        inService: sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Service')`,
-        stockValue: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}) FILTER (WHERE ${stockItems.status} = 'Available'), 0)`,
-      }).from(stockItems)
-    ]);
+    const inventoryStatsResult = await db.select({
+      total:     sql<number>`COUNT(*)`,
+      available: sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Available')`,
+      sold:      sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Sold')`,
+      inService: sql<number>`COUNT(*) FILTER (WHERE ${stockItems.status} = 'Service')`,
+      stockValue: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}) FILTER (WHERE ${stockItems.status} = 'Available'), 0)`,
+    }).from(stockItems);
 
     const salesStats = salesStatsResult[0];
     const serviceStats = serviceStatsResult[0];

@@ -37,19 +37,20 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Run data + count + stats all in parallel (was 3 sequential queries)
-    const [allSuppliers, [{ count: totalCount }], [suppAgg]] = await Promise.all([
-      db.select().from(suppliers).where(whereClause)
-        .orderBy(desc(suppliers.createdAt)).limit(limit).offset(offset),
-      db.select({ count: sql<number>`count(*)` }).from(suppliers).where(whereClause),
-      db.select({
-        totalPayable: sql<string>`COALESCE(SUM(GREATEST(CAST(${suppliers.balance} AS numeric), 0)), 0)`,
-        totalPurchases: sql<string>`COALESCE(SUM(${suppliers.totalPurchases}), 0)`,
-        totalPaid: sql<string>`COALESCE(SUM(${suppliers.totalPaid}), 0)`,
-        total: sql<number>`count(*)`,
-        withDue: sql<number>`count(*) FILTER (WHERE CAST(${suppliers.balance} AS numeric) > 0)`,
-      }).from(suppliers),
-    ]);
+    // Run data + count + stats sequentially to prevent connection pool exhaustion
+    const allSuppliers = await db.select().from(suppliers).where(whereClause)
+      .orderBy(desc(suppliers.createdAt)).limit(limit).offset(offset);
+      
+    const [{ count: totalCount }] = await db.select({ count: sql<number>`count(*)` })
+      .from(suppliers).where(whereClause);
+      
+    const [suppAgg] = await db.select({
+      totalPayable: sql<string>`COALESCE(SUM(GREATEST(CAST(${suppliers.balance} AS numeric), 0)), 0)`,
+      totalPurchases: sql<string>`COALESCE(SUM(${suppliers.totalPurchases}), 0)`,
+      totalPaid: sql<string>`COALESCE(SUM(${suppliers.totalPaid}), 0)`,
+      total: sql<number>`count(*)`,
+      withDue: sql<number>`count(*) FILTER (WHERE CAST(${suppliers.balance} AS numeric) > 0)`,
+    }).from(suppliers);
 
     const response = NextResponse.json({
       suppliers: allSuppliers,

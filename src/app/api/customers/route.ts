@@ -29,11 +29,9 @@ export async function GET(request: NextRequest) {
       countQuery = countQuery.where(whereClause);
     }
 
-    // Run data + count in parallel
-    const [allCustomers, totalCount] = await Promise.all([
-      queryBuilder.orderBy(desc(customers.createdAt)).limit(limit).offset(offset),
-      countQuery,
-    ]);
+    // Run data + count sequentially to prevent connection pool exhaustion
+    const allCustomers = await queryBuilder.orderBy(desc(customers.createdAt)).limit(limit).offset(offset);
+    const totalCount = await countQuery;
 
     const response = NextResponse.json({
       customers: allCustomers,

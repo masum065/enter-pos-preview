@@ -52,29 +52,27 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Execute all 3 queries in parallel — join users to get salesman name
-    const [allRows, totalCountResult, purchaseAggResult] = await Promise.all([
-      db.select({
-          purchase: purchaseInvoices,
-          createdByName: users.name,
-        })
-        .from(purchaseInvoices)
-        .leftJoin(users, eq(purchaseInvoices.createdBy, users.id))
-        .where(whereClause)
-        .orderBy(desc(purchaseInvoices.purchaseDate))
-        .limit(limit)
-        .offset(offset),
+    // Execute queries sequentially — join users to get salesman name
+    const allRows = await db.select({
+        purchase: purchaseInvoices,
+        createdByName: users.name,
+      })
+      .from(purchaseInvoices)
+      .leftJoin(users, eq(purchaseInvoices.createdBy, users.id))
+      .where(whereClause)
+      .orderBy(desc(purchaseInvoices.purchaseDate))
+      .limit(limit)
+      .offset(offset);
         
-      db.select({ count: sql<number>`count(*)` })
-        .from(purchaseInvoices)
-        .where(whereClause),
+    const totalCountResult = await db.select({ count: sql<number>`count(*)` })
+      .from(purchaseInvoices)
+      .where(whereClause);
         
-      db.select({
-        totalAmount: sql<string>`COALESCE(SUM(${purchaseInvoices.purchasePrice}), 0)`,
-        totalPaid: sql<string>`COALESCE(SUM(${purchaseInvoices.paidAmount}), 0)`,
-        totalCount: sql<number>`count(*)`,
-      }).from(purchaseInvoices).where(whereClause)
-    ]);
+    const purchaseAggResult = await db.select({
+      totalAmount: sql<string>`COALESCE(SUM(${purchaseInvoices.purchasePrice}), 0)`,
+      totalPaid: sql<string>`COALESCE(SUM(${purchaseInvoices.paidAmount}), 0)`,
+      totalCount: sql<number>`count(*)`,
+    }).from(purchaseInvoices).where(whereClause);
 
     // Flatten join result
     let allPurchases = allRows.map(row => ({

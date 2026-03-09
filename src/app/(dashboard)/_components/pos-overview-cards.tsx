@@ -209,9 +209,12 @@ export function POSOverviewCards() {
     }).reduce((sum: number, e: any) => sum + parseFloat(e.amount || 0), 0);
   })();
 
-  const isLoading = salesLoading || servicesLoading || stockLoading || expensesLoading;
+  // Show cards independently — don't block everything on one slow API
+  // Each value falls back to 0 if its API hasn't loaded yet
+  const anyLoading = salesLoading || servicesLoading || stockLoading || expensesLoading;
 
-  if (isLoading) {
+  // Show skeleton only if ALL are still loading (first paint)
+  if (salesLoading && servicesLoading && stockLoading && expensesLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 2xl:gap-7.5">
         {[1, 2, 3, 4].map((i) => (

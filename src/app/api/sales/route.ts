@@ -55,32 +55,31 @@ export async function GET(request: NextRequest) {
     // Prepare where clause
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Run all 3 in parallel — join users to get salesman name
-    const [fetchedRows, totalCountResult, statsAggResult] = await Promise.all([
-      db.select({
-          sale: sales,
-          createdByName: users.name,
-        })
-        .from(sales)
-        .leftJoin(users, eq(sales.createdBy, users.id))
-        .where(whereClause)
-        .orderBy(desc(sales.createdAt))
-        .limit(limit)
-        .offset(offset),
-        
-      db.select({ count: sql<number>`count(*)` })
-        .from(sales)
-        .where(whereClause),
-        
-      db.select({
-        totalAmount: sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
-        totalProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
-        totalDue: sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
-        dueCount: sql<number>`count(*) FILTER (WHERE ${sales.dueAmount}::numeric > 0)`,
+    // Run sequentially to use only 1 DB connection at a time
+    // This prevents connection pool exhaustion when dashboard loads multiple APIs
+    const fetchedRows = await db.select({
+        sale: sales,
+        createdByName: users.name,
       })
-        .from(sales)
-        .where(whereClause),
-    ]);
+      .from(sales)
+      .leftJoin(users, eq(sales.createdBy, users.id))
+      .where(whereClause)
+      .orderBy(desc(sales.createdAt))
+      .limit(limit)
+      .offset(offset);
+      
+    const totalCountResult = await db.select({ count: sql<number>`count(*)` })
+      .from(sales)
+      .where(whereClause);
+      
+    const statsAggResult = await db.select({
+      totalAmount: sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
+      totalProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
+      totalDue: sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
+      dueCount: sql<number>`count(*) FILTER (WHERE ${sales.dueAmount}::numeric > 0)`,
+    })
+      .from(sales)
+      .where(whereClause);
 
     // Flatten the join result: spread sale fields + add createdByName
     const fetchedSales = fetchedRows.map(row => ({

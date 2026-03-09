@@ -38,40 +38,32 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Run all database queries in parallel
-    const [
-      services,
-      totalCountResult,
-      totalAllResult,
-      statusBreakdown,
-      pendingStatsResult
-    ] = await Promise.all([
-      db.select().from(serviceRecords)
-        .where(whereClause)
-        .orderBy(desc(serviceRecords.createdAt))
-        .limit(limit)
-        .offset(offset),
+    // Run all database queries sequentially to prevent connection pool exhaustion
+    const services = await db.select().from(serviceRecords)
+      .where(whereClause)
+      .orderBy(desc(serviceRecords.createdAt))
+      .limit(limit)
+      .offset(offset);
       
-      db.select({ count: sql<number>`count(*)` })
-        .from(serviceRecords)
-        .where(whereClause),
+    const totalCountResult = await db.select({ count: sql<number>`count(*)` })
+      .from(serviceRecords)
+      .where(whereClause);
       
-      db.select({ count: sql<number>`count(*)` }).from(serviceRecords),
+    const totalAllResult = await db.select({ count: sql<number>`count(*)` }).from(serviceRecords);
       
-      db.select({
-        status: serviceRecords.status,
-        count: sql<number>`count(*)`,
-      }).from(serviceRecords).groupBy(serviceRecords.status),
+    const statusBreakdown = await db.select({
+      status: serviceRecords.status,
+      count: sql<number>`count(*)`,
+    }).from(serviceRecords).groupBy(serviceRecords.status);
       
-      db.select({
-        count: sql<number>`count(*)`,
-      }).from(serviceRecords).where(
-        and(
-          sql`${serviceRecords.status} != 'Completed'`,
-          sql`${serviceRecords.status} != 'Delivered'`
-        )
+    const pendingStatsResult = await db.select({
+      count: sql<number>`count(*)`,
+    }).from(serviceRecords).where(
+      and(
+        sql`${serviceRecords.status} != 'Completed'`,
+        sql`${serviceRecords.status} != 'Delivered'`
       )
-    ]);
+    );
 
     const statusCounts: Record<string, number> = { All: Number(totalAllResult[0].count) };
     statusBreakdown.forEach((s) => { statusCounts[s.status] = Number(s.count); });

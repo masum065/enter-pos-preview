@@ -47,36 +47,36 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Run items + count + all stats in parallel (was 5 sequential queries)
-    const [
-      [items, totalCount],
-      [allStats],
-      statusCountsRaw,
-    ] = await Promise.all([
-      Promise.all([
-        db
-          .select({ stockItem: stockItems, product: products })
-          .from(stockItems)
-          .leftJoin(products, eq(stockItems.productId, products.id))
-          .where(whereClause)
-          .orderBy(desc(stockItems.createdAt))
-          .limit(limit)
-          .offset(offset),
-        db.select({ count: sql<number>`count(*)` }).from(stockItems).where(whereClause),
-      ]),
-      // Single query replaces availableStats + soldStats + totalAll
-      db.select({
-        total: sql<number>`count(*)`,
-        available: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Available')`,
-        sold: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Sold')`,
-        stockValue: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}) FILTER (WHERE ${stockItems.status} = 'Available'), 0)`,
-      }).from(stockItems),
-      // Status group counts for filter tabs
-      db.select({
-        status: stockItems.status,
-        count: sql<number>`count(*)`,
-      }).from(stockItems).groupBy(stockItems.status),
-    ]);
+    // Run queries sequentially to use exactly 1 DB connection
+    // This prevents connection pool exhaustion
+    const items = await db
+      .select({ stockItem: stockItems, product: products })
+      .from(stockItems)
+      .leftJoin(products, eq(stockItems.productId, products.id))
+      .where(whereClause)
+      .orderBy(desc(stockItems.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const totalCount = await db.select({ count: sql<number>`count(*)` })
+      .from(stockItems)
+      .where(whereClause);
+
+    // Single query replacing multiple stats queries
+    const statsQuery = await db.select({
+      total: sql<number>`count(*)`,
+      available: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Available')`,
+      sold: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Sold')`,
+      stockValue: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}) FILTER (WHERE ${stockItems.status} = 'Available'), 0)`,
+    }).from(stockItems);
+
+    const allStats = statsQuery[0] || { total: 0, available: 0, sold: 0, stockValue: 0 };
+
+    // Status group counts for filter tabs
+    const statusCountsRaw = await db.select({
+      status: stockItems.status,
+      count: sql<number>`count(*)`,
+    }).from(stockItems).groupBy(stockItems.status);
 
     const statusCountMap: Record<string, number> = { All: Number(allStats.total) };
     statusCountsRaw.forEach(s => { statusCountMap[s.status] = Number(s.count); });

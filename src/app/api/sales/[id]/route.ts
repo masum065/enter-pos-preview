@@ -23,10 +23,9 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const [items, payments] = await Promise.all([
-      db.select().from(saleItems).where(eq(saleItems.saleId, params.id)),
-      db.select().from(paymentsTable).where(eq(paymentsTable.saleId, params.id)),
-    ]);
+    // Execute queries sequentially
+    const items = await db.select().from(saleItems).where(eq(saleItems.saleId, params.id));
+    const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.saleId, params.id));
 
     // Salesman name
     let createdByName = "Admin";

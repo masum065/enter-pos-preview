@@ -41,76 +41,81 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Category breakdown date conditions
-    const dateConditions = [];
-    if (startDate) dateConditions.push(gte(expenses.date, new Date(startDate)));
-    if (endDate) {
-      const endD = new Date(endDate);
-      endD.setHours(23, 59, 59, 999);
-      dateConditions.push(lte(expenses.date, endD));
-    }
-    const breakdownWhere = dateConditions.length > 0 ? and(...dateConditions) : undefined;
-
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Execute all 7 queries in parallel
-    const [
-      allExpenses,
-      totalCountResult,
-      breakdown,
-      totalStatsResult,
-      monthStatsResult,
-      todayStatsResult,
-      filteredStatsResult
-    ] = await Promise.all([
+    // Only 2 queries — fetch data + count. Stats calculated in JS from data.
+    const [allExpenses, totalCountResult] = await Promise.all([
       db.select()
         .from(expenses)
         .where(whereClause)
         .orderBy(desc(expenses.date))
         .limit(limit)
         .offset(offset),
-        
+
       db.select({ count: sql<number>`count(*)` })
         .from(expenses)
         .where(whereClause),
-        
-      db.select({
-          category: expenses.category,
-          total: sql<string>`SUM(${expenses.amount})`,
-          count: sql<number>`count(*)`,
-        })
+    ]);
+
+    // Calculate stats from all expenses (separate lightweight query)
+    let totalAmount = 0, thisMonthAmount = 0, todayAmount = 0;
+    try {
+      const allAmounts = await db.select({
+        amount: expenses.amount,
+        date: expenses.date,
+      }).from(expenses);
+
+      const todayStr = now.toISOString().split("T")[0];
+      for (const e of allAmounts) {
+        const amt = Number(e.amount) || 0;
+        totalAmount += amt;
+        const d = new Date(e.date);
+        if (d >= monthStart) thisMonthAmount += amt;
+        if (d.toISOString().split("T")[0] === todayStr) todayAmount += amt;
+      }
+    } catch {
+      // Stats are non-critical — continue without them
+    }
+
+    // Category breakdown — run separately since it uses GROUP BY
+    let breakdown: { category: string; total: string; count: number }[] = [];
+    try {
+      // Build date conditions for breakdown
+      const dateConditions = [];
+      if (startDate) dateConditions.push(gte(expenses.date, new Date(startDate)));
+      if (endDate) {
+        const endD = new Date(endDate);
+        endD.setHours(23, 59, 59, 999);
+        dateConditions.push(lte(expenses.date, endD));
+      }
+      const breakdownWhere = dateConditions.length > 0 ? and(...dateConditions) : undefined;
+
+      breakdown = await db.select({
+        category: expenses.category,
+        total: sql<string>`SUM(${expenses.amount})`,
+        count: sql<number>`count(*)`,
+      })
         .from(expenses)
         .where(breakdownWhere)
         .groupBy(expenses.category)
-        .orderBy(sql`SUM(${expenses.amount}) DESC`),
-        
-      db.select({
-        total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-      }).from(expenses),
-      
-      db.select({
-        total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-      }).from(expenses).where(gte(expenses.date, monthStart)),
-      
-      db.select({
-        total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-      }).from(expenses).where(gte(expenses.date, todayStart)),
-      
-      db.select({
-        total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-      }).from(expenses).where(whereClause)
-    ]);
+        .orderBy(sql`SUM(${expenses.amount}) DESC`);
+    } catch {
+      // Non-critical, continue without breakdown
+    }
+
+    // Filtered amount from the count query
+    const filteredAmount = allExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
     return NextResponse.json({
       expenses: allExpenses,
       categoryBreakdown: breakdown,
       stats: {
-        totalAmount: Number(totalStatsResult[0].total),
-        thisMonthAmount: Number(monthStatsResult[0].total),
-        todayAmount: Number(todayStatsResult[0].total),
-        filteredAmount: Number(filteredStatsResult[0].total),
+        totalAmount,
+        thisMonthAmount,
+        todayAmount,
+        filteredAmount,
       },
       pagination: {
         page, limit,

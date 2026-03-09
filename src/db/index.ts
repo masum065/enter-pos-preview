@@ -24,9 +24,10 @@ const globalForPostgres = globalThis as unknown as {
  */
 const client = globalForPostgres.postgresClient ?? postgres(connectionString!, {
   prepare: false,
-  max: 15,
+  max: 8,            // Reduced — Supabase pooler has limited slots
   idle_timeout: 20,
   connect_timeout: 10,
+  max_lifetime: 60,  // Recycle connections every 60s to avoid stale CONNECTION_CLOSED
 });
 
 if (process.env.NODE_ENV !== 'production') {

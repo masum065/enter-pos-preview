@@ -161,8 +161,11 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   /* ── Note ── */
   .note{padding:2px 0 8px;font-size:12px;color:#666;font-style:italic;}
 
+  /* ── Bottom section (T&C + footer pinned to bottom) ── */
+  .bottom-section{margin-top:auto;}
+
   /* ── T&C wrapper ── */
-  .tnc-section{padding:0 32px 0;}
+  .tnc-section{padding:0 32px;}
   .tnc-wrapper{border:2px solid #222;position:relative;background:#fff;}
   .tnc-bar{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:13px;font-weight:700;padding:4px 24px;white-space:nowrap;border-radius:3px;}
   .tnc-body{margin-top:22px;padding:8px 14px 4px;font-size:11.5px;line-height:1.75;color:#222;}
@@ -292,6 +295,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
 
 </div><!-- .content -->
 
+<div class="bottom-section">
 <!-- TERMS & CONDITIONS -->
 <div class="tnc-section">
   <div class="tnc-wrapper">
@@ -321,6 +325,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
     <span>fb.com/entercomputersmym</span>
   </div>
 </div>
+</div><!-- .bottom-section -->
 
 </div><!-- .page -->
 

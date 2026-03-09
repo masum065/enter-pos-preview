@@ -3,9 +3,10 @@
 import { Suspense, useMemo, useState } from "react";
 import { POSOverviewCards } from "./_components/pos-overview-cards";
 import { useSales } from "@/hooks/useSales";
-import { useStockItems } from "@/hooks/useStock";
-import { formatCurrency } from "@/lib/utils";
+import { useStockItems, useLowStock } from "@/hooks/useStock";
+import { formatCurrency, getRelativeTime } from "@/lib/utils";
 import { useSession } from "@/hooks/useSession";
+import { useActivityLogs } from "@/hooks/useReports";
 import Link from "next/link";
 
 interface Sale {
@@ -374,88 +375,108 @@ function QuickActions({ isEmployee }: { isEmployee: boolean }) {
 
 // Recent Activity Component
 function RecentActivity() {
-  // This will be populated from stores in the future
-  const activities = [
-    { 
-      type: "sale", 
-      text: "New sale INV-2024-0030 - ৳145,000", 
-      time: "2 min ago", 
-      icon: (
+  const { data, isLoading } = useActivityLogs({ limit: 5 });
+  const activities = data?.logs || [];
+
+  if (isLoading) {
+    return (
+      <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark">
+        <div className="h-6 w-1/3 animate-pulse rounded bg-gray-200 dark:bg-gray-700 mb-6" />
+        <div className="space-y-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex gap-3">
+              <div className="h-8 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-3/4 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                <div className="h-3 w-1/4 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const getIconForAction = (action: string) => {
+    if (action.includes("SALE")) {
+      return (
         <svg className="h-5 w-5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
         </svg>
-      )
-    },
-    { 
-      type: "stock", 
-      text: "Added 3 new MacBook Pro units", 
-      time: "15 min ago", 
-      icon: (
+      );
+    }
+    if (action.includes("STOCK") || action.includes("PRODUCT")) {
+      return (
         <svg className="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
         </svg>
-      )
-    },
-    { 
-      type: "service", 
-      text: "Service SRV-2024-0018 completed", 
-      time: "1 hour ago", 
-      icon: (
+      );
+    }
+    if (action.includes("SERVICE")) {
+      return (
         <svg className="h-5 w-5 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         </svg>
-      )
-    },
-    { 
-      type: "customer", 
-      text: "New customer: Md. Rahim Uddin", 
-      time: "2 hours ago", 
-      icon: (
-        <svg className="h-5 w-5 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
-        </svg>
-      )
-    },
-    { 
-      type: "expense", 
-      text: "Expense: Shop rent - ৳30,000", 
-      time: "5 hours ago", 
-      icon: (
+      );
+    }
+    if (action.includes("EXPENSE")) {
+      return (
         <svg className="h-5 w-5 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         </svg>
-      )
-    },
-  ];
+      );
+    }
+    // Default / Customer
+    return (
+      <svg className="h-5 w-5 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+      </svg>
+    );
+  };
 
   return (
     <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark">
       <h3 className="mb-4 text-lg font-semibold text-dark dark:text-white">Recent Activity</h3>
-      <div className="space-y-4">
-        {activities.map((activity, i) => (
-          <div key={i} className="flex items-start gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
-              {activity.icon}
+      {activities.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">No recent activity found.</p>
+      ) : (
+        <div className="space-y-4">
+          {activities.map((activity) => (
+            <div key={activity.id} className="flex items-start gap-3">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+                {getIconForAction(activity.action)}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-dark dark:text-white">{activity.details}</p>
+                <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{getRelativeTime(String(activity.createdAt))}</span>
+                  <span>•</span>
+                  <span>{activity.userName}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="text-sm text-dark dark:text-white">{activity.text}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{activity.time}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 // Low Stock Alert Component
 function LowStockAlert() {
-  // This will be populated from stock store
-  const lowStockItems = [
-    { product: "MacBook Air M2", available: 2, threshold: 3 },
-    { product: "iPhone 15 Pro", available: 1, threshold: 5 },
-    { product: "AirPods Pro 2", available: 3, threshold: 10 },
-  ];
+  const { data, isLoading } = useLowStock();
+  const lowStockItems = data?.lowStockProducts || [];
+
+  if (isLoading) {
+    return (
+      <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark h-40 animate-pulse">
+        <div className="h-6 w-1/3 rounded bg-gray-200 dark:bg-gray-700 mb-6" />
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => <div key={i} className="h-10 rounded-lg bg-gray-200 dark:bg-gray-700" />)}
+        </div>
+      </div>
+    );
+  }
 
   if (lowStockItems.length === 0) return null;
 
@@ -473,25 +494,25 @@ function LowStockAlert() {
             <p className="text-sm text-gray-500 dark:text-gray-400">{lowStockItems.length} items need attention</p>
           </div>
         </div>
-        <a 
-          href="/inventory/stock" 
+        <Link 
+          href="/inventory/products?lowStock=true" 
           className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
         >
           View All →
-        </a>
+        </Link>
       </div>
       
       <div className="space-y-3">
-        {lowStockItems.map((item, i) => (
+        {lowStockItems.slice(0, 5).map((item) => (
           <div 
-            key={i} 
+            key={item.product.id} 
             className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-3 dark:border-orange-800/30 dark:bg-orange-900/10"
           >
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-sm font-bold text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
-                {item.available}
+                {item.availableCount}
               </div>
-              <span className="font-medium text-gray-900 dark:text-white">{item.product}</span>
+              <span className="font-medium text-gray-900 dark:text-white">{item.product.modelName}</span>
             </div>
             <span className="rounded-full bg-orange-500 px-2.5 py-0.5 text-xs font-medium text-white">
               Low Stock

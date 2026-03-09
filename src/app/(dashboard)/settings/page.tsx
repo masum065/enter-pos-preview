@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
 import { useLockStatus } from "@/hooks/useLockStatus";
 import { Modal, ModalFooter } from "@/components/ui/modal";
+import type { ShopInfo } from "@/lib/shop-info";
+import { DEFAULT_SHOP_INFO } from "@/lib/shop-info";
 
-type Tab = "general" | "users" | "security";
+
+type Tab = "general" | "invoice" | "users" | "security";
 
 type User = {
   id: string;
@@ -253,6 +256,62 @@ export default function SettingsPage() {
       showToast("Settings saved successfully!");
     } catch {
       showToast("Settings saved locally.", "success");
+    }
+  };
+
+  // ── Invoice / Shop Info ─────────────────────────────────────────────────
+  const [shopInfo, setShopInfo] = useState<ShopInfo>(DEFAULT_SHOP_INFO);
+  const [shopInfoLoading, setShopInfoLoading] = useState(false);
+  const [shopInfoSaving, setShopInfoSaving] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const sigInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await apiClient.get<ShopInfo>("/api/shop-info");
+        if (data && data.shopName) setShopInfo(data);
+      } catch { /* use defaults */ }
+    })();
+  }, []);
+
+  const handleFileUpload = (field: "logo" | "signature") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { showToast("File too large (max 2MB)", "error"); return; }
+    const reader = new FileReader();
+    reader.onload = () => setShopInfo(prev => ({ ...prev, [field]: reader.result as string }));
+    reader.readAsDataURL(file);
+  };
+
+  const updateTC = (index: number, key: "label" | "text", value: string) => {
+    setShopInfo(prev => {
+      const tcs = [...prev.termsAndConditions];
+      tcs[index] = { ...tcs[index], [key]: value };
+      return { ...prev, termsAndConditions: tcs };
+    });
+  };
+
+  const addTC = () => setShopInfo(prev => ({
+    ...prev,
+    termsAndConditions: [...prev.termsAndConditions, { label: "", text: "" }],
+  }));
+
+  const removeTC = (index: number) => setShopInfo(prev => ({
+    ...prev,
+    termsAndConditions: prev.termsAndConditions.filter((_, i) => i !== index),
+  }));
+
+  const handleSaveShopInfo = async () => {
+    setShopInfoSaving(true);
+    try {
+      await apiClient.put("/api/shop-info", shopInfo);
+      qc.invalidateQueries({ queryKey: ["shop-info"] });
+      showToast("Invoice settings saved!");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to save", "error");
+    } finally {
+      setShopInfoSaving(false);
     }
   };
 
@@ -505,7 +564,7 @@ export default function SettingsPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
-        {(["general", "users", "security"] as Tab[]).map(tab => (
+        {(["general", "invoice", "users", "security"] as Tab[]).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -515,7 +574,7 @@ export default function SettingsPage() {
                 : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
             }`}
           >
-            {tab}
+            {tab === "invoice" ? "Invoice Settings" : tab}
           </button>
         ))}
       </div>
@@ -561,6 +620,144 @@ export default function SettingsPage() {
                 Save Changes
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Settings Tab */}
+      {activeTab === "invoice" && (
+        <div className="max-w-3xl space-y-6">
+          {/* Logo & Signature */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Logo & Signature</h2>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Shop Logo</label>
+                {shopInfo.logo && (
+                  <div className="mb-2 flex h-20 items-center">
+                    <img src={shopInfo.logo} alt="Logo" className="max-h-16 max-w-[200px] object-contain" />
+                  </div>
+                )}
+                <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload("logo")} />
+                <button onClick={() => logoInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  Upload Logo
+                </button>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Signature</label>
+                {shopInfo.signature && (
+                  <div className="mb-2 flex h-20 items-center">
+                    <img src={shopInfo.signature} alt="Signature" className="max-h-16 max-w-[200px] object-contain" />
+                  </div>
+                )}
+                <input ref={sigInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload("signature")} />
+                <button onClick={() => sigInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  Upload Signature
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Shop Details */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Shop Details</h2>
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Shop Name">
+                  <input type="text" className={inputCls} value={shopInfo.shopName}
+                    onChange={e => setShopInfo({ ...shopInfo, shopName: e.target.value })} />
+                </Field>
+                <Field label="Email">
+                  <input type="email" className={inputCls} value={shopInfo.email}
+                    onChange={e => setShopInfo({ ...shopInfo, email: e.target.value })} />
+                </Field>
+              </div>
+              <Field label="Tagline (Bengali)">
+                <input type="text" className={inputCls} value={shopInfo.tagline}
+                  onChange={e => setShopInfo({ ...shopInfo, tagline: e.target.value })} />
+              </Field>
+              <Field label="Address">
+                <textarea rows={2} className={inputCls} value={shopInfo.address}
+                  onChange={e => setShopInfo({ ...shopInfo, address: e.target.value })} />
+              </Field>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Phone 1">
+                  <input type="tel" className={inputCls} value={shopInfo.phone1}
+                    onChange={e => setShopInfo({ ...shopInfo, phone1: e.target.value })} />
+                </Field>
+                <Field label="Phone 2">
+                  <input type="tel" className={inputCls} value={shopInfo.phone2}
+                    onChange={e => setShopInfo({ ...shopInfo, phone2: e.target.value })} />
+                </Field>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Website">
+                  <input type="text" className={inputCls} value={shopInfo.website}
+                    onChange={e => setShopInfo({ ...shopInfo, website: e.target.value })} />
+                </Field>
+                <Field label="Facebook">
+                  <input type="text" className={inputCls} value={shopInfo.facebook}
+                    onChange={e => setShopInfo({ ...shopInfo, facebook: e.target.value })} />
+                </Field>
+              </div>
+            </div>
+          </div>
+
+          {/* Terms & Conditions */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Terms & Conditions</h2>
+              <button onClick={addTC}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700">
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add Item
+              </button>
+            </div>
+            <div className="space-y-4">
+              {(shopInfo.termsAndConditions || []).map((tc, i) => (
+                <div key={i} className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Item {i + 1}
+                    </span>
+                    <button onClick={() => removeTC(i)}
+                      className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30" title="Remove">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                  <Field label="Label (Title)">
+                    <input type="text" className={inputCls} value={tc.label}
+                      onChange={e => updateTC(i, "label", e.target.value)} placeholder="e.g. ল্যাপটপ ওয়ারেন্টি" />
+                  </Field>
+                  <div className="mt-2">
+                    <Field label="Description">
+                      <textarea rows={2} className={inputCls} value={tc.text}
+                        onChange={e => updateTC(i, "text", e.target.value)} />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4">
+              <Field label="Terms Footer (Important Note)">
+                <input type="text" className={inputCls} value={shopInfo.termsFooter}
+                  onChange={e => setShopInfo({ ...shopInfo, termsFooter: e.target.value })} />
+              </Field>
+            </div>
+          </div>
+
+          {/* Save Button */}
+          <div className="flex justify-end">
+            <button onClick={handleSaveShopInfo} disabled={shopInfoSaving}
+              className="rounded-lg bg-blue-600 px-8 py-2.5 font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+              {shopInfoSaving ? "Saving..." : "Save Invoice Settings"}
+            </button>
           </div>
         </div>
       )}

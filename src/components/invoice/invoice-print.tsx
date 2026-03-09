@@ -123,7 +123,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   .page{
     background:#fff;
     ${forPreview ? '' : 'max-width:210mm; margin:0 auto; box-shadow:0 2px 16px rgba(0,0,0,.12);'}
-    min-height:${forPreview ? 'auto' : '297mm'};
+    min-height:297mm;
     display:flex;flex-direction:column;
   }
   .content{flex:1;padding:36px 32px 0;}

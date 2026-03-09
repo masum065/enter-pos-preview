@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { StockItemInput } from "@/lib/validations/inventory";
 
@@ -77,6 +77,7 @@ export const stockKeys = {
 export function useStockItems(filters: StockFilters = {}) {
   return useQuery({
     queryKey: stockKeys.list(filters),
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (filters.productId) params.productId = filters.productId;

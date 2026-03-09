@@ -221,7 +221,7 @@ function StockPageContent() {
     router.push(`?${params.toString()}`);
   };
 
-  const { data: stockData, isLoading } = useStockItems({
+  const { data: stockData, isLoading, isFetching } = useStockItems({
     page, limit: 20,
     search: activeSearch || undefined,
     status: activeStatus === "All" ? undefined : activeStatus,
@@ -314,7 +314,7 @@ function StockPageContent() {
     stockValue: apiStats?.stockValue || 0,
   };
 
-  if (isLoading) {
+  if (isLoading && !stockData) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
@@ -473,7 +473,7 @@ function StockPageContent() {
       )}
 
       {/* Stock Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+      <div className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-opacity duration-200 dark:border-gray-700 dark:bg-gray-900 ${isFetching ? "opacity-60 pointer-events-none" : ""}`}>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>

@@ -630,7 +630,7 @@ function ProductsPageContent() {
     if (p <= 1) params.delete("page"); else params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
-  const { data: productsData, isLoading } = useProducts({
+  const { data: productsData, isLoading, isFetching } = useProducts({
     page, limit: 20,
     search: activeSearch || undefined,
     category: activeCategory || undefined,
@@ -756,7 +756,7 @@ function ProductsPageContent() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !productsData) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
@@ -873,6 +873,7 @@ function ProductsPageContent() {
       )}
 
       {/* Products Grid */}
+      <div className={`transition-opacity duration-200 ${isFetching ? "opacity-60 pointer-events-none" : ""}`}>
       {products.length === 0 ? (
         <div className="flex min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
           <div className="text-center">
@@ -968,6 +969,7 @@ function ProductsPageContent() {
           })}
         </div>
       )}
+      </div>
 
       {/* Add/Edit Product Modal */}
       <Modal

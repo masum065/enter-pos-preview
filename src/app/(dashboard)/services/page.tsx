@@ -296,7 +296,7 @@ function ServicesPageContent() {
     router.push(`?${params.toString()}`);
   };
 
-  const { data: servicesData, isLoading } = useServices({
+  const { data: servicesData, isLoading, isFetching } = useServices({
     page, limit: 20,
     search: activeSearch || undefined,
     status: activeStatus || undefined,
@@ -367,7 +367,7 @@ function ServicesPageContent() {
     );
   };
 
-  if (isLoading) {
+  if (isLoading && !servicesData) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"></div>
@@ -471,7 +471,7 @@ function ServicesPageContent() {
       )}
 
       {/* Services List */}
-      <div className="space-y-4">
+      <div className={`space-y-4 transition-opacity duration-200 ${isFetching ? "opacity-60 pointer-events-none" : ""}`}>
         {services.length === 0 ? (
           <div className="rounded-xl border-2 border-dashed border-gray-300 p-12 text-center dark:border-gray-700">
             <p className="text-gray-500">{activeSearch || activeStatus ? "No services found matching filters." : "No services yet."}</p>

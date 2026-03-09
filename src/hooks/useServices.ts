@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { ServiceRecordInput } from "@/lib/validations/services";
 
@@ -59,6 +59,7 @@ export const serviceKeys = {
 export function useServices(filters: ServiceFilters = {}) {
   return useQuery({
     queryKey: serviceKeys.list(filters),
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (filters.status) params.status = filters.status;

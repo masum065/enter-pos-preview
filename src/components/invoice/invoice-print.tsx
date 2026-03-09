@@ -104,7 +104,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
       <td style="text-align:right;">${fmt(Number(p.amount))}</td>
     </tr>`).join("");
 
-  return `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -126,7 +126,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
     min-height:${forPreview ? 'auto' : '297mm'};
     display:flex;flex-direction:column;
   }
-  .content{flex:1;padding:24px 32px 0;}
+  .content{flex:1;padding:36px 32px 0;}
 
   /* ── Header ── */
   .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:1px solid #ccc;}
@@ -324,9 +324,13 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
 
 </div><!-- .page -->
 
-${forPreview ? '' : `<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\\/script>`}
 </body>
 </html>`;
+  if (!forPreview) {
+    const printScript = '<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}</script>';
+    return html.replace('</body>', printScript + '</body>');
+  }
+  return html;
 }
 
 // ── Modal Component ───────────────────────────────────────────────────────
@@ -348,31 +352,35 @@ export function InvoicePrintModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Invoice Preview" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} size="xl" showDivider={false}>
+      {/* Custom header with title + action buttons */}
+      <div className="flex items-center justify-between gap-3 mb-3 -mt-2">
+        <h3 className="text-lg font-bold text-dark dark:text-white">Invoice Preview</h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print
+          </button>
+        </div>
+      </div>
+
       <div className="bg-gray-100 dark:bg-gray-800 p-2 sm:p-3 rounded-lg">
         <iframe
           srcDoc={buildInvoiceHTML(sale, true)}
           className="w-full border-0 bg-white rounded shadow-sm"
-          style={{ height: '68vh', minHeight: 500 }}
+          style={{ height: '72vh', minHeight: 520 }}
         />
-      </div>
-
-      <div className="mt-4 flex justify-center gap-3">
-        <button
-          onClick={onClose}
-          className="rounded-lg border border-gray-300 px-6 py-2.5 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-        >
-          Close
-        </button>
-        <button
-          onClick={handlePrint}
-          className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-6 py-2.5 font-medium text-white hover:bg-orange-600"
-        >
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-          </svg>
-          Print / Download PDF
-        </button>
       </div>
     </Modal>
   );

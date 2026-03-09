@@ -6,9 +6,18 @@ interface DashboardStats {
   today: { sales: number; revenue: string; profit: string; expenses: string };
   thisMonth: { sales: number; revenue: string; profit: string; expenses: string };
   totalDue: string;
-  stock: { total: number; available: number; sold: number; service: number; returned: number; damaged: number };
+  dueCount: number;
+  stock: { total: number; available: number; sold: number; service: number; returned: number; damaged: number; stockValue: string };
   services: { pending: number; dueAmount: string };
   totalCustomers: number;
+  chartData: {
+    currentMonthData: Array<{ x: string; y: number }>;
+    prevMonthData: Array<{ x: string; y: number }>;
+    currentMonthTotal: number;
+    prevMonthTotal: number;
+    currentMonthProfit: number;
+    prevMonthProfit: number;
+  };
 }
 
 // Sales report types

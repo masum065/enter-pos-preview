@@ -2,26 +2,11 @@
 
 import { Suspense, useMemo, useState } from "react";
 import { POSOverviewCards } from "./_components/pos-overview-cards";
-import { useSales } from "@/hooks/useSales";
-import { useStockItems, useLowStock } from "@/hooks/useStock";
 import { formatCurrency, getRelativeTime } from "@/lib/utils";
 import { useSession } from "@/hooks/useSession";
-import { useActivityLogs } from "@/hooks/useReports";
+import { useActivityLogs, useDashboardStats } from "@/hooks/useReports";
+import { useLowStock } from "@/hooks/useStock";
 import Link from "next/link";
-
-interface Sale {
-  id: string;
-  invoiceDate: string;
-  grandTotal: number;
-  createdAt: string;
-  [key: string]: any;
-}
-
-interface StockItem {
-  id: string;
-  status: string;
-  [key: string]: any;
-}
 
 // Skeleton components
 function CardsSkeleton() {
@@ -41,60 +26,30 @@ import type { ApexOptions } from "apexcharts";
 const ApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 function SalesSummaryChart() {
-  const { data: salesData } = useSales();
+  const { data: stats, isLoading } = useDashboardStats();
   const { data: sessionData } = useSession();
   const role = (sessionData as any)?.user?.role || (sessionData as any)?.role || "employee";
   const isEmployee = role === "employee";
-  const sales: Sale[] = (salesData?.sales || []) as any[];
 
-  // Calculate current month and previous month daily sales data
-  const { currentMonthData, prevMonthData, currentMonthTotal, prevMonthTotal, currentMonthProfit, prevMonthProfit } = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    
-    // Days in each month
-    const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
-    const maxDays = Math.max(daysInCurrentMonth, daysInPrevMonth);
+  if (isLoading) {
+    return (
+      <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark h-[400px] animate-pulse">
+        <div className="h-6 w-1/3 rounded bg-gray-200 dark:bg-gray-700 mb-6" />
+        <div className="h-[310px] w-full bg-gray-100 dark:bg-gray-800 rounded" />
+      </div>
+    );
+  }
 
-    // Initialize daily data
-    const currentDaily: number[] = new Array(maxDays).fill(0);
-    const prevDaily: number[] = new Array(maxDays).fill(0);
-    let curTotal = 0, prvTotal = 0, curProfit = 0, prvProfit = 0;
+  if (!stats?.chartData) return null;
 
-    sales.forEach(s => {
-      const d = new Date(s.createdAt);
-      const amount = parseFloat(String(s.grandTotal || 0));
-      const profit = parseFloat(String(s.totalProfit || 0));
-      
-      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
-        const day = d.getDate() - 1;
-        if (day < maxDays) currentDaily[day] += amount;
-        curTotal += amount;
-        curProfit += profit;
-      } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
-        const day = d.getDate() - 1;
-        if (day < maxDays) prevDaily[day] += amount;
-        prvTotal += amount;
-        prvProfit += profit;
-      }
-    });
-
-    // Generate labels (1, 2, 3, ... 31)
-    const labels = Array.from({ length: maxDays }, (_, i) => (i + 1).toString());
-
-    return {
-      currentMonthData: currentDaily.map((y, i) => ({ x: labels[i], y: Math.round(y) })),
-      prevMonthData: prevDaily.map((y, i) => ({ x: labels[i], y: Math.round(y) })),
-      currentMonthTotal: curTotal,
-      prevMonthTotal: prvTotal,
-      currentMonthProfit: curProfit,
-      prevMonthProfit: prvProfit,
-    };
-  }, [sales]);
+  const {
+    currentMonthData,
+    prevMonthData,
+    currentMonthTotal,
+    prevMonthTotal,
+    currentMonthProfit,
+    prevMonthProfit,
+  } = stats.chartData;
 
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const now = new Date();
@@ -219,27 +174,20 @@ function SalesSummaryChart() {
 
 // Stock by Category Chart (replaces UsedDevices)
 function StockByCategoryChart() {
-  const { data: stockData } = useStockItems();
-  const stockItems: StockItem[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);
+  const { data: stats, isLoading } = useDashboardStats();
   
-  const categoryData = useMemo(() => {
-    const categories: Record<string, { available: number; sold: number }> = {};
-    
-    stockItems.forEach(item => {
-      // We'll use a simple mapping - in real scenario, get from product
-      const cat = "Items"; // Simplified
-      if (!categories[cat]) categories[cat] = { available: 0, sold: 0 };
-      if (item.status === "Available") categories[cat].available++;
-      else if (item.status === "Sold") categories[cat].sold++;
-    });
-    
-    return {
-      available: stockItems.filter(s => s.status === "Available").length,
-      sold: stockItems.filter(s => s.status === "Sold").length,
-      service: stockItems.filter(s => s.status === "Service").length,
-      total: stockItems.length,
-    };
-  }, [stockItems]);
+  if (isLoading) {
+    return (
+      <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark h-[400px] animate-pulse">
+        <div className="h-6 w-1/3 rounded bg-gray-200 dark:bg-gray-700 mb-6" />
+        <div className="flex justify-center mb-4"><div className="h-32 w-32 rounded-full bg-gray-200 dark:bg-gray-700" /></div>
+      </div>
+    );
+  }
+
+  if (!stats) return null;
+
+  const categoryData = stats.stock;
 
   const availablePercent = categoryData.total > 0 ? (categoryData.available / categoryData.total) * 100 : 0;
   const soldPercent = categoryData.total > 0 ? (categoryData.sold / categoryData.total) * 100 : 0;

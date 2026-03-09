@@ -3,10 +3,7 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
-import { useSales } from "@/hooks/useSales";
-import { useServices } from "@/hooks/useServices";
-import { useStockItems } from "@/hooks/useStock";
-import { useExpenses } from "@/hooks/useExpenses";
+import { useDashboardStats } from "@/hooks/useReports";
 import { useSession } from "@/hooks/useSession";
 
 // Icon Components
@@ -147,74 +144,13 @@ function OverviewCard({
 }
 
 export function POSOverviewCards() {
-  const { data: salesData, isLoading: salesLoading } = useSales();
-  const { data: servicesData, isLoading: servicesLoading } = useServices();
-  const { data: stockData, isLoading: stockLoading } = useStockItems();
-  const { data: expensesData, isLoading: expensesLoading } = useExpenses();
+  const { data: stats, isLoading } = useDashboardStats();
   const { data: sessionData } = useSession();
   const role = (sessionData as any)?.user?.role || (sessionData as any)?.role || "employee";
   const isEmployee = role === "employee";
 
-  const sales: any[] = salesData?.sales || [];
-  const services: any[] = servicesData?.services || [];
-  const stockItems: any[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);
-  const expenses: any[] = expensesData?.expenses || [];
-
-  // Use API-level stats when available, fallback to local calculation with parseFloat
-  const apiSalesStats = (salesData as any)?.stats;
-  const apiStockStats = (stockData as any)?.stats;
-  const apiExpensesStats = (expensesData as any)?.stats;
-  const apiServicesStats = (servicesData as any)?.stats;
-
-  // Today's sales — from local since API doesn't have today filter
-  const todaysSales = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const todaySales = sales.filter((s: any) => s.createdAt?.startsWith(today));
-    return { total: todaySales.reduce((sum: number, s: any) => sum + parseFloat(String(s.grandTotal || 0)), 0), count: todaySales.length };
-  }, [sales]);
-
-  // This month profit — from local since API doesn't have month-specific profit
-  const thisMonthProfit = useMemo(() => {
-    const now = new Date();
-    return sales.filter((s: any) => {
-      const d = new Date(s.createdAt);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }).reduce((sum: number, s: any) => sum + parseFloat(String(s.totalProfit || 0)), 0);
-  }, [sales]);
-
-  const thisMonthSalesCount = useMemo(() => {
-    const now = new Date();
-    return sales.filter((s: any) => {
-      const d = new Date(s.createdAt);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }).length;
-  }, [sales]);
-
-  // Use API stats where possible
-  const totalDue = apiSalesStats?.totalDue ?? sales.reduce((sum: number, s: any) => sum + parseFloat(s.dueAmount || 0), 0);
-  const dueCount = apiSalesStats?.dueCount ?? sales.filter((s: any) => parseFloat(s.dueAmount || 0) > 0).length;
-
-  const pendingServices = apiServicesStats?.pendingCount ?? 
-    services.filter((s: any) => s.status !== "Completed" && s.status !== "Delivered").length;
-
-  const availableStock = apiStockStats?.available ?? stockItems.filter((s: any) => s.status === "Available").length;
-  const stockValue = apiStockStats?.stockValue ?? 
-    stockItems.filter((s: any) => s.status === "Available").reduce((sum: number, s: any) => sum + parseFloat(s.purchasePrice || 0), 0);
-
-  const thisMonthExpenses = apiExpensesStats?.thisMonthAmount ?? (() => {
-    const now = new Date();
-    return expenses.filter((e: any) => {
-      const d = new Date(e.date);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }).reduce((sum: number, e: any) => sum + parseFloat(e.amount || 0), 0);
-  })();
-
-  // Show cards independently — don't block everything on one slow API
-  // Each value falls back to 0 if its API hasn't loaded yet
-  const anyLoading = salesLoading || servicesLoading || stockLoading || expensesLoading;
-
-  // Show skeleton only if ALL are still loading (first paint)
-  if (salesLoading && servicesLoading && stockLoading && expensesLoading) {
+  // Show skeleton only if loading (first paint)
+  if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 2xl:gap-7.5">
         {[1, 2, 3, 4].map((i) => (
@@ -224,12 +160,15 @@ export function POSOverviewCards() {
     );
   }
 
+  // Gracefully handle undefined data
+  if (!stats) return null;
+
   return (
     <div className="grid grid-cols-2 gap-4 sm:gap-6 xl:grid-cols-4 2xl:gap-7.5">
       <OverviewCard
         label="Today's Sales"
-        value={formatCurrency(todaysSales.total)}
-        subValue={`${todaysSales.count} invoices`}
+        value={formatCurrency(stats.today.revenue)}
+        subValue={`${stats.today.sales} invoices`}
         Icon={SalesIcon}
       />
 
@@ -237,30 +176,30 @@ export function POSOverviewCards() {
       {!isEmployee && (
         <OverviewCard
           label="This Month Profit"
-          value={formatCurrency(thisMonthProfit)}
-          subValue={`${thisMonthSalesCount} total sales`}
+          value={formatCurrency(stats.thisMonth.profit)}
+          subValue={`${stats.thisMonth.sales} total sales`}
           Icon={ProfitIcon}
         />
       )}
 
       <OverviewCard
         label="Total Due"
-        value={formatCurrency(totalDue)}
-        subValue={`${dueCount} pending`}
+        value={formatCurrency(stats.totalDue)}
+        subValue={`${stats.dueCount} pending`}
         Icon={DueIcon}
       />
 
       <OverviewCard
         label="Pending Services"
-        value={pendingServices.toString()}
+        value={stats.services.pending.toString()}
         Icon={ServiceIcon}
       />
 
       {/* Stock value hidden from employee */}
       <OverviewCard
         label="Available Stock"
-        value={availableStock.toString()}
-        subValue={!isEmployee ? `Value: ${formatCurrency(stockValue)}` : undefined}
+        value={stats.stock.available.toString()}
+        subValue={!isEmployee ? `Value: ${formatCurrency(stats.stock.stockValue)}` : undefined}
         Icon={StockIcon}
       />
 
@@ -268,7 +207,7 @@ export function POSOverviewCards() {
       {!isEmployee && (
         <OverviewCard
           label="This Month Expenses"
-          value={formatCurrency(thisMonthExpenses)}
+          value={formatCurrency(stats.thisMonth.expenses)}
           subValue="All categories"
           Icon={ExpenseIcon}
         />

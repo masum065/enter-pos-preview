@@ -11,9 +11,15 @@ export async function GET(request: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const todayStart = new Date(currentYear, currentMonth, now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthStart = new Date(currentYear, currentMonth, 1);
+    const prevMonthStart = new Date(prevYear, prevMonth, 1);
 
     // ── Run queries sequentially to prevent connection pool exhaustion ──
     // Today's sales
@@ -38,7 +44,10 @@ export async function GET(request: NextRequest) {
 
     // Total due
     const totalDue = await db
-      .select({ total: sql<string>`COALESCE(SUM(${sales.dueAmount}::numeric), 0)` })
+      .select({ 
+        total: sql<string>`COALESCE(SUM(${sales.dueAmount}::numeric), 0)`,
+        count: sql<number>`SUM(CASE WHEN ${sales.dueAmount}::numeric > 0 THEN 1 ELSE 0 END)`,
+      })
       .from(sales)
       .where(sql`${sales.dueAmount}::numeric > 0`);
 
@@ -58,11 +67,12 @@ export async function GET(request: NextRequest) {
     const stockStats = await db
       .select({
         total: sql<number>`count(*)`,
-        available: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'available')`,
-        sold: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'sold')`,
-        service: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'service')`,
-        returned: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'returned')`,
-        damaged: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'damaged')`,
+        available: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Available')`,
+        sold: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Sold')`,
+        service: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Service')`,
+        returned: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Returned')`,
+        damaged: sql<number>`count(*) FILTER (WHERE ${stockItems.status} = 'Damaged')`,
+        stockValue: sql<string>`COALESCE(SUM(${stockItems.purchasePrice}::numeric) FILTER (WHERE ${stockItems.status} = 'Available'), 0)`,
       })
       .from(stockItems);
 
@@ -78,6 +88,55 @@ export async function GET(request: NextRequest) {
     // Total customers
     const totalCustomers = await db.select({ count: sql<number>`count(*)` }).from(customers);
 
+    // Chart sales (last 2 months)
+    const chartSalesCursor = await db
+      .select({
+        createdAt: sales.createdAt,
+        total: sales.grandTotal,
+        profit: sales.totalProfit,
+      })
+      .from(sales)
+      .where(gte(sales.createdAt, prevMonthStart));
+      
+    // Calculate daily data
+    const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+    const maxDays = Math.max(daysInCurrentMonth, daysInPrevMonth);
+
+    const currentDaily: number[] = new Array(maxDays).fill(0);
+    const prevDaily: number[] = new Array(maxDays).fill(0);
+    let curTotal = 0, prvTotal = 0, curProfit = 0, prvProfit = 0;
+
+    chartSalesCursor.forEach(s => {
+      const d = new Date(s.createdAt);
+      const amount = parseFloat(String(s.total || 0));
+      const profit = parseFloat(String(s.profit || 0));
+      
+      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+        const day = d.getDate() - 1;
+        if (day < maxDays) currentDaily[day] += amount;
+        curTotal += amount;
+        curProfit += profit;
+      } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
+        const day = d.getDate() - 1;
+        if (day < maxDays) prevDaily[day] += amount;
+        prvTotal += amount;
+        prvProfit += profit;
+      }
+    });
+
+    // Generate labels (1, 2, 3, ... 31)
+    const labels = Array.from({ length: maxDays }, (_, i) => (i + 1).toString());
+
+    const chartData = {
+      currentMonthData: currentDaily.map((y, i) => ({ x: labels[i], y: Math.round(y) })),
+      prevMonthData: prevDaily.map((y, i) => ({ x: labels[i], y: Math.round(y) })),
+      currentMonthTotal: curTotal,
+      prevMonthTotal: prvTotal,
+      currentMonthProfit: curProfit,
+      prevMonthProfit: prvProfit,
+    };
+
     const response = NextResponse.json({
       today: {
         sales: Number(todaySales[0].count),
@@ -92,12 +151,14 @@ export async function GET(request: NextRequest) {
         expenses: monthExpenses[0].total,
       },
       totalDue: totalDue[0].total,
+      dueCount: Number(totalDue[0].count),
       stock: stockStats[0],
       services: {
         pending: Number(pendingServices[0].count),
         dueAmount: pendingServices[0].dueAmount,
       },
       totalCustomers: Number(totalCustomers[0].count),
+      chartData,
     });
 
     // Cache for 30 seconds (dashboard stats don't need real-time precision)

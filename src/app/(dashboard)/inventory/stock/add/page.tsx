@@ -561,7 +561,7 @@ function AddStockContent() {
                   className={`w-full rounded-lg border px-4 py-3 font-mono text-sm text-gray-900 focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
                     errors.bulkSerials ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500 dark:border-gray-700"
                   }`}
-                  placeholder="C02X1234LVDL&#10;C02X5678ABCD&#10;C02X9012EFGH"
+                  placeholder="C02X1234LVDL\nC02X5678ABCD\nC02X9012EFGH"
                 />
                 {errors.bulkSerials && <p className="mt-1 text-sm text-red-500">{errors.bulkSerials}</p>}
                 <p className="mt-2 text-sm text-gray-500">

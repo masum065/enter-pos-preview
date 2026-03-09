@@ -86,216 +86,309 @@ function buildInvoiceHTML(sale: Sale): string {
 
   const itemRows = (sale.items || []).map((item: any, i: number) => `
     <tr>
-      <td class="at">${i + 1}</td>
-      <td class="at">
-        <div>${item.productName || item.name || ""}</div>
-        ${item.warranty ? `<div style="color:#555;font-size:10px;">${item.warranty}</div>` : ""}
-      </td>
-      <td class="at mono">${item.serialNumber || item.serial || ""}</td>
-      <td class="at tc">${item.quantity || item.qty || 1}</td>
-      <td class="at tr">${fmt(item.salePrice || item.price || 0)} ৳</td>
-      <td class="at tr">${fmt(item.amount || item.total || 0)} ৳</td>
+      <td style="text-align:center;">${i + 1}</td>
+      <td style="padding-left:12px;">${item.productName || item.name || ""}</td>
+      <td style="text-align:center;">${item.warranty || "N/A"}</td>
+      <td style="text-align:center;" class="mono">${item.serialNumber || item.serial || ""}</td>
+      <td style="text-align:center;">${item.quantity || item.qty || 1}</td>
+      <td style="text-align:right;">${fmt(item.salePrice || item.price || 0)}</td>
+      <td style="text-align:right;">${fmt(item.amount || item.total || 0)}</td>
     </tr>`).join("");
 
   const payRows = (sale.payments || []).map((p: any, i: number) => `
     <tr>
-      <td>${i + 1}</td>
-      <td>${fmtDateTime(p.paidAt || p.date || new Date())}</td>
-      <td>${p.method || p.type || ""}</td>
-      <td>${p.reference || ""}</td>
-      <td class="tr">${fmt(Number(p.amount))} ৳</td>
+      <td style="text-align:center;">${i + 1}</td>
+      <td style="text-align:center;">${fmtDateTime(p.paidAt || p.date || new Date())}</td>
+      <td style="text-align:center;">${p.method || p.type || ""}</td>
+      <td style="text-align:center;">${p.reference || ""}</td>
+      <td style="text-align:right;">${fmt(Number(p.amount))}</td>
     </tr>`).join("");
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<title>Invoice ${sale.invoiceNumber}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#1a1a1a;background:#fff;padding:24px 28px;}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bill of Supply - Enter Computers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif;
+      background: #e5e7eb;
+      padding: 24px;
+      margin: 0;
+    }
+    .bengali {
+      font-family: 'Noto Sans Bengali', 'Hind Siliguri', sans-serif;
+    }
+    .logo-enter { color: #f97316; font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
+    .logo-comp  { color: #1a1a1a; font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
+    .logo-icon  {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: #f97316; color: white; font-size: 13px; font-weight: 900;
+      margin: 0 1px; vertical-align: middle; position: relative; top: -2px;
+    }
+    .inv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .inv-table th, .inv-table td { border: 1px solid #9ca3af; padding: 6px 8px; }
+    .inv-table thead tr { background: #f9fafb; }
+    .inv-table th { font-weight: 700; text-align: center; }
 
-  /* Header */
-  .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;padding-bottom:12px;border-bottom:2px solid #FF6600;}
-  .hdr-logo img{height:50px;}
-  .hdr-right{text-align:right;}
-  .hdr-right .shop-title{font-size:16px;font-weight:800;color:#FF6600;margin-bottom:2px;}
-  .hdr-right .shop-addr-bn{font-size:9.5px;color:#333;line-height:1.4;}
-  .hdr-right .shop-contact{font-size:9px;color:#555;margin-top:2px;line-height:1.3;}
-
-  /* Bill banner */
-  .bill-banner{background:linear-gradient(135deg,#FF6600,#FF8833);color:#fff;text-align:center;font-size:13px;font-weight:700;font-style:italic;padding:6px 0;margin-bottom:10px;border-radius:3px;letter-spacing:0.5px;}
-
-  /* Customer / Invoice details */
-  .cust-inv-row{display:flex;justify-content:space-between;margin-bottom:10px;font-size:10px;}
-  .cust-info{flex:1;}
-  .cust-info .label{font-weight:700;color:#FF6600;font-size:10px;margin-bottom:3px;}
-  .cust-info div{margin-bottom:1px;}
-  .inv-details{text-align:right;}
-  .inv-details .label{font-weight:700;color:#FF6600;font-size:10px;margin-bottom:3px;}
-  .inv-details div{margin-bottom:1px;}
-
-  /* Tables */
-  table{width:100%;border-collapse:collapse;margin-bottom:8px;}
-  th,td{border:1px solid #ddd;padding:4px 8px;font-size:10px;word-break:break-word;}
-  thead th{background:#f7941d;color:#fff;font-weight:700;text-transform:uppercase;font-size:10px;}
-  .tr{text-align:right;} .tc{text-align:center;} .at{vertical-align:top;}
-  .mono{font-family:monospace;} .fw7{font-weight:700;} .fw6{font-weight:600;}
-  tfoot td{background:#FFF5EB;font-weight:600;}
-  tfoot tr:last-child td{background:#FFF0E0;font-weight:700;font-size:10px;}
-
-  /* Section headers */
-  .section-header{background:linear-gradient(135deg,#FF6600,#FF8833);color:#fff;font-weight:700;font-size:10px;padding:4px 10px;border-radius:2px;}
-  .section-header-dark{background:#333;color:#fff;font-weight:700;font-size:10px;padding:4px 10px;border-radius:2px;}
-
-  /* Amounts summary */
-  .amounts-wrap{display:flex;gap:0;margin-bottom:10px;}
-  .amounts-left{flex:1;border:1px solid #ddd;border-right:none;}
-  .amounts-right{width:280px;border:1px solid #ddd;}
-  .amounts-left .section-header,.amounts-right .section-header{margin-top:0;border-radius:0;}
-  .amounts-row{display:flex;justify-content:space-between;padding:4px 10px;border-bottom:1px solid #eee;font-size:10px;}
-  .amounts-row:last-child{border-bottom:none;}
-  .amounts-row.total{font-weight:700;font-size:10px;background:#FFF5EB;}
-  .amounts-row.due{color:#dc2626;font-weight:700;}
-
-  .note{font-size:9px;color:#555;margin:3px 0;}
-
-  /* Signature */
-  .signature-area{margin-top:24px;display:flex;justify-content:flex-end;}
-  .signature-block{text-align:center;min-width:220px;}
-  .signature-block img{height:50px;margin-bottom:3px;}
-  .signature-block .sig-label{font-size:10px;font-weight:700;color:#FF6600;border-top:1px solid #FF6600;padding-top:3px;}
-
-  .footer-note{text-align:center;font-size:8px;color:#9ca3af;margin-top:12px;padding-top:8px;border-top:1px solid #f3f4f6;}
-
-  @media print{
-    @page{size:A4;margin:12mm 14mm;}
-    body{padding:0!important;}
-    .bill-banner,.section-header,.section-header-dark,thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    tfoot td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  }
-</style>
+    /* T&C */
+    .tnc-wrapper {
+      border: 2px solid #222;
+      position: relative;
+      background: #fff;
+    }
+    .tnc-header-bar {
+      position: absolute;
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 5px 22px;
+      white-space: nowrap;
+      border-radius: 3px;
+    }
+    .tnc-row {
+      display: flex;
+      align-items: stretch;
+      border-bottom: 1px solid #d1d5db;
+    }
+    .tnc-row:last-of-type { border-bottom: none; }
+    .tnc-label {
+      background: #1a1a1a;
+      color: #fff;
+      font-weight: 800;
+      font-size: 15px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin: 12px 10px 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 165px;
+      width: 165px;
+      text-align: center;
+      flex-shrink: 0;
+      line-height: 1.4;
+    }
+    .tnc-text {
+      font-size: 12.5px;
+      line-height: 1.75;
+      padding: 12px 16px 12px 8px;
+      color: #111;
+      flex: 1;
+    }
+    .tnc-footer {
+      background: #1a1a1a;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      padding: 9px 16px;
+    }
+    .page-footer {
+      background: #2d2d2d;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 28px;
+      font-size: 13px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    @media print {
+      body { background: white; padding: 0; }
+      .container { box-shadow: none !important; }
+      .tnc-wrapper, .tnc-header-bar, .tnc-label, .tnc-footer, .page-footer, .logo-icon, .inv-table thead tr {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+    .mono { font-family: monospace; }
+  </style>
 </head>
 <body>
-  <!-- Header -->
-  <div class="hdr">
-    <div class="hdr-logo">
-      <img src="/enter-logo.png" alt="Enter Computers"/>
-    </div>
-    <div class="hdr-right">
-      <div class="shop-title">Enter Computer's</div>
-      <div class="shop-addr-bn">
-        অলকা নদী বাংলা কমপ্লেক্স, ২য় তলা, দোকান নং - ২৩৮ - রামবাবু রোড,<br>
-        গাংগিনারপার, সদর, ময়মনসিংহ।
+
+<div class="container" style="background:#fff; max-width:900px; margin:0 auto; box-shadow:0 2px 16px rgba(0,0,0,0.13);">
+
+  <!-- HEADER -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:20px 28px 16px; border-bottom:1px solid #d1d5db;">
+    <div>
+      <div style="line-height:1; display:flex; align-items:center;">
+        <span class="logo-enter">ENTER</span>
+        <span style="display:inline-flex; align-items:center;">
+          <span class="logo-comp">&nbsp;COMP</span>
+          <span class="logo-icon">⊙</span>
+          <span class="logo-comp">TERS</span>
+        </span>
       </div>
-      <div class="shop-contact">
-        Phone no.: 01684-134574, 01789-443043 Email:<br>
-        entercomputersmym@gmail.com
+      <p class="bengali" style="font-size:11px; color:#555; margin-top:5px;">বেস্ট কোয়ালিটির প্রজেক্ট ইউজড ল্যাপটপ &amp; মোবাইল এর বিশ্বস্ত প্রতিষ্ঠান</p>
+    </div>
+    <div style="text-align:right;">
+      <p style="font-size:20px; font-weight:800; color:#1a1a1a;">01789-443043&nbsp;&nbsp;01684-134574</p>
+      <p class="bengali" style="font-size:11.5px; color:#555; margin-top:4px;">অলকা নদী বাংলা কমপ্লেক্স ২য় তলা দোকান নং ২৩৮</p>
+      <p class="bengali" style="font-size:11.5px; color:#555;">রাম বাবু রোড, গাংগিনারপার, সদর, ময়মনসিংহ।</p>
+    </div>
+  </div>
+
+  <!-- TITLE ROW -->
+  <div style="display:flex; align-items:center; justify-content:space-between; padding:9px 28px; border-bottom:1px solid #d1d5db;">
+    <div style="flex:1; text-align:center;">
+      <span style="font-size:17px; font-weight:700;">Bill of Supply</span>
+    </div>
+    <div style="font-size:13px; font-weight:600; white-space:nowrap;">
+      NO: <strong>${sale.invoiceNumber}</strong>
+    </div>
+  </div>
+
+  <!-- CUSTOMER -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:10px 28px; border-bottom:1px solid #d1d5db;">
+    <div style="font-size:13px; line-height:1.9;">
+      <span><strong>Customer:</strong> ${sale.customerName} &nbsp;&nbsp; <strong>Phone:</strong> ${sale.customerPhone}</span><br/>
+      ${sale.customerAddress ? `<span><strong>Address:</strong> ${sale.customerAddress}</span>` : ''}
+    </div>
+    <div style="text-align:right; font-size:13px; line-height:1.9;">
+      <span><strong>Salesman:</strong> System Administrator</span><br/>
+      <div style="border:1px solid #9ca3af; padding:3px 14px; display:inline-block; font-size:13px; margin-top:2px;">
+        Date: ${fmtDateTime(sale.invoiceDate)}
       </div>
     </div>
   </div>
 
-  <!-- Bill of Supply Banner -->
-  <div class="bill-banner">Bill of Supply</div>
-
-  <!-- Customer + Invoice Details -->
-  <div class="cust-inv-row">
-    <div class="cust-info">
-      <div class="label">Bill To</div>
-      <div><strong>${sale.customerName}</strong></div>
-      <div>${(sale as any).customerAddress || ''}</div>
-      <div>Contact No. : ${sale.customerPhone}</div>
-    </div>
-    <div class="inv-details">
-      <div class="label">Invoice Details</div>
-      <div>Invoice No. : <strong>${sale.invoiceNumber}</strong></div>
-      <div>Date : ${fmtDate(sale.invoiceDate)}</div>
-    </div>
+  <!-- ITEMS TABLE -->
+  <div style="padding:16px 28px 8px;">
+    <table class="inv-table">
+      <thead>
+        <tr>
+          <th style="width:38px;">SL.</th>
+          <th style="text-align:left; padding-left:12px;">ITEM</th>
+          <th style="width:74px;">WARRANTY</th>
+          <th style="width:108px;">SERIAL NO.</th>
+          <th style="width:42px;">QTY</th>
+          <th style="width:100px;">PRICE</th>
+          <th style="width:100px;">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        <tr style="height:26px;">
+          <td colspan="5" rowspan="${discount > 0 ? 3 : 2}" style="vertical-align:middle; padding:8px 10px;">
+            <strong>Amount In Words:</strong> ${amountInWords(grandTotal)}
+          </td>
+          <td style="text-align:right; font-weight:700; background:#f9fafb;">Total</td>
+          <td style="text-align:right;">${fmt(subtotal)}</td>
+        </tr>
+        ${discount > 0 ? `<tr>
+          <td style="text-align:right; font-weight:700; background:#f9fafb;">Discount</td>
+          <td style="text-align:right;">(${fmt(discount)})</td>
+        </tr>` : ""}
+        <tr>
+          <td style="text-align:right; font-weight:700; background:#f9fafb;">Grand Total</td>
+          <td style="text-align:right; font-weight:700;">${fmt(grandTotal)}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
-  <!-- Items Table -->
-  <table>
-    <thead>
-      <tr>
-        <th style="width:28px">#</th>
-        <th>Item name</th>
-        <th class="mono" style="width:120px">Serial No.</th>
-        <th class="tc" style="width:40px">Qty</th>
-        <th class="tr" style="width:80px">Price/ Unit</th>
-        <th class="tr" style="width:80px">Amount</th>
-      </tr>
-    </thead>
-    <tbody>${itemRows}</tbody>
-    <tfoot>
-      <tr>
-        <td colspan="3"></td>
-        <td class="fw7">Total</td>
-        <td class="tr"></td>
-        <td class="tr fw7">${fmt(subtotal)} ৳</td>
-      </tr>
-      ${discount > 0 ? `<tr>
-        <td colspan="3"></td>
-        <td class="fw6">Discount</td>
-        <td class="tr"></td>
-        <td class="tr fw6">(${fmt(discount)}) ৳</td>
-      </tr>` : ""}
-    </tfoot>
-  </table>
-
-  <!-- Amounts Summary -->
-  <div class="amounts-wrap">
-    <div class="amounts-left">
-      <div class="section-header">Invoice Amount In Words</div>
-      <div style="padding:8px 12px;font-size:11px;">${amountInWords(grandTotal)}</div>
-      <div class="section-header-dark">Terms and Conditions</div>
-      <div style="padding:6px 12px;">
-        <div style="font-size:10px;color:#444;line-height:1.6;">
-          * 7 Day's Replacement Guarantee with 365 day's Service Warranty (Without parts).<br>
-          * To apply for the warranty, the warranty sticker and serial number must be kept intact.<br>
-          * Warranty is not applicable for any external or electrical damage.
-        </div>
-      </div>
-    </div>
-    <div class="amounts-right">
-      <div class="section-header">Amounts</div>
-      <div class="amounts-row">
-        <span>Sub Total</span>
-        <span>${fmt(subtotal)} ৳</span>
-      </div>
-      ${discount > 0 ? `<div class="amounts-row"><span>Discount</span><span>(${fmt(discount)}) ৳</span></div>` : ""}
-      <div class="amounts-row total">
-        <span>Total</span>
-        <span>${fmt(grandTotal)} ৳</span>
-      </div>
-      <div class="amounts-row">
-        <span>Received</span>
-        <span>${fmt(paidAmount)} ৳</span>
-      </div>
-      ${dueAmount > 0 ? `<div class="amounts-row due"><span>Balance</span><span>${fmt(dueAmount)} ৳</span></div>` : ""}
-    </div>
+  <!-- PAID DUE -->
+  <div style="padding:6px 28px; text-align:right; font-size:13.5px; font-weight:700;">
+    Paid: ${fmt(paidAmount)} Tk &nbsp;&nbsp; Due: ${fmt(dueAmount)} Tk
   </div>
 
+  <!-- NOTE -->
+  <div style="padding:2px 28px 10px; font-size:12px; color:#666; font-style:italic;">
+    Good received by customer in good condition.
+  </div>
+
+  <!-- PAYMENT HISTORY -->
   ${sale.payments?.length > 0 ? `
-  <div style="margin-top:10px;margin-bottom:10px;">
-    <div class="section-header" style="margin-bottom:6px;">Payment History</div>
-    <table>
-      <thead><tr><th style="width:36px">SL.</th><th>Date</th><th style="width:80px">Method</th><th>Reference</th><th class="tr" style="width:90px">Amount</th></tr></thead>
-      <tbody>${payRows}</tbody>
-      <tfoot><tr><td colspan="4" class="fw7">Total</td><td class="tr fw7">${fmt(paidAmount)} ৳</td></tr></tfoot>
+  <div style="padding:4px 28px 24px;">
+    <p style="font-size:13px; font-weight:700; margin-bottom:8px;">Payment History</p>
+    <table class="inv-table">
+      <thead>
+        <tr>
+          <th style="width:38px;">Sl.</th>
+          <th>Date</th>
+          <th>Method</th>
+          <th>Reference</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${payRows}
+        <tr style="background:#f9fafb; font-weight:700;">
+          <td colspan="4" style="padding:6px 8px; text-align:center;">Total</td>
+          <td style="text-align:right;">${fmt(paidAmount)}</td>
+        </tr>
+      </tbody>
     </table>
   </div>` : ""}
 
-  <!-- Signature -->
-  <div class="signature-area">
-    <div class="signature-block">
-      <img src="/entersign.png" alt="Authorized Signature"/>
-      <div class="sig-label">Authorized Signatory</div>
+  <!-- TERMS & CONDITIONS -->
+  <div style="padding:0 28px 30px;">
+    <div class="tnc-wrapper">
+      <div class="tnc-header-bar bengali">
+        বিক্রয় পরবর্তী সেবা ও শর্তাবলী (Terms &amp; Conditions)
+      </div>
+      <div style="margin-top:22px;">
+        <div class="tnc-row">
+          <div class="tnc-label bengali">ল্যাপটপ ওয়ারেন্টি</div>
+          <div class="tnc-text bengali">
+            ১০ দিনের রিপ্লেসমেন্ট গ্যারান্টি (শুধুমাত্র হার্ডওয়্যার সমস্যার জন্য)। ২ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। প্রয়োজনীয় পার্টস বা খুচরা যন্ত্রাংশের মূল্য গ্রাহককে বহন করতে হবে।
+          </div>
+        </div>
+        <div class="tnc-row">
+          <div class="tnc-label bengali">মোবাইল ওয়ারেন্টি</div>
+          <div class="tnc-text bengali">
+            ৭ দিনের রিপ্লেসমেন্ট গ্যারান্টি। ১ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। মোবাইলের Display এবং Motherboard কোনো ওয়ারেন্টির অন্তর্ভুক্ত নয়।
+          </div>
+        </div>
+        <div class="tnc-row">
+          <div class="tnc-label bengali">রিপ্লেসমেন্ট নীতি</div>
+          <div class="tnc-text bengali">
+            রিপ্লেসমেন্টের ক্ষেত্রে একই মডেলের ডিভাইস প্রদান করা হবে। স্টক না থাকলে আলোচনা সাপেক্ষে অন্য মডেল নির্বাচন করা যাবে।
+            এক্সচেঞ্জ ও রিটার্ন: ক্রয়ের ২ মাসের মধ্যে Exchange করলে নূন্যতম ২০% মূল্য কর্তন হবে। ক্রয়ের ২ মাসের মধ্যে Return করলে নূন্যতম ৩০% মূল্য কর্তন হবে। ডিভাইসের কন্ডিশন যাচাই করে চূড়ান্ত মূল্য নির্ধারণ করা হবে।
+          </div>
+        </div>
+        <div class="tnc-row">
+          <div class="tnc-label bengali">এক্সচেঞ্জ ও রিটার্ন</div>
+          <div class="tnc-text bengali">
+            ওয়ারেন্টি বাতিল হবে যদি: ডিভাইসে Physical Damage / Scratch থাকে। পানি বা Liquid Damage হয়। শর্ট সার্কিট বা ভোল্টেজের সমস্যায় ক্ষতি হয়। ওয়ারেন্টি সিল বা স্টিকার নষ্ট করা হয়। অন্য কোনো টেকনিশিয়ান দ্বারা ডিভাইস খোলা হয়।
+          </div>
+        </div>
+        <div class="tnc-footer bengali">
+          গুরুত্বপূর্ণ: ওয়ারেন্টি সুবিধা পেতে অরিজিনাল ক্যাশ মেমো/বিল অবশ্যই সংরক্ষণ করতে হবে।
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="footer-note">This is a computer generated invoice.</div>
+  <!-- PAGE FOOTER -->
+  <div class="page-footer">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <span>www.entercomputers.com.bd</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div style="background:#1877f2; color:white; font-weight:900; font-size:13px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:3px; padding-left: 5px;">f</div>
+      <span>fb.com/entercomputersmym</span>
+    </div>
+  </div>
 
-  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
+</div>
+
+<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}</script>
 </body>
 </html>`;
 }
@@ -324,186 +417,16 @@ export function InvoicePrintModal({
     w.document.close();
   };
 
+  
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Invoice Preview" size="lg">
-      {/* ── Invoice preview ─────────────────────────────────── */}
-      <div
-        style={{ fontFamily: "Arial, Helvetica, sans-serif", fontSize: 10, color: "#1a1a1a" }}
-        className="max-h-[65vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-5 text-left dark:border-gray-700 dark:bg-white"
-      >
-       {/* Header — logo left, shop info right */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12, paddingBottom: 12, borderBottom: "2px solid #FF6600" }}>
-          <div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/enter-logo.png" alt="Enter Computers" style={{ height: 45 }} />
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#FF6600", marginBottom: 2 }}>Enter Computer&apos;s</div>
-            <div style={{ fontSize: 9, color: "#333", lineHeight: 1.4 }}>
-              অলকা নদী বাংলা কমপ্লেক্স, ২য় তলা, দোকান নং - ২৩৮ - রামবাবু রোড,<br />
-              গাংগিনারপার, সদর, ময়মনসিংহ।
-            </div>
-            <div style={{ fontSize: 8, color: "#555", marginTop: 2, lineHeight: 1.3 }}>
-              Phone no.: 01684-134574, 01789-443043 Email:<br />
-              entercomputersmym@gmail.com
-            </div>
-          </div>
-        </div>
-
-        {/* Bill of Supply Banner */}
-        <div style={{ background: "linear-gradient(135deg, #FF6600, #FF8833)", color: "#fff", textAlign: "center", fontSize: 13, fontWeight: 700, fontStyle: "italic", padding: "5px 0", marginBottom: 10, borderRadius: 3, letterSpacing: 0.5 }}>
-          Bill of Supply
-        </div>
-
-        {/* Customer + Invoice Details Row */}
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, color: "#FF6600", fontSize: 10, marginBottom: 3 }}>Bill To</div>
-            <div><strong>{sale.customerName}</strong></div>
-            {(sale as any).customerAddress && <div>{(sale as any).customerAddress}</div>}
-            <div>Contact No. : {sale.customerPhone}</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 700, color: "#FF6600", fontSize: 10, marginBottom: 3 }}>Invoice Details</div>
-            <div>Invoice No. : <strong>{sale.invoiceNumber}</strong></div>
-            <div>Date : {fmtDate(sale.invoiceDate)}</div>
-          </div>
-        </div>
-
-        {/* Items */}
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 8 }}>
-          <thead>
-            <tr>
-              <th style={thStyle({ width: 28 })}>#</th>
-              <th style={thStyle()}>Item name</th>
-              <th style={thStyle({ width: 110, fontFamily: "monospace" })}>Serial No.</th>
-              <th style={thStyle({ width: 40, textAlign: "center" })}>Qty</th>
-              <th style={thStyle({ width: 80, textAlign: "right" })}>Price/ Unit</th>
-              <th style={thStyle({ width: 80, textAlign: "right" })}>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(sale.items || []).map((item: any, i: number) => (
-              <tr key={i}>
-                <td style={tdStyle({ verticalAlign: "top" })}>{i + 1}</td>
-                <td style={tdStyle({ verticalAlign: "top" })}>
-                  <div>{item.productName || item.name}</div>
-                  {item.warranty && <div style={{ color: "#555", fontSize: 10 }}>{item.warranty}</div>}
-                </td>
-                <td style={tdStyle({ verticalAlign: "top", fontFamily: "monospace" })}>{item.serialNumber || item.serial}</td>
-                <td style={tdStyle({ verticalAlign: "top", textAlign: "center" })}>{item.quantity || item.qty || 1}</td>
-                <td style={tdStyle({ verticalAlign: "top", textAlign: "right" })}>{fmt(item.salePrice || item.price || 0)} ৳</td>
-                <td style={tdStyle({ verticalAlign: "top", textAlign: "right" })}>{fmt(item.amount || item.total || 0)} ৳</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={3} style={tdStyle({ background: "#FFF5EB" })}></td>
-              <td style={tdStyle({ fontWeight: 700, background: "#FFF5EB" })}>Total</td>
-              <td style={tdStyle({ textAlign: "right", background: "#FFF5EB" })}></td>
-              <td style={tdStyle({ textAlign: "right", fontWeight: 700, background: "#FFF5EB" })}>{fmt(subtotal)} ৳</td>
-            </tr>
-            {discount > 0 && (
-              <tr>
-                <td colSpan={3} style={tdStyle({ background: "#FFF5EB" })}></td>
-                <td style={tdStyle({ fontWeight: 600, background: "#FFF5EB" })}>Discount</td>
-                <td style={tdStyle({ textAlign: "right", background: "#FFF5EB" })}></td>
-                <td style={tdStyle({ textAlign: "right", fontWeight: 600, background: "#FFF5EB" })}>({fmt(discount)}) ৳</td>
-              </tr>
-            )}
-          </tfoot>
-        </table>
-
-        {/* Amounts Summary — side by side */}
-        <div style={{ display: "flex", marginBottom: 10 }}>
-          {/* Left — words + terms */}
-          <div style={{ flex: 1, border: "1px solid #ddd", borderRight: "none" }}>
-            <div style={{ background: "linear-gradient(135deg, #FF6600, #FF8833)", color: "#fff", fontWeight: 700, fontSize: 10, padding: "4px 10px" }}>Invoice Amount In Words</div>
-            <div style={{ padding: "6px 10px", fontSize: 10 }}>{amountInWords(grandTotal)}</div>
-            <div style={{ background: "#333", color: "#fff", fontWeight: 700, fontSize: 10, padding: "4px 10px" }}>Terms and Conditions</div>
-            <div style={{ padding: "5px 10px", fontSize: 9, color: "#444", lineHeight: 1.5 }}>
-              * 7 Day&apos;s Replacement Guarantee with 365 day&apos;s Service Warranty (Without parts).<br />
-              * To apply for the warranty, the warranty sticker and serial number must be kept intact.<br />
-              * Warranty is not applicable for any external or electrical damage.
-            </div>
-          </div>
-          {/* Right — amounts */}
-          <div style={{ width: 240, border: "1px solid #ddd" }}>
-            <div style={{ background: "linear-gradient(135deg, #FF6600, #FF8833)", color: "#fff", fontWeight: 700, fontSize: 10, padding: "4px 10px" }}>Amounts</div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", borderBottom: "1px solid #eee", fontSize: 10 }}>
-              <span>Sub Total</span><span>{fmt(subtotal)} ৳</span>
-            </div>
-            {discount > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", borderBottom: "1px solid #eee", fontSize: 10 }}>
-                <span>Discount</span><span>({fmt(discount)}) ৳</span>
-              </div>
-            )}
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", borderBottom: "1px solid #eee", fontSize: 10, fontWeight: 700, background: "#FFF5EB" }}>
-              <span>Total</span><span>{fmt(grandTotal)} ৳</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", borderBottom: "1px solid #eee", fontSize: 10 }}>
-              <span>Received</span><span>{fmt(paidAmount)} ৳</span>
-            </div>
-            {dueAmount > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 10px", fontSize: 10, fontWeight: 700, color: "#dc2626" }}>
-                <span>Balance</span><span>{fmt(dueAmount)} ৳</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Payments */}
-        {(sale.payments || []).length > 0 && (
-          <div style={{ marginTop: 10, marginBottom: 10 }}>
-            <div style={{ background: "linear-gradient(135deg, #FF6600, #FF8833)", color: "#fff", fontWeight: 700, fontSize: 10, padding: "4px 10px", borderRadius: 2, marginBottom: 5 }}>Payment History</div>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={thStyle({ width: 36 })}>SL.</th>
-                  <th style={thStyle()}>Date</th>
-                  <th style={thStyle({ width: 80 })}>Method</th>
-                  <th style={thStyle()}>Reference</th>
-                  <th style={thStyle({ width: 90, textAlign: "right" })}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(sale.payments || []).map((p: any, i: number) => (
-                  <tr key={i}>
-                    <td style={tdStyle()}>{i + 1}</td>
-                    <td style={tdStyle()}>{fmtDateTime(p.paidAt || p.date || new Date())}</td>
-                    <td style={tdStyle()}>{p.method || p.type || ""}</td>
-                    <td style={tdStyle()}>{p.reference || ""}</td>
-                    <td style={tdStyle({ textAlign: "right" })}>{fmt(Number(p.amount))} ৳</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan={4} style={tdStyle({ fontWeight: 700, background: "#FFF5EB" })}>Total</td>
-                  <td style={tdStyle({ textAlign: "right", fontWeight: 700, background: "#FFF5EB" })}>{fmt(paidAmount)} ৳</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
-
-        {/* Signature */}
-        <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end" }}>
-          <div style={{ textAlign: "center", minWidth: 200 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/entersign.png" alt="Authorized Signature" style={{ height: 45, marginBottom: 3 }} />
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#FF6600", borderTop: "1px solid #FF6600", paddingTop: 3 }}>Authorized Signatory</div>
-          </div>
-        </div>
-
-        {/* Footer note */}
-        <div style={{ textAlign: "center", fontSize: 8, color: "#9ca3af", marginTop: 12, paddingTop: 8, borderTop: "1px solid #f3f4f6" }}>
-          This is a computer generated invoice.
-        </div>
+      <div className="bg-gray-200 p-2 sm:p-4 rounded-lg">
+        <iframe
+          srcDoc={buildInvoiceHTML(sale).replace('<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}</script>', '')}
+          className="w-full h-[65vh] border-0 bg-transparent rounded-sm shadow-sm outline-none"
+        />
       </div>
 
-      {/* ── Buttons ─────────────────────────────────────────── */}
       <div className="mt-5 flex justify-center gap-3">
         <button
           onClick={onClose}
@@ -513,7 +436,7 @@ export function InvoicePrintModal({
         </button>
         <button
           onClick={handlePrint}
-          className="inline-flex items-center gap-2 rounded-lg px-6 py-2.5 font-medium text-white hover:opacity-90" style={{ background: "#FF6600" }}
+          className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-6 py-2.5 font-medium text-white hover:bg-orange-600"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -523,15 +446,9 @@ export function InvoicePrintModal({
       </div>
     </Modal>
   );
+
 }
 
-// ── Style helpers ─────────────────────────────────────────────────────────
-function thStyle(extra: React.CSSProperties = {}): React.CSSProperties {
-  return {
-    border: "1px solid #ddd", padding: "4px 8px", fontSize: 10,
-    background: "#f7941d", color: "#fff", fontWeight: 700, textAlign: "left", textTransform: "uppercase" as const, ...extra,
-  };
-}
 function tdStyle(extra: React.CSSProperties = {}): React.CSSProperties {
   return { border: "1px solid #ddd", padding: "4px 8px", fontSize: 10, ...extra };
 }

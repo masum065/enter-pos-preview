@@ -110,16 +110,16 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Invoice ${sale.invoiceNumber}</title>
-<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   body{
-    font-family:'Hind Siliguri','Noto Sans Bengali',sans-serif;
+    font-family:'Inter','Noto Sans Bengali',sans-serif;
     font-size:13px;color:#1a1a1a;
     background:${forPreview ? '#fff' : '#e5e7eb'};
     ${forPreview ? '' : 'padding:20px;'}
   }
-  .bn{font-family:'Noto Sans Bengali','Hind Siliguri',sans-serif;}
+  .bn{font-family:'Noto Sans Bengali','Inter',sans-serif;}
   .page{
     background:#fff;
     ${forPreview ? '' : 'max-width:210mm; margin:0 auto; box-shadow:0 2px 16px rgba(0,0,0,.12);'}

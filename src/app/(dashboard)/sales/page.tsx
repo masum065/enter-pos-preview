@@ -505,7 +505,7 @@ function SalesPageContent() {
     if (p <= 1) params.delete("page"); else params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
-  const { data: salesData, isLoading } = useSales({ page, limit: 20, search: activeSearch || undefined });
+  const { data: salesData, isLoading, isFetching } = useSales({ page, limit: 20, search: activeSearch || undefined });
   const sales: Sale[] = (salesData?.sales || []) as any[];
   const pagination = (salesData as any)?.pagination;
 
@@ -778,7 +778,13 @@ function SalesPageContent() {
       </div>
 
       {/* Sales Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+      <div className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900 transition-opacity ${isFetching ? "opacity-60" : "opacity-100"}`}>
+        {/* Subtle fetching indicator */}
+        {isFetching && (
+          <div className="absolute right-4 top-4 z-10">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -865,7 +871,7 @@ function SalesPageContent() {
       {/* Results count */}
       {filteredSales.length > 0 && (
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Showing {filteredSales.length} of {pagination?.total || sales.length} invoices
+          Showing {filteredSales.length} {filteredSales.length === 1 ? "invoice" : "invoices"}
         </p>
       )}
 

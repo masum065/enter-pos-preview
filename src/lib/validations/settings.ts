@@ -11,6 +11,21 @@ export const shopSettingsSchema = z.object({
   invoicePrefix: z.string().default("INV"),
   expensePrefix: z.string().default("EXP"),
   servicePrefix: z.string().default("SRV"),
+  termsAndConditions: z.array(z.object({
+    label: z.string(),
+    text: z.string(),
+  })).optional(),
+  termsFooter: z.string().optional(),
+  purchaseTermsAndConditions: z.array(z.object({
+    label: z.string(),
+    text: z.string(),
+  })).optional(),
+  purchaseTermsFooter: z.string().optional(),
+  serviceTermsAndConditions: z.array(z.object({
+    label: z.string(),
+    text: z.string(),
+  })).optional(),
+  serviceTermsFooter: z.string().optional(),
 });
 
 // User creation schema

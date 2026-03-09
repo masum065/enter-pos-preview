@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limitParam = searchParams.get("limit");
+    const limit = limitParam === "all" ? 100000 : parseInt(limitParam || "50");
     const offset = (page - 1) * limit;
 
     // Apply filters
@@ -36,7 +37,11 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(sales.customerId, customerId));
     }
     if (status) {
-      conditions.push(eq(sales.status, status));
+      if (status.includes(",")) {
+        conditions.push(inArray(sales.status, status.split(",")));
+      } else {
+        conditions.push(eq(sales.status, status));
+      }
     }
 
     // Search across invoice number, customer name, and phone
@@ -76,6 +81,7 @@ export async function GET(request: NextRequest) {
       totalAmount: sql<string>`COALESCE(SUM(${sales.grandTotal}), 0)`,
       totalProfit: sql<string>`COALESCE(SUM(${sales.totalProfit}), 0)`,
       totalDue: sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
+      totalPaid: sql<string>`COALESCE(SUM(${sales.paidAmount}), 0)`,
       dueCount: sql<number>`count(*) FILTER (WHERE ${sales.dueAmount}::numeric > 0)`,
     })
       .from(sales)
@@ -96,6 +102,7 @@ export async function GET(request: NextRequest) {
         totalAmount: Number(salesAgg.totalAmount),
         totalProfit: Number(salesAgg.totalProfit),
         totalDue: Number(salesAgg.totalDue),
+        totalPaid: Number(salesAgg.totalPaid),
         dueCount: Number(salesAgg.dueCount),
       },
       pagination: {

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { useShopInfo } from "@/hooks/useShopInfo";
+import { type ShopInfo, DEFAULT_SHOP_INFO } from "@/lib/shop-info";
 
 interface ServiceRecord {
   id: string;
@@ -44,142 +46,241 @@ function getIssues(desc: string): string[] {
 }
 
 // ── Build printable HTML ──────────────────────────────────────────────────
-function buildServiceHTML(s: ServiceRecord): string {
+function buildServiceHTML(s: ServiceRecord, forPreview = false, shopInfo: ShopInfo = DEFAULT_SHOP_INFO): string {
+  const info = shopInfo;
   const serviceCharge = Number(s.serviceCharge);
   const partsCost     = Number(s.partsCost);
   const totalCost     = Number(s.totalCost);
   const paidAmount    = Number(s.paidAmount);
   const dueAmount     = Number(s.dueAmount);
+  const isPaid        = dueAmount <= 0;
   const issues        = getIssues(s.problemDescription);
 
   const issueRows = issues.map((issue, i) =>
-    `<tr><td class="at" style="width:36px;white-space:nowrap;">${i + 1}</td><td class="at">${issue}</td></tr>`
+    `<tr><td style="text-align:center;">${i + 1}</td><td class="al" colspan="1">${issue}</td><td class="al" colspan="5">Device: ${s.deviceBrand} ${s.deviceModel}${s.serialNumber || s.imei ? ` | SN/IMEI: ${s.serialNumber || s.imei}` : ''}</td></tr>`
   ).join("");
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>Service — ${s.serviceNumber}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Service Invoice ${s.serviceNumber}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding:24px 28px;}
-  .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
-  .logo{font-size:26px;font-weight:900;font-style:italic;letter-spacing:-0.5px;}
-  .shop-name{font-weight:700;font-size:11px;margin-top:4px;}
-  .shop-addr{font-size:10px;color:#555;max-width:300px;line-height:1.4;margin-top:2px;}
-  .inv-box{border:1px solid #9ca3af;font-size:11px;min-width:180px;}
-  .inv-box-title{text-align:center;font-weight:700;border-bottom:1px solid #9ca3af;padding:4px 16px;}
-  .inv-box-row{padding:4px 16px;border-bottom:1px solid #e5e7eb;}
-  .inv-box-row:last-child{border-bottom:none;}
-  .row{display:flex;flex-wrap:wrap;gap:0 20px;margin-bottom:3px;font-size:11px;}
-  table{width:100%;border-collapse:collapse;table-layout:fixed;border:1px solid #9ca3af;}
-  th,td{border:1px solid #9ca3af;padding:4px 8px;font-size:11px;word-break:break-word;}
-  thead th{background:#f3f4f6;font-weight:700;}
-  .tr{text-align:right;}.tc{text-align:center;}.at{vertical-align:top;}
-  .mono{font-family:monospace;}.fw7{font-weight:700;}.fw6{font-weight:600;}
-  .note{font-size:10px;color:#555;margin:4px 0;}
-  .section-title{font-weight:700;font-size:11px;margin:10px 0 4px;}
-  .status-badge{display:inline-block;border:1px solid #1a1a1a;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700;}
-  .sig-row{margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;display:flex;justify-content:flex-end;}
-  .sig-box{text-align:center;min-width:200px;}
-  .footer-note{text-align:center;font-size:9px;color:#9ca3af;margin-top:20px;padding-top:12px;border-top:1px solid #f3f4f6;}
-  @media print{@page{size:A4;margin:12mm 14mm;}body{padding:0!important;}}
+  body{
+    font-family:'Inter','Noto Sans Bengali',sans-serif;
+    font-size:13px;color:#1a1a1a;
+    background:${forPreview ? '#fff' : '#e5e7eb'};
+    ${forPreview ? '' : 'padding:20px;'}
+  }
+  .bn{font-family:'Noto Sans Bengali','Inter',sans-serif;}
+  .page{
+    background:#fff;
+    ${forPreview ? '' : 'max-width:210mm; margin:0 auto; box-shadow:0 2px 16px rgba(0,0,0,.12);'}
+    min-height:297mm;
+    display:flex;flex-direction:column;
+  }
+  .content{flex:1;padding:36px 32px 0;}
+
+  /* ── Header ── */
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:1px solid #ccc;}
+  .hdr-left{display:flex;flex-direction:column;gap:4px;}
+  .hdr-left img{height:48px;object-fit:contain;}
+  .hdr-left .tagline{font-size:11px;color:#555;margin-top:2px;}
+  .hdr-right{text-align:right;}
+  .hdr-right .phones{font-size:19px;font-weight:800;color:#1a1a1a;letter-spacing:0.3px;}
+  .hdr-right .addr{font-size:11.5px;color:#555;margin-top:3px;line-height:1.5;}
+
+  /* ── Title row ── */
+  .title-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ccc;}
+  .title-row .bill-title{flex:1;text-align:center;font-size:16px;font-weight:700;font-style:italic;}
+  .title-row .inv-no{font-size:13px;font-weight:600;white-space:nowrap;border:1px solid #aaa;padding:3px 12px;}
+
+  /* ── Customer row ── */
+  .cust-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #ccc;font-size:13px;line-height:1.8;}
+  .cust-row .left span,.cust-row .right span{display:inline;}
+  .cust-row .date-box{border:1px solid #9ca3af;padding:2px 14px;display:inline-block;margin-top:2px;}
+
+  /* ── Tables ── */
+  .tbl{width:100%;border-collapse:collapse;font-size:13px;}
+  .tbl th,.tbl td{border:1px solid #9ca3af;padding:5px 8px;}
+  .tbl thead th{background:#f3f4f6;font-weight:700;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;}
+  .tbl .ac{text-align:center;} .tbl .ar{text-align:right;} .tbl .al{text-align:left;padding-left:12px;}
+  .tbl .fw{font-weight:700;} .tbl .bg{background:#f9fafb;}
+  .mono{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;}
+
+  /* ── Paid / Due ── */
+  .paid-due{padding:6px 0;text-align:right;font-size:13.5px;font-weight:700;}
+
+  /* ── Note ── */
+  .note{padding:2px 0 8px;font-size:12px;color:#666;font-style:italic;}
+
+  /* ── Bottom section  ── */
+  .bottom-section{margin-top:auto;}
+
+  /* ── T&C wrapper ── */
+  .tnc-section{padding:0 32px 14px;}
+  .tnc-wrapper{border:2px solid #222;position:relative;background:#fff;}
+  .tnc-bar{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:13px;font-weight:700;padding:4px 24px;white-space:nowrap;border-radius:3px;}
+  .tnc-body{margin-top:22px;padding:8px 14px 4px;font-size:11.5px;line-height:1.75;color:#222;}
+  .tnc-item{margin-bottom:5px;display:flex;gap:8px;align-items:flex-start;}
+  .tnc-label{display:inline-block;background:#1a1a1a;color:#fff;font-weight:700;font-size:11px;padding:4px 12px;border-radius:6px;white-space:nowrap;flex-shrink:0;margin-top:1px;}
+  .tnc-desc{flex:1;}
+  .tnc-footer{background:#1a1a1a;color:#fff;font-size:12.5px;font-weight:700;text-align:center;padding:7px 16px;margin-top:8px;}
+
+  /* ── Signature ── */
+  .sigs{display:flex;justify-content:space-between;padding:30px 40px 20px;}
+  .sig-line{border-top:1px solid #1a1a1a;padding-top:4px;font-weight:600;font-size:14px;text-align:center;width:180px;position:relative;}
+  .cust-sig{margin-left:auto;}
+  .auth-img{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);max-height:60px;max-width:160px;}
+
+  /* ── Page Footer ── */
+  .pg-footer{background:#2d2d2d;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 28px;font-size:13px;}
+  .pg-footer .fb-icon{background:#1877f2;color:#fff;font-weight:900;font-size:12px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:3px;margin-right:6px;}
+
+  @media print{
+    @page{size:A4;margin:0;}
+    body{background:#fff;padding:0;}
+    .page{box-shadow:none;}
+    .pg-footer,.tnc-wrapper,.tnc-bar,.tnc-footer,.tnc-label,.tbl thead th{
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    }
+  }
 </style>
 </head>
 <body>
+<div class="page">
+<div class="content">
 
+  <!-- HEADER -->
   <div class="hdr">
-    <div>
-      <div class="logo">ENTER</div>
-      <div class="shop-name">Enter Computers</div>
-      <div class="shop-addr">Dhaka, Bangladesh<br>Phone: +880 1234-567890 | info@entercomputers.com</div>
+    <div class="hdr-left">
+      <img src="${info.logo || '/enter-logo.png'}" alt="${info.shopName}"/>
+      <span class="tagline bn">${info.tagline}</span>
     </div>
-    <div class="inv-box">
-      <div class="inv-box-title">Service Invoice</div>
-      <div class="inv-box-row">NO: <strong>${s.serviceNumber}</strong></div>
-      <div class="inv-box-row">Received: ${fmtDate(s.receivedDate)}</div>
-      ${s.expectedDeliveryDate ? `<div class="inv-box-row">Expected: ${fmtDate(s.expectedDeliveryDate)}</div>` : ""}
+    <div class="hdr-right">
+      <div class="phones">${info.phone1}${info.phone2 ? ' &nbsp; ' + info.phone2 : ''}</div>
+      <div class="addr bn">${info.address.replace(/\n/g, '<br/>')}</div>
     </div>
   </div>
 
-  <div style="padding-top:8px;margin-bottom:8px;">
-    <div class="row">
-      <span><strong>Customer:</strong> ${s.customerName}</span>
-      <span><strong>Phone:</strong> ${s.customerPhone}</span>
+  <!-- TITLE ROW -->
+  <div class="title-row">
+    <div class="bill-title">Service Invoice</div>
+    <div class="inv-no"><strong>${s.serviceNumber}</strong></div>
+  </div>
+
+  <!-- CUSTOMER -->
+  <div class="cust-row">
+    <div class="left">
+      <span><strong>Customer:</strong> ${s.customerName} &nbsp;&nbsp; <strong>Phone:</strong> ${s.customerPhone}</span><br/>
+      ${s.createdByName ? `<span><strong>Received By:</strong> ${s.createdByName}</span>` : ''}
     </div>
-    <div class="row">
-      <span><strong>Device:</strong> ${s.deviceBrand} ${s.deviceModel}</span>
-      <span><strong>Status:</strong> <span class="status-badge">${s.status}</span></span>
-    </div>
-    ${s.createdByName ? `<div class="row"><span><strong>Received By:</strong> ${s.createdByName}</span></div>` : ""}
-  </div>
-
-  <div class="section-title">Reported Issues:</div>
-  <table style="margin-bottom:8px;">
-    <thead>
-      <tr>
-        <th style="width:36px;white-space:nowrap;">SL.</th>
-        <th>Issue / Problem Description</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${issueRows || `<tr><td class="at">1</td><td class="at">${s.problemDescription}</td></tr>`}
-    </tbody>
-  </table>
-
-  ${s.diagnosis ? `<p class="note" style="margin-top:4px;"><strong>Diagnosis:</strong> ${s.diagnosis}</p>` : ""}
-  ${s.solutionApplied ? `<p class="note"><strong>Solution Applied:</strong> ${s.solutionApplied}</p>` : ""}
-
-  <div class="section-title">Service Charges:</div>
-  <table style="margin-bottom:8px;">
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th class="tr" style="width:130px">Amount (BDT)</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${serviceCharge > 0 ? `<tr><td class="at">Service Charge</td><td class="at tr">${fmt(serviceCharge)}</td></tr>` : ""}
-      ${partsCost > 0 ? `<tr><td class="at">Parts / Components Cost</td><td class="at tr">${fmt(partsCost)}</td></tr>` : ""}
-    </tbody>
-    <tfoot>
-      <tr>
-        <td style="font-size:11px;"><strong>Payment Status:</strong> <span class="status-badge">${s.paymentStatus}</span></td>
-        <td class="tr fw7">Total: ${fmt(totalCost)}</td>
-      </tr>
-    </tfoot>
-  </table>
-
-  <div style="text-align:right;font-weight:700;font-size:11px;margin:4px 0;">
-    <span>Paid: ${fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
-    <span${dueAmount > 0 ? ' style="font-weight:700;"' : ""}>Due: ${fmt(dueAmount)} Tk</span>
-  </div>
-
-  <p class="note">VAT and TAX not included unless mentioned above.</p>
-
-  <div style="margin-top:10px;">
-    <div class="section-title">Terms &amp; Conditions:</div>
-    <ol style="padding-left:16px;">
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Enter Computers is not responsible for pre-existing damage or data loss during repair.</li>
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Devices not collected within 30 days will not be the responsibility of Enter Computers.</li>
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Service warranty is 7 days from delivery date for the same issue only.</li>
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Full payment is required before device delivery.</li>
-      <li style="font-size:10px;color:#444;line-height:1.5;margin-bottom:2px;">Please retain this invoice for all warranty and service claims.</li>
-    </ol>
-  </div>
-
-  <div class="sig-row">
-    <div class="sig-box">
-      <div style="height:48px;"></div>
-      <div style="border-top:1px dotted #9ca3af;padding-top:4px;font-size:10px;">Issued By</div>
-      <div style="font-size:10px;color:#555;margin-top:2px;">Enter Computers</div>
+    <div class="right" style="text-align:right;">
+      <div class="date-box" style="margin-bottom:6px;">Received: ${fmtDate(s.receivedDate)}</div><br/>
+      ${s.expectedDeliveryDate ? `<div class="date-box">Expected: ${fmtDate(s.expectedDeliveryDate)}</div>` : ''}
     </div>
   </div>
 
-  <div class="footer-note">This is a system generated service invoice.</div>
+  <!-- ISSUES TABLE -->
+  <div style="padding:14px 0 6px;">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width:36px;">SL.</th>
+          <th class="al" colspan="1">REPORTED ISSUE</th>
+          <th class="al" colspan="5">DEVICE INFO</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${issueRows || `<tr><td style="text-align:center;">1</td><td class="al" colspan="1">${s.problemDescription}</td><td class="al" colspan="5">Device: ${s.deviceBrand} ${s.deviceModel}</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+  
+  ${s.diagnosis ? `<div class="note" style="margin-top:4px;"><strong>Diagnosis:</strong> ${s.diagnosis}</div>` : ""}
+  ${s.solutionApplied ? `<div class="note"><strong>Solution Applied:</strong> ${s.solutionApplied}</div>` : ""}
 
-  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
+  <!-- CHARGES TABLE -->
+  <div style="padding:14px 0 6px;">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th class="al">SERVICE DESCRIPTION</th>
+          <th style="width:120px;" class="ar">AMOUNT</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${serviceCharge > 0 ? `<tr>
+          <td class="al">Service Charge</td>
+          <td class="ar">${fmt(serviceCharge)}</td>
+        </tr>` : ''}
+        ${partsCost > 0 ? `<tr>
+          <td class="al">Parts / Components Cost</td>
+          <td class="ar">${fmt(partsCost)}</td>
+        </tr>` : ''}
+        <tr>
+          <td class="ar fw bg">Grand Total</td>
+          <td class="ar fw">${fmt(totalCost)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PAID / DUE -->
+  <div class="paid-due">
+    Paid: ${fmt(paidAmount)} Tk &nbsp;&nbsp; Due: ${fmt(dueAmount)} Tk
+  </div>
+
+  <!-- NOTE -->
+  <div class="note">
+    Payment Status: ${s.paymentStatus} &nbsp;|&nbsp; Device Status: ${s.status}<br>
+    * VAT and TAX not included if not mentioned above.
+  </div>
+
+  <!-- SIGNATURES -->
+  <div class="sigs">
+    <div class="sig-line">
+      ${info.signature ? `<img src="${info.signature}" class="auth-img"/>` : ''}
+      Authorized Signatory
+    </div>
+    <div class="sig-line cust-sig">Customer's Signature</div>
+  </div>
+
+</div><!-- .content -->
+
+<div class="bottom-section">
+<!-- TERMS & CONDITIONS -->
+<div class="tnc-section">
+  <div class="tnc-wrapper">
+    <div class="tnc-bar bn">সার্ভিস পলিসি ও শর্তাবলী (Service Terms &amp; Conditions)</div>
+    <div class="tnc-body bn">
+      ${(info.serviceTermsAndConditions || []).map((tc: any) => `<div class="tnc-item"><span class="tnc-label">${tc.label}</span><span class="tnc-desc">${tc.text}</span></div>`).join('')}
+    </div>
+    <div class="tnc-footer bn">${info.serviceTermsFooter || info.termsFooter}</div>
+  </div>
+</div>
+
+<!-- PAGE FOOTER -->
+<div class="pg-footer">
+  <div style="display:flex;align-items:center;gap:6px;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
+      <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+    <span>${info.website}</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span class="fb-icon">f</span>
+    <span>${info.facebook}</span>
+  </div>
+</div>
+</div><!-- .bottom-section -->
+
+</div><!-- .page -->
+
 </body>
 </html>`;
 }
@@ -202,180 +303,46 @@ export function ServicePrintModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const serviceCharge = Number(service.serviceCharge);
-  const partsCost     = Number(service.partsCost);
-  const totalCost     = Number(service.totalCost);
-  const paidAmount    = Number(service.paidAmount);
-  const dueAmount     = Number(service.dueAmount);
-  const issues        = getIssues(service.problemDescription);
+  const { data: shopInfo } = useShopInfo();
+  const info = shopInfo || DEFAULT_SHOP_INFO;
 
   const handlePrint = () => {
-    const html = buildServiceHTML(service);
+    const html = buildServiceHTML(service, false, info);
     const w = window.open("", "_blank", "width=900,height=700");
-    if (!w) { alert("Please allow pop-ups to print"); return; }
+    if (!w) { alert("Please allow pop-ups to print the service invoice"); return; }
     w.document.write(html);
     w.document.close();
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Service Invoice Preview" size="lg">
-      <div
-        style={{ fontFamily: "Arial, Helvetica, sans-serif", fontSize: 11, color: "#1a1a1a" }}
-        className="max-h-[65vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-5 text-left dark:border-gray-700 dark:bg-white"
-      >
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 900, fontStyle: "italic", letterSpacing: -0.5 }}>ENTER</div>
-            <div style={{ fontWeight: 700, fontSize: 11, marginTop: 3 }}>Enter Computers</div>
-            <div style={{ fontSize: 10, color: "#555", lineHeight: 1.4, marginTop: 2 }}>
-              Dhaka, Bangladesh<br />Phone: +880 1234-567890 | info@entercomputers.com
-            </div>
-          </div>
-          <div style={{ border: "1px solid #9ca3af", fontSize: 11, minWidth: 180 }}>
-            <div style={{ textAlign: "center", fontWeight: 700, borderBottom: "1px solid #9ca3af", padding: "4px 16px" }}>Service Invoice</div>
-            <div style={{ padding: "4px 16px", borderBottom: "1px solid #e5e7eb" }}>NO: <strong>{service.serviceNumber}</strong></div>
-            <div style={{ padding: "4px 16px", borderBottom: "1px solid #e5e7eb" }}>Received: {fmtDate(service.receivedDate)}</div>
-            {service.expectedDeliveryDate && (
-              <div style={{ padding: "4px 16px" }}>Expected: {fmtDate(service.expectedDeliveryDate)}</div>
-            )}
-          </div>
-        </div>
-
-        {/* Customer + Device */}
-        <div style={{ paddingTop: 8, marginBottom: 8 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0 20px", marginBottom: 3 }}>
-            <span><strong>Customer:</strong> {service.customerName}</span>
-            <span><strong>Phone:</strong> {service.customerPhone}</span>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0 20px", marginBottom: 3 }}>
-            <span><strong>Device:</strong> {service.deviceBrand} {service.deviceModel}</span>
-            <span>
-              <strong>Status:</strong>{" "}
-              <span style={{ display: "inline-block", border: "1px solid #1a1a1a", borderRadius: 3, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>
-                {service.status}
-              </span>
-            </span>
-          </div>
-          {service.createdByName && (
-            <div style={{ fontSize: 11 }}><strong>Received By:</strong> {service.createdByName}</div>
-          )}
-        </div>
-
-        {/* Issues Table */}
-        <div style={{ fontWeight: 700, fontSize: 11, margin: "10px 0 4px" }}>Reported Issues:</div>
-        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", border: "1px solid #9ca3af", marginBottom: 8 }}>
-          <thead>
-            <tr>
-              <th style={th({ width: 40, whiteSpace: "nowrap" })}>SL.</th>
-              <th style={th()}>Issue / Problem Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(issues.length > 0 ? issues : [service.problemDescription]).map((issue, i) => (
-              <tr key={i}>
-                <td style={td({ verticalAlign: "top" })}>{i + 1}</td>
-                <td style={td({ verticalAlign: "top" })}>{issue}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {service.diagnosis && (
-          <p style={{ fontSize: 10, color: "#555", margin: "4px 0" }}><strong>Diagnosis:</strong> {service.diagnosis}</p>
-        )}
-        {service.solutionApplied && (
-          <p style={{ fontSize: 10, color: "#555", margin: "4px 0" }}><strong>Solution Applied:</strong> {service.solutionApplied}</p>
-        )}
-
-        {/* Charges Table */}
-        <div style={{ fontWeight: 700, fontSize: 11, margin: "10px 0 4px" }}>Service Charges:</div>
-        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", border: "1px solid #9ca3af", marginBottom: 8 }}>
-          <thead>
-            <tr>
-              <th style={th()}>Description</th>
-              <th style={th({ width: 130, textAlign: "right" })}>Amount (BDT)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {serviceCharge > 0 && (
-              <tr>
-                <td style={td({ verticalAlign: "top" })}>Service Charge</td>
-                <td style={td({ verticalAlign: "top", textAlign: "right" })}>{fmt(serviceCharge)}</td>
-              </tr>
-            )}
-            {partsCost > 0 && (
-              <tr>
-                <td style={td({ verticalAlign: "top" })}>Parts / Components Cost</td>
-                <td style={td({ verticalAlign: "top", textAlign: "right" })}>{fmt(partsCost)}</td>
-              </tr>
-            )}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td style={td({ fontSize: 11 })}>
-                <strong>Payment Status:</strong>{" "}
-                <span style={{ display: "inline-block", border: "1px solid #1a1a1a", borderRadius: 3, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>
-                  {service.paymentStatus}
-                </span>
-              </td>
-              <td style={td({ textAlign: "right", fontWeight: 700 })}>Total: {fmt(totalCost)}</td>
-            </tr>
-          </tfoot>
-        </table>
-
-        {/* Paid / Due */}
-        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 11, margin: "4px 0" }}>
-          <span>Paid: {fmt(paidAmount)} Tk</span>&nbsp;&nbsp;
-          <span>Due: {fmt(dueAmount)} Tk</span>
-        </div>
-
-        <p style={{ fontSize: 10, color: "#555", margin: "8px 0" }}>VAT and TAX not included unless mentioned above.</p>
-
-        {/* Terms */}
-        <div style={{ marginTop: 10 }}>
-          <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Terms &amp; Conditions:</div>
-          <ol style={{ paddingLeft: 16 }}>
-            {[
-              "Enter Computers is not responsible for pre-existing damage or data loss during repair.",
-              "Devices not collected within 30 days will not be the responsibility of Enter Computers.",
-              "Service warranty is 7 days from delivery date for the same issue only.",
-              "Full payment is required before device delivery.",
-              "Please retain this invoice for all warranty and service claims.",
-            ].map((t, i) => (
-              <li key={i} style={{ fontSize: 10, color: "#444", lineHeight: 1.5, marginBottom: 2 }}>{t}</li>
-            ))}
-          </ol>
-        </div>
-
-        {/* Signature — right aligned */}
-        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
-          <div style={{ textAlign: "center", minWidth: 200 }}>
-            <div style={{ height: 48 }} />
-            <div style={{ borderTop: "1px dotted #9ca3af", paddingTop: 4, fontSize: 10 }}>Issued By</div>
-            <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>Enter Computers</div>
-          </div>
-        </div>
-
-        {/* Footer note — very bottom */}
-        <div style={{ textAlign: "center", fontSize: 9, color: "#9ca3af", marginTop: 20, paddingTop: 12, borderTop: "1px solid #f3f4f6" }}>
-          This is a system generated service invoice.
+    <Modal isOpen={isOpen} onClose={onClose} size="xl" showDivider={false}>
+      <div className="flex items-center justify-between gap-3 mb-3 -mt-2">
+        <h3 className="text-lg font-bold text-dark dark:text-white">Service Invoice Preview</h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print
+          </button>
         </div>
       </div>
 
-      {/* Buttons */}
-      <div className="mt-5 flex justify-center gap-3">
-        <button onClick={onClose}
-          className="rounded-lg border border-gray-300 px-6 py-2.5 font-medium text-gray-700 hover:bg-gray-50">
-          Close
-        </button>
-        <button onClick={handlePrint}
-          className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-6 py-2.5 font-medium text-white hover:bg-purple-700">
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-          </svg>
-          Print / Download PDF
-        </button>
+      <div className="bg-gray-100 dark:bg-gray-800 p-2 sm:p-3 rounded-lg">
+        <iframe
+          srcDoc={buildServiceHTML(service, true, info)}
+          className="w-full border-0 bg-white rounded shadow-sm"
+          style={{ height: '72vh', minHeight: 520 }}
+        />
       </div>
     </Modal>
   );

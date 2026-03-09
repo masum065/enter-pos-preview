@@ -186,7 +186,7 @@ function buildPurchaseHTML(p: Purchase, forPreview = false, shopInfo: ShopInfo =
     </div>
     <div class="hdr-right">
       <div class="phones">${s.phone1}${s.phone2 ? ' &nbsp; ' + s.phone2 : ''}</div>
-      <div class="addr bn">${s.address.replace(/\\n/g, '<br/>')}</div>
+      <div class="addr bn">${s.address.replace(/\n/g, '<br/>')}</div>
     </div>
   </div>
 
@@ -228,7 +228,7 @@ function buildPurchaseHTML(p: Purchase, forPreview = false, shopInfo: ShopInfo =
           <td colspan="5" rowspan="2" style="vertical-align:middle;padding:8px 10px;">
             <strong>Amount In Words:</strong> ${amountInWords(price)}
           </td>
-          <td class="ar fw bg">Total Date</td>
+          <td class="ar fw bg">Total</td>
           <td class="ar">${fmt(price)}</td>
         </tr>
         <tr>
@@ -239,11 +239,12 @@ function buildPurchaseHTML(p: Purchase, forPreview = false, shopInfo: ShopInfo =
     </table>
   </div>
 
+  <!-- PAID / DUE -->
   <div class="paid-due">
-    <div>Paid to Seller: <span style="display:inline-block;width:95px;">${fmt(paid)}</span></div>
-    <div>Balance Due: <span style="display:inline-block;width:95px;">${balance > 0 ? fmt(balance) : '0.00'}</span></div>
+    Paid: ${fmt(paid)} Tk &nbsp;&nbsp; Due: ${fmt(balance > 0 ? balance : 0)} Tk
   </div>
 
+  <!-- NOTE -->
   <div class="note">
     Payment Method: ${p.paymentMethod} &nbsp;|&nbsp; Status: ${isPaid ? "Paid" : balance < price ? "Partial" : "Unpaid"}<br>
     ${p.notes ? `Notes: ${p.notes}<br>` : ''}
@@ -254,7 +255,7 @@ function buildPurchaseHTML(p: Purchase, forPreview = false, shopInfo: ShopInfo =
   <div class="sigs">
     <div class="sig-line">
       ${s.signature ? `<img src="${s.signature}" class="auth-img"/>` : ''}
-      Authorised Signatory
+      Authorized Signatory
     </div>
     <div class="sig-line cust-sig">Seller's Signature</div>
   </div>
@@ -265,12 +266,11 @@ function buildPurchaseHTML(p: Purchase, forPreview = false, shopInfo: ShopInfo =
 <!-- TERMS & CONDITIONS -->
 <div class="tnc-section">
   <div class="tnc-wrapper">
-    <div class="tnc-bar bn">ক্রয় সম্পর্কিত শর্তাবলী (Terms &amp; Conditions)</div>
+    <div class="tnc-bar bn">ক্রয় সম্পর্কিত শর্তাবলী (Purchase Terms &amp; Conditions)</div>
     <div class="tnc-body bn">
-      <div class="tnc-item"><span class="tnc-label">Purchase Policy</span><span class="tnc-desc">Goods once purchased will not be refunded without valid reason. Seller guarantees the product is genuine and free from defects.</span></div>
-      <div class="tnc-item"><span class="tnc-label">Verification</span><span class="tnc-desc">Serial number must match the product at the time of delivery. Payment disputes must be raised within 3 days.</span></div>
+      ${(s.purchaseTermsAndConditions || []).map(tc => `<div class="tnc-item"><span class="tnc-label">${tc.label}</span><span class="tnc-desc">${tc.text}</span></div>`).join('')}
     </div>
-    <div class="tnc-footer bn">System Generated Purchase Voucher</div>
+    <div class="tnc-footer bn">${s.purchaseTermsFooter || "System Generated Purchase Voucher"}</div>
   </div>
 </div>
 
@@ -323,28 +323,34 @@ export function PurchasePrintModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Purchase Voucher Preview" size="xl">
-      <div className="bg-gray-100 p-4 sm:p-8 dark:bg-gray-950 flex justify-center overflow-x-auto">
-        {/* Scale the visual representation down a bit if needed for desktop view */}
-        <div style={{ width: "210mm", minWidth: "210mm", overflow: "hidden" }}>
-          <div
-            style={{ transformOrigin: "top left" }}
-            dangerouslySetInnerHTML={{ __html: buildPurchaseHTML(purchase, true, info) }}
-          />
+    <Modal isOpen={isOpen} onClose={onClose} size="xl" showDivider={false}>
+      <div className="flex items-center justify-between gap-3 mb-3 -mt-2">
+        <h3 className="text-lg font-bold text-dark dark:text-white">Purchase Voucher Preview</h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print
+          </button>
         </div>
       </div>
-      <div className="mt-5 flex justify-end gap-3 px-4 pb-4">
-        <button onClick={onClose}
-          className="rounded-lg border border-gray-300 px-6 py-2.5 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
-          Close
-        </button>
-        <button onClick={handlePrint}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white hover:bg-blue-700">
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-          </svg>
-          Print Voucher
-        </button>
+
+      <div className="bg-gray-100 dark:bg-gray-800 p-2 sm:p-3 rounded-lg">
+        <iframe
+          srcDoc={buildPurchaseHTML(purchase, true, info)}
+          className="w-full border-0 bg-white rounded shadow-sm"
+          style={{ height: '72vh', minHeight: 520 }}
+        />
       </div>
     </Modal>
   );

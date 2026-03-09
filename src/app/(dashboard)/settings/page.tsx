@@ -294,12 +294,48 @@ export default function SettingsPage() {
 
   const addTC = () => setShopInfo(prev => ({
     ...prev,
-    termsAndConditions: [...prev.termsAndConditions, { label: "", text: "" }],
+    termsAndConditions: [...(prev.termsAndConditions || []), { label: "", text: "" }],
   }));
 
   const removeTC = (index: number) => setShopInfo(prev => ({
     ...prev,
-    termsAndConditions: prev.termsAndConditions.filter((_, i) => i !== index),
+    termsAndConditions: (prev.termsAndConditions || []).filter((_, i) => i !== index),
+  }));
+
+  const updatePurchaseTC = (index: number, key: "label" | "text", value: string) => {
+    setShopInfo(prev => {
+      const tcs = [...(prev.purchaseTermsAndConditions || [])];
+      tcs[index] = { ...tcs[index], [key]: value };
+      return { ...prev, purchaseTermsAndConditions: tcs };
+    });
+  };
+
+  const addPurchaseTC = () => setShopInfo(prev => ({
+    ...prev,
+    purchaseTermsAndConditions: [...(prev.purchaseTermsAndConditions || []), { label: "", text: "" }],
+  }));
+
+  const removePurchaseTC = (index: number) => setShopInfo(prev => ({
+    ...prev,
+    purchaseTermsAndConditions: (prev.purchaseTermsAndConditions || []).filter((_, i) => i !== index),
+  }));
+
+  const updateServiceTC = (index: number, key: "label" | "text", value: string) => {
+    setShopInfo(prev => {
+      const tcs = [...(prev.serviceTermsAndConditions || [])];
+      tcs[index] = { ...tcs[index], [key]: value };
+      return { ...prev, serviceTermsAndConditions: tcs };
+    });
+  };
+
+  const addServiceTC = () => setShopInfo(prev => ({
+    ...prev,
+    serviceTermsAndConditions: [...(prev.serviceTermsAndConditions || []), { label: "", text: "" }],
+  }));
+
+  const removeServiceTC = (index: number) => setShopInfo(prev => ({
+    ...prev,
+    serviceTermsAndConditions: (prev.serviceTermsAndConditions || []).filter((_, i) => i !== index),
   }));
 
   const handleSaveShopInfo = async () => {
@@ -690,10 +726,13 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Terms & Conditions */}
+          {/* Sales Terms & Conditions */}
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Terms & Conditions</h2>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Sales Terms & Conditions</h2>
+                <p className="text-sm text-gray-500">Displayed at the bottom of customer sales invoices.</p>
+              </div>
               <button onClick={addTC}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700">
                 <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -728,9 +767,105 @@ export default function SettingsPage() {
               ))}
             </div>
             <div className="mt-4">
-              <Field label="Terms Footer (Important Note)">
-                <input type="text" className={inputCls} value={shopInfo.termsFooter}
+              <Field label="Sales Terms Footer (Important Note)">
+                <input type="text" className={inputCls} value={shopInfo.termsFooter || ""}
                   onChange={e => setShopInfo({ ...shopInfo, termsFooter: e.target.value })} />
+              </Field>
+            </div>
+          </div>
+
+          {/* Purchase Terms & Conditions */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Purchase Terms & Conditions</h2>
+                <p className="text-sm text-gray-500">Displayed at the bottom of supplier purchase vouchers.</p>
+              </div>
+              <button onClick={addPurchaseTC}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700">
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add Item
+              </button>
+            </div>
+            <div className="space-y-4">
+              {(shopInfo.purchaseTermsAndConditions || []).map((tc, i) => (
+                <div key={i} className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Item {i + 1}
+                    </span>
+                    <button onClick={() => removePurchaseTC(i)}
+                      className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30" title="Remove">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                  <Field label="Label (Title)">
+                    <input type="text" className={inputCls} value={tc.label}
+                      onChange={e => updatePurchaseTC(i, "label", e.target.value)} placeholder="e.g. পণ্য ক্রয় নীতি" />
+                  </Field>
+                  <div className="mt-2">
+                    <Field label="Description">
+                      <textarea rows={2} className={inputCls} value={tc.text}
+                        onChange={e => updatePurchaseTC(i, "text", e.target.value)} />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4">
+              <Field label="Purchase Terms Footer (Important Note)">
+                <input type="text" className={inputCls} value={shopInfo.purchaseTermsFooter || ""}
+                  onChange={e => setShopInfo({ ...shopInfo, purchaseTermsFooter: e.target.value })} />
+              </Field>
+            </div>
+          </div>
+
+          {/* Service Terms & Conditions */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Service Terms & Conditions</h2>
+                <p className="text-sm text-gray-500">Displayed at the bottom of service invoices.</p>
+              </div>
+              <button onClick={addServiceTC}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700">
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add Item
+              </button>
+            </div>
+            <div className="space-y-4">
+              {(shopInfo.serviceTermsAndConditions || []).map((tc, i) => (
+                <div key={i} className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Item {i + 1}
+                    </span>
+                    <button onClick={() => removeServiceTC(i)}
+                      className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30" title="Remove">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                  <Field label="Label (Title)">
+                    <input type="text" className={inputCls} value={tc.label}
+                      onChange={e => updateServiceTC(i, "label", e.target.value)} placeholder="e.g. সার্ভিস পলিসি" />
+                  </Field>
+                  <div className="mt-2">
+                    <Field label="Description">
+                      <textarea rows={2} className={inputCls} value={tc.text}
+                        onChange={e => updateServiceTC(i, "text", e.target.value)} />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4">
+              <Field label="Service Terms Footer (Important Note)">
+                <input type="text" className={inputCls} value={shopInfo.serviceTermsFooter || ""}
+                  onChange={e => setShopInfo({ ...shopInfo, serviceTermsFooter: e.target.value })} />
               </Field>
             </div>
           </div>

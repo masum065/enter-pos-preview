@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
     const source = searchParams.get("source");
     const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const limitParam = searchParams.get("limit");
+    const limit = limitParam === "all" ? 100000 : parseInt(limitParam || "20");
     const offset = (page - 1) * limit;
 
     // Build conditions — ALL must be AND

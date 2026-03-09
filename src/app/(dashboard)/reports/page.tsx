@@ -434,6 +434,8 @@ export default function ReportsPage() {
   const [serviceListPage, setServiceListPage]   = useState(1);
   const [stockListPage, setStockListPage]       = useState(1);
 
+  const [isExporting, setIsExporting] = useState(false);
+
   // Compute active date range
   const { start, end } = preset === "custom"
     ? { start: customStart, end: customEnd }
@@ -481,7 +483,7 @@ export default function ReportsPage() {
   const { data: salesListData } = useQuery({
     queryKey: ["reports", "salesList", start, end, salesListPage],
     queryFn: () => {
-      const p: Record<string, string> = { page: String(salesListPage), limit: "50" };
+      const p: Record<string, string> = { page: String(salesListPage), limit: "10" };
       if (start) p.startDate = start;
       if (end) p.endDate = end;
       return apiClient.get<any>("/api/sales", p);
@@ -497,7 +499,7 @@ export default function ReportsPage() {
   const { data: purchaseListData } = useQuery({
     queryKey: ["reports", "purchaseList", start, end, purchaseListPage],
     queryFn: () => {
-      const p: Record<string, string> = { page: String(purchaseListPage), limit: "50" };
+      const p: Record<string, string> = { page: String(purchaseListPage), limit: "10" };
       if (start) p.startDate = start;
       if (end)   p.endDate   = end;
       return apiClient.get<any>("/api/purchases", p);
@@ -513,7 +515,7 @@ export default function ReportsPage() {
   const { data: serviceListData } = useQuery({
     queryKey: ["reports", "serviceList", start, end, serviceListPage],
     queryFn: () => {
-      const p: Record<string, string> = { page: String(serviceListPage), limit: "50" };
+      const p: Record<string, string> = { page: String(serviceListPage), limit: "10" };
       if (start) p.startDate = start;
       if (end)   p.endDate   = end;
       return apiClient.get<any>("/api/services", p);
@@ -529,7 +531,7 @@ export default function ReportsPage() {
   const { data: stockListData } = useQuery({
     queryKey: ["reports", "stockList", stockListPage],
     queryFn: () => {
-      const p: Record<string, string> = { page: String(stockListPage), limit: "50" };
+      const p: Record<string, string> = { page: String(stockListPage), limit: "10" };
       return apiClient.get<any>("/api/stock", p);
     },
     enabled: tab === "inventory",
@@ -539,13 +541,27 @@ export default function ReportsPage() {
   const stockList: any[] = (stockListData as any)?.stockItems || [];
   const stockListPagination = (stockListData as any)?.pagination;
 
+  // ── Helper to fetch full data for export ─────────────────────────────────
+  const fetchFullData = async (endpoint: string) => {
+    setIsExporting(true);
+    try {
+      const p: Record<string, string> = { limit: "all" };
+      if (start) p.startDate = start;
+      if (end) p.endDate = end;
+      return await apiClient.get<any>(endpoint, p);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // ── Export ────────────────────────────────────────────────────────────────
   const handleExportXLSX = async () => {
-    if (!report) return;
+    if (!report || isExporting) return;
     if (tab === "sales") {
-      if (salesList.length > 0) {
-        // Export the actual list rows
-        const data = salesList.map((s: any) => ({
+      const fullRes = await fetchFullData("/api/sales");
+      const list = fullRes?.sales || [];
+      if (list.length > 0) {
+        const data = list.map((s: any) => ({
           "Invoice #":     s.invoiceNumber,
           "Date":          new Date(s.invoiceDate || s.createdAt).toLocaleDateString("en-BD"),
           "Customer":      s.customerName,
@@ -588,22 +604,78 @@ export default function ReportsPage() {
       }));
       await exportXLSX(data, "Expenses", `expense-report-${start || "all"}`);
     } else if (tab === "service") {
-      const s = report.services;
-      const data = [
-        { Metric: "Total Services", Value: s.count },
-        { Metric: "Completed", Value: s.completed },
-        { Metric: "Pending", Value: s.pending },
-        { Metric: "Revenue", Value: s.revenue },
-        { Metric: "Collected", Value: s.collected },
-        { Metric: "Due", Value: s.due },
-        { Metric: "Gross Profit", Value: s.grossProfit },
-      ];
-      await exportXLSX(data, "Services", `service-report-${start || "all"}`);
+      const fullRes = await fetchFullData("/api/services");
+      const list = fullRes?.services || [];
+      if (list.length > 0) {
+        const data = list.map((s: any) => ({
+          "Service #":     s.serviceNumber,
+          "Date":          new Date(s.receivedDate || s.createdAt).toLocaleDateString("en-BD"),
+          "Customer":      s.customerName,
+          "Phone":         s.customerPhone,
+          "Device":        `${s.deviceBrand} ${s.deviceModel}`,
+          "Status":        s.status,
+          "Total Cost":    Number(s.totalCost),
+          "Paid":          Number(s.paidAmount),
+          "Due":           Number(s.dueAmount),
+          "Payment Status":s.paymentStatus,
+        }));
+        await exportXLSX(data, "Services", `service-report-${start || "all"}`);
+      } else {
+        const s = report.services;
+        const data = [
+          { Metric: "Total Services", Value: s.count },
+          { Metric: "Completed", Value: s.completed },
+          { Metric: "Pending", Value: s.pending },
+          { Metric: "Revenue", Value: s.revenue },
+          { Metric: "Collected", Value: s.collected },
+          { Metric: "Due", Value: s.due },
+          { Metric: "Gross Profit", Value: s.grossProfit },
+        ];
+        await exportXLSX(data, "Services", `service-report-${start || "all"}`);
+      }
+    } else if (tab === "purchase") {
+      const fullRes = await fetchFullData("/api/purchases");
+      const list = fullRes?.purchases || [];
+      if (list.length > 0) {
+         const data = list.map((r: any) => ({
+          "Invoice #":     r.invoiceNumber,
+          "Date":          new Date(r.purchaseDate || r.createdAt).toLocaleDateString("en-BD"),
+          "Seller":        r.sellerName,
+          "Phone":         r.sellerPhone,
+          "Product":       r.productName,
+          "Serial #":      r.serialNumber,
+          "Price":         Number(r.purchasePrice),
+          "Paid":          Number(r.paidAmount),
+          "Due":           Number(r.dueAmount ?? 0),
+          "Status":        r.paymentStatus || "",
+        }));
+        await exportXLSX(data, "Purchases", `purchase-report-${start || "all"}`);
+      }
+    } else if (tab === "inventory") {
+      const fullRes = await fetchFullData("/api/stock");
+      const list = fullRes?.stockItems || [];
+      if (list.length > 0) {
+        const data = list.map((r: any) => {
+          const si = r.stockItem || r;
+          const pr = r.product || {};
+          return {
+            "Product":       `${pr.brand || ""} ${pr.modelName || si.productName || ""}`,
+            "Serial #":      si.serialNumber || "",
+            "IMEI":          si.imei || "",
+            "Source":        si.purchaseSource || "",
+            "Seller/Supplier": si.supplierName || "",
+            "Cost":          Number(si.purchasePrice),
+            "Status":        si.status,
+            "Added":         new Date(si.createdAt).toLocaleDateString("en-BD"),
+          };
+        });
+        await exportXLSX(data, "Inventory", `inventory-report-${start || "all"}`);
+      }
     }
   };
 
   const handleExportPDF = async () => {
-    if (!report) return;
+    if (!report || isExporting) return;
     if (tab === "profit") {
       const r = report.profit;
       const rows: (string | number)[][] = [
@@ -623,25 +695,54 @@ export default function ReportsPage() {
       const rows: (string | number)[][] = report.expenses.byCategory.map(c => [c.category, c.count, formatCurrency(c.total)]);
       await exportPDF("Expense Report", dateLabel, ["Category", "Count", "Amount"], rows, `expense-report-${start || "all"}`);
     } else if (tab === "sales") {
-      const html = buildSalesReportHTML(salesList, dateLabel, report.sales);
+      const fullRes = await fetchFullData("/api/sales");
+      const list = fullRes?.sales || [];
+      const stats = fullRes?.stats || report.sales;
+      const html = buildSalesReportHTML(list, dateLabel, stats);
       const w = window.open("", "_blank", "width=1000,height=700");
       if (!w) { alert("Please allow pop-ups to print/download"); return; }
       w.document.write(html); w.document.close();
     } else if (tab === "purchase") {
-      const html = buildPurchaseReportHTML(purchaseList, dateLabel, report);
+      const fullRes = await fetchFullData("/api/purchases");
+      const list = fullRes?.purchases || [];
+      const stats = fullRes?.stats;
+      const html = buildPurchaseReportHTML(list, dateLabel, { purchases: { totalValue: stats?.totalAmount || 0 }});
       const w = window.open("", "_blank", "width=1000,height=700");
       if (!w) { alert("Please allow pop-ups to print/download"); return; }
       w.document.write(html); w.document.close();
-    } else if (tab === "service" && serviceList.length > 0) {
-      const html = buildServiceReportHTML(serviceList, dateLabel, report.services);
-      const w = window.open("", "_blank", "width=1000,height=700");
-      if (!w) { alert("Please allow pop-ups to print/download"); return; }
-      w.document.write(html); w.document.close();
-    } else if (tab === "inventory" && stockList.length > 0) {
-      const html = buildInventoryReportHTML(stockList, (stockListData as any)?.stats);
-      const w = window.open("", "_blank", "width=1000,height=700");
-      if (!w) { alert("Please allow pop-ups to print/download"); return; }
-      w.document.write(html); w.document.close();
+    } else if (tab === "service") {
+      const fullRes = await fetchFullData("/api/services");
+      const list = fullRes?.services || [];
+      if (list.length > 0) {
+        const stats = fullRes?.stats || report.services;
+        const html = buildServiceReportHTML(list, dateLabel, stats);
+        const w = window.open("", "_blank", "width=1000,height=700");
+        if (!w) { alert("Please allow pop-ups to print/download"); return; }
+        w.document.write(html); w.document.close();
+      }
+    } else if (tab === "inventory") {
+      const fullRes = await fetchFullData("/api/stock");
+      const list = fullRes?.stockItems || [];
+      if (list.length > 0) {
+        const html = buildInventoryReportHTML(list, fullRes?.stats);
+        const w = window.open("", "_blank", "width=1000,height=700");
+        if (!w) { alert("Please allow pop-ups to print/download"); return; }
+        w.document.write(html); w.document.close();
+      }
+    } else if (tab === "activity") {
+      const fullRes = await fetchFullData("/api/reports?type=activity");
+      const list = fullRes?.logs || [];
+      if (list.length > 0) {
+        // Quick simple print for activity log using similar template logic
+        const html = `<style>body{font-family:sans-serif;padding:20px;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ccc;padding:8px;font-size:12px;}</style>
+          <h2>Activity Log - ${dateLabel}</h2>
+          <table><thead><tr><th>Date</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
+          <tbody>${list.map((l:any) => `<tr><td>${new Date(l.createdAt).toLocaleString()}</td><td>${l.userName}</td><td>${l.action}</td><td>${l.details}</td></tr>`).join('')}</tbody></table>
+          <script>window.onload=function(){window.print();}</script>`;
+        const w = window.open("", "_blank", "width=1000,height=700");
+        if (!w) { alert("Please allow pop-ups to print/download"); return; }
+        w.document.write(html); w.document.close();
+      }
     }
   };
 
@@ -670,21 +771,37 @@ export default function ReportsPage() {
         <div className="flex gap-2">
           <button
             onClick={handleExportXLSX}
-            className="inline-flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"
+            disabled={isExporting}
+            className="inline-flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
+            {isExporting ? (
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+            ) : (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            )}
             XLSX
           </button>
           <button
             onClick={handleExportPDF}
-            className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
+            disabled={isExporting}
+            className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-            </svg>
-            PDF
+            {isExporting ? (
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+            ) : (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            )}
+            Print/PDF
           </button>
         </div>
       </div>
@@ -885,16 +1002,16 @@ export default function ReportsPage() {
                   <tfoot>
                     <tr className="border-t-2 border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
                       <td colSpan={4} className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">
-                        Total ({salesList.length} records)
+                        Total ({salesListData?.stats?.total || 0} records)
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
-                        {formatCurrency(salesList.reduce((s: number, r: any) => s + Number(r.grandTotal), 0))}
+                        {formatCurrency(salesListData?.stats?.totalAmount || 0)}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
-                        {formatCurrency(salesList.reduce((s: number, r: any) => s + Number(r.paidAmount), 0))}
+                        {formatCurrency(salesListData?.stats?.totalPaid || salesListData?.stats?.totalAmount - salesListData?.stats?.totalDue || 0)}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-red-600 dark:text-red-400">
-                        {formatCurrency(salesList.reduce((s: number, r: any) => s + Number(r.dueAmount), 0))}
+                        {formatCurrency(salesListData?.stats?.totalDue || 0)}
                       </td>
                       <td />
                     </tr>
@@ -904,20 +1021,12 @@ export default function ReportsPage() {
             </div>
             {/* Pagination */}
             {salesListPagination && salesListPagination.totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3 dark:border-gray-800">
-                <span className="text-sm text-gray-400">Page {salesListPage} of {salesListPagination.totalPages}</span>
-                <div className="flex gap-2">
-                  <button
-                    disabled={salesListPage <= 1}
-                    onClick={() => setSalesListPage(p => p - 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-                  >← Prev</button>
-                  <button
-                    disabled={salesListPage >= salesListPagination.totalPages}
-                    onClick={() => setSalesListPage(p => p + 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-                  >Next →</button>
-                </div>
+              <div className="border-t border-gray-100 py-4 dark:border-gray-800">
+                <Pagination
+                  currentPage={salesListPage}
+                  totalPages={salesListPagination.totalPages}
+                  onPageChange={setSalesListPage}
+                />
               </div>
             )}
           </div>
@@ -928,10 +1037,10 @@ export default function ReportsPage() {
       {tab === "purchase" && (
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Total Purchases" value={String(purchaseListPagination?.total ?? purchaseList.length)} />
-            <StatCard label="Total Value" value={formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.purchasePrice), 0))} color="blue" />
-            <StatCard label="Paid" value={formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.paidAmount), 0))} color="green" />
-            <StatCard label="Due" value={formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.dueAmount ?? 0), 0))} color="red" />
+            <StatCard label="Total Purchases" value={String(purchaseListData?.stats?.totalPurchases ?? purchaseListPagination?.total ?? purchaseList.length)} />
+            <StatCard label="Total Value" value={formatCurrency(purchaseListData?.stats?.totalAmount || 0)} color="blue" />
+            <StatCard label="Paid" value={formatCurrency(purchaseListData?.stats?.totalPaid || 0)} color="green" />
+            <StatCard label="Due" value={formatCurrency(purchaseListData?.stats?.totalDue || 0)} color="red" />
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
@@ -977,10 +1086,10 @@ export default function ReportsPage() {
                 {purchaseList.length > 0 && (
                   <tfoot>
                     <tr className="border-t-2 border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
-                      <td colSpan={6} className="px-3 py-3 font-semibold text-gray-700">Total ({purchaseList.length} records)</td>
-                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.purchasePrice), 0))}</td>
-                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.paidAmount), 0))}</td>
-                      <td className="px-3 py-3 text-right font-bold text-red-600">{formatCurrency(purchaseList.reduce((s: number, r: any) => s + Number(r.dueAmount ?? 0), 0))}</td>
+                      <td colSpan={6} className="px-3 py-3 font-semibold text-gray-700 dark:text-gray-300">Total ({purchaseListData?.stats?.totalPurchases ?? 0} records)</td>
+                      <td className="px-3 py-3 text-right font-bold dark:text-gray-200">{formatCurrency(purchaseListData?.stats?.totalAmount || 0)}</td>
+                      <td className="px-3 py-3 text-right font-bold dark:text-gray-200">{formatCurrency(purchaseListData?.stats?.totalPaid || 0)}</td>
+                      <td className="px-3 py-3 text-right font-bold text-red-600 dark:text-red-400">{formatCurrency(purchaseListData?.stats?.totalDue || 0)}</td>
                       <td />
                     </tr>
                   </tfoot>
@@ -988,14 +1097,12 @@ export default function ReportsPage() {
               </table>
             </div>
             {purchaseListPagination && purchaseListPagination.totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3">
-                <span className="text-sm text-gray-400">Page {purchaseListPage} of {purchaseListPagination.totalPages}</span>
-                <div className="flex gap-2">
-                  <button disabled={purchaseListPage <= 1} onClick={() => setPurchaseListPage(p => p - 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">← Prev</button>
-                  <button disabled={purchaseListPage >= purchaseListPagination.totalPages} onClick={() => setPurchaseListPage(p => p + 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">Next →</button>
-                </div>
+              <div className="border-t border-gray-100 py-4 dark:border-gray-800">
+                <Pagination
+                  currentPage={purchaseListPage}
+                  totalPages={purchaseListPagination.totalPages}
+                  onPageChange={setPurchaseListPage}
+                />
               </div>
             )}
           </div>
@@ -1057,10 +1164,10 @@ export default function ReportsPage() {
                 {serviceList.length > 0 && (
                   <tfoot>
                     <tr className="border-t-2 border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
-                      <td colSpan={6} className="px-3 py-3 font-semibold text-gray-700">Total ({serviceList.length} records)</td>
-                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(serviceList.reduce((s: number, r: any) => s + Number(r.totalCost), 0))}</td>
-                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(serviceList.reduce((s: number, r: any) => s + Number(r.paidAmount), 0))}</td>
-                      <td className="px-3 py-3 text-right font-bold text-red-600">{formatCurrency(serviceList.reduce((s: number, r: any) => s + Number(r.dueAmount), 0))}</td>
+                      <td colSpan={6} className="px-3 py-3 font-semibold text-gray-700 dark:text-gray-300">Total ({serviceListData?.stats?.totalServices ?? report.services.count} records)</td>
+                      <td className="px-3 py-3 text-right font-bold dark:text-gray-200">{formatCurrency(serviceListData?.stats?.totalAmount || report.services.revenue)}</td>
+                      <td className="px-3 py-3 text-right font-bold dark:text-gray-200">{formatCurrency(serviceListData?.stats?.totalPaid || report.services.collected)}</td>
+                      <td className="px-3 py-3 text-right font-bold text-red-600 dark:text-red-400">{formatCurrency(serviceListData?.stats?.totalDue || report.services.due)}</td>
                       <td />
                     </tr>
                   </tfoot>
@@ -1068,14 +1175,12 @@ export default function ReportsPage() {
               </table>
             </div>
             {serviceListPagination && serviceListPagination.totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3">
-                <span className="text-sm text-gray-400">Page {serviceListPage} of {serviceListPagination.totalPages}</span>
-                <div className="flex gap-2">
-                  <button disabled={serviceListPage <= 1} onClick={() => setServiceListPage(p => p - 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">← Prev</button>
-                  <button disabled={serviceListPage >= serviceListPagination.totalPages} onClick={() => setServiceListPage(p => p + 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">Next →</button>
-                </div>
+              <div className="border-t border-gray-100 py-4 dark:border-gray-800">
+                <Pagination
+                  currentPage={serviceListPage}
+                  totalPages={serviceListPagination.totalPages}
+                  onPageChange={setServiceListPage}
+                />
               </div>
             )}
           </div>
@@ -1172,8 +1277,8 @@ export default function ReportsPage() {
                 {stockList.length > 0 && (
                   <tfoot>
                     <tr className="border-t-2 border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
-                      <td colSpan={5} className="px-3 py-3 font-semibold text-gray-700">Total ({stockList.length} items)</td>
-                      <td className="px-3 py-3 text-right font-bold">{formatCurrency(stockList.reduce((s: number, r: any) => s + Number((r.stockItem || r).purchasePrice), 0))}</td>
+                      <td colSpan={5} className="px-3 py-3 font-semibold text-gray-700 dark:text-gray-300">Total ({stockListData?.stats?.totalItems ?? report.inventory.total} items)</td>
+                      <td className="px-3 py-3 text-right font-bold dark:text-gray-200">{formatCurrency(stockListData?.stats?.totalValue || report.inventory.stockValue)}</td>
                       <td colSpan={2} />
                     </tr>
                   </tfoot>
@@ -1181,14 +1286,12 @@ export default function ReportsPage() {
               </table>
             </div>
             {stockListPagination && stockListPagination.totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3">
-                <span className="text-sm text-gray-400">Page {stockListPage} of {stockListPagination.totalPages}</span>
-                <div className="flex gap-2">
-                  <button disabled={stockListPage <= 1} onClick={() => setStockListPage(p => p - 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">← Prev</button>
-                  <button disabled={stockListPage >= stockListPagination.totalPages} onClick={() => setStockListPage(p => p + 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50">Next →</button>
-                </div>
+              <div className="border-t border-gray-100 py-4 dark:border-gray-800">
+                <Pagination
+                  currentPage={stockListPage}
+                  totalPages={stockListPagination.totalPages}
+                  onPageChange={setStockListPage}
+                />
               </div>
             )}
           </div>

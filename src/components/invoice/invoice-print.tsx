@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { apiClient } from "@/lib/api-client";
 import { useShopInfo } from "@/hooks/useShopInfo";
-import type { ShopInfo } from "@/app/api/shop-info/route";
-import { DEFAULT_SHOP_INFO } from "@/app/api/shop-info/route";
+import type { ShopInfo } from "@/lib/shop-info";
+import { DEFAULT_SHOP_INFO } from "@/lib/shop-info";
 
 interface Sale {
   id: string;

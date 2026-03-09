@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import type { ShopInfo } from "@/app/api/shop-info/route";
+import type { ShopInfo } from "@/lib/shop-info";
 
 export function useShopInfo() {
   return useQuery<ShopInfo>({

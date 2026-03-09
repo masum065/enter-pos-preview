@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { apiClient } from "@/lib/api-client";
+import { useShopInfo } from "@/hooks/useShopInfo";
+import type { ShopInfo } from "@/app/api/shop-info/route";
+import { DEFAULT_SHOP_INFO } from "@/app/api/shop-info/route";
 
 interface Sale {
   id: string;
@@ -77,7 +80,8 @@ function amountInWords(amount: number): string {
 }
 
 // ── Build printable HTML ──────────────────────────────────────────────────
-function buildInvoiceHTML(sale: Sale, forPreview = false): string {
+function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = DEFAULT_SHOP_INFO): string {
+  const s = shopInfo; // short alias
   const grandTotal = Number(sale.grandTotal);
   const paidAmount = Number(sale.paidAmount);
   const dueAmount  = Number(sale.dueAmount);
@@ -195,12 +199,12 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   <!-- HEADER -->
   <div class="hdr">
     <div class="hdr-left">
-      <img src="/enter-logo.png" alt="Enter Computers"/>
-      <span class="tagline bn">বেস্ট কোয়ালিটির প্রজেক্ট ইউজড ল্যাপটপ &amp; মোবাইল এর বিশ্বস্ত প্রতিষ্ঠান</span>
+      <img src="${s.logo || '/enter-logo.png'}" alt="${s.shopName}"/>
+      <span class="tagline bn">${s.tagline}</span>
     </div>
     <div class="hdr-right">
-      <div class="phones">01789-443043 &nbsp; 01684-134574</div>
-      <div class="addr bn">অলকা নদী বাংলা কমপ্লেক্স ২য় তলা দোকান নং ২৩৮<br/>রাম বাবু রোড, গাংগিনারপার, সদর, ময়মনসিংহ।</div>
+      <div class="phones">${s.phone1}${s.phone2 ? ' &nbsp; ' + s.phone2 : ''}</div>
+      <div class="addr bn">${s.address.replace(/\n/g, '<br/>')}</div>
     </div>
   </div>
 
@@ -301,13 +305,9 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   <div class="tnc-wrapper">
     <div class="tnc-bar bn">বিক্রয় পরবর্তী সেবা ও শর্তাবলী (Terms &amp; Conditions)</div>
     <div class="tnc-body bn">
-      <div class="tnc-item"><span class="tnc-label">ল্যাপটপ ওয়ারেন্টি</span><span class="tnc-desc">১০ দিনের রিপ্লেসমেন্ট গ্যারান্টি (শুধুমাত্র হার্ডওয়্যার সমস্যার জন্য)। ২ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। প্রয়োজনীয় পার্টস বা খুচরা যন্ত্রাংশের মূল্য গ্রাহককে বহন করতে হবে।</span></div>
-      <div class="tnc-item"><span class="tnc-label">মোবাইল ওয়ারেন্টি</span><span class="tnc-desc">৭ দিনের রিপ্লেসমেন্ট গ্যারান্টি। ১ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। মোবাইলের Display এবং Motherboard কোনো ওয়ারেন্টির অন্তর্ভুক্ত নয়।</span></div>
-      <div class="tnc-item"><span class="tnc-label">রিপ্লেসমেন্ট নীতি</span><span class="tnc-desc">রিপ্লেসমেন্টের ক্ষেত্রে একই মডেলের ডিভাইস প্রদান করা হবে। স্টক না থাকলে আলোচনা সাপেক্ষে অন্য মডেল নির্বাচন করা যাবে।</span></div>
-      <div class="tnc-item"><span class="tnc-label">এক্সচেঞ্জ ও রিটার্ন</span><span class="tnc-desc">ক্রয়ের ২ মাসের মধ্যে Exchange করলে নূন্যতম ২০% মূল্য কর্তন হবে। ক্রয়ের ২ মাসের মধ্যে Return করলে নূন্যতম ৩০% মূল্য কর্তন হবে। ডিভাইসের কন্ডিশন যাচাই করে চূড়ান্ত মূল্য নির্ধারণ করা হবে।</span></div>
-      <div class="tnc-item"><span class="tnc-label">ওয়ারেন্টি বাতিল</span><span class="tnc-desc">ডিভাইসে Physical Damage / Scratch থাকে। পানি বা Liquid Damage হয়। শর্ট সার্কিট বা ভোল্টেজের সমস্যায় ক্ষতি হয়। ওয়ারেন্টি সিল বা স্টিকার নষ্ট করা হয়। অন্য কোনো টেকনিশিয়ান দ্বারা ডিভাইস খোলা হয়।</span></div>
+      ${(s.termsAndConditions || []).map(tc => `<div class="tnc-item"><span class="tnc-label">${tc.label}</span><span class="tnc-desc">${tc.text}</span></div>`).join('')}
     </div>
-    <div class="tnc-footer bn">গুরুত্বপূর্ণ: ওয়ারেন্টি সুবিধা পেতে অরিজিনাল ক্যাশ মেমো/বিল অবশ্যই সংরক্ষণ করতে হবে।</div>
+    <div class="tnc-footer bn">${s.termsFooter}</div>
   </div>
 </div>
 
@@ -318,11 +318,11 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
       <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
     </svg>
-    <span>www.entercomputers.com.bd</span>
+    <span>${s.website}</span>
   </div>
   <div style="display:flex;align-items:center;gap:6px;">
     <span class="fb-icon">f</span>
-    <span>fb.com/entercomputersmym</span>
+    <span>${s.facebook}</span>
   </div>
 </div>
 </div><!-- .bottom-section -->
@@ -348,8 +348,11 @@ export function InvoicePrintModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
+  const { data: shopInfo } = useShopInfo();
+  const info = shopInfo || DEFAULT_SHOP_INFO;
+
   const handlePrint = () => {
-    const html = buildInvoiceHTML(sale, false);
+    const html = buildInvoiceHTML(sale, false, info);
     const w = window.open("", "_blank", "width=900,height=700");
     if (!w) { alert("Please allow pop-ups to print the invoice"); return; }
     w.document.write(html);
@@ -382,7 +385,7 @@ export function InvoicePrintModal({
 
       <div className="bg-gray-100 dark:bg-gray-800 p-2 sm:p-3 rounded-lg">
         <iframe
-          srcDoc={buildInvoiceHTML(sale, true)}
+          srcDoc={buildInvoiceHTML(sale, true, info)}
           className="w-full border-0 bg-white rounded shadow-sm"
           style={{ height: '72vh', minHeight: 520 }}
         />

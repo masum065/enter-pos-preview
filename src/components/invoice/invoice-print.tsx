@@ -181,7 +181,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   @media print{
     @page{size:A4;margin:0;}
     body{background:#fff;padding:0;}
-    .page{box-shadow:none;min-height:auto;}
+    .page{box-shadow:none;}
     .pg-footer,.tnc-wrapper,.tnc-bar,.tnc-footer,.tnc-label,.tbl thead th{
       -webkit-print-color-adjust:exact;print-color-adjust:exact;
     }

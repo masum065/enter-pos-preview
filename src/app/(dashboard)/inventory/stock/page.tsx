@@ -211,7 +211,7 @@ function StockPageContent() {
   const router = useRouter();
   const page = parseInt(searchParams.get("page") || "1");
   const activeSearch = searchParams.get("search") || "";
-  const activeStatus = searchParams.get("status") || "";
+  const activeStatus = searchParams.has("status") ? searchParams.get("status")! : "Available";
   const activeSource = searchParams.get("source") || "";
   const activeProductId = searchParams.get("productId") || "";
 
@@ -224,7 +224,7 @@ function StockPageContent() {
   const { data: stockData, isLoading } = useStockItems({
     page, limit: 20,
     search: activeSearch || undefined,
-    status: activeStatus || undefined,
+    status: activeStatus === "All" ? undefined : activeStatus,
     source: activeSource || undefined,
     productId: activeProductId || undefined,
   });
@@ -268,11 +268,7 @@ function StockPageContent() {
   // URL-based status filter
   const setStatus = (s: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (s === "All" || s === "") {
-      params.delete("status");
-    } else {
-      params.set("status", s);
-    }
+    params.set("status", s);
     params.delete("page");
     router.push(`?${params.toString()}`);
   };
@@ -411,9 +407,9 @@ function StockPageContent() {
           {STATUS_OPTIONS.map((status) => (
             <button
               key={status}
-              onClick={() => setStatus(status === "All" ? "" : status)}
+              onClick={() => setStatus(status)}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                (status === "All" && !activeStatus) || activeStatus === status
+                activeStatus === status
                   ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
               }`}

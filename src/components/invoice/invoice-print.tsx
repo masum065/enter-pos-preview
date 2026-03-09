@@ -162,7 +162,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   .note{padding:2px 0 8px;font-size:12px;color:#666;font-style:italic;}
 
   /* ── T&C wrapper ── */
-  .tnc-section{padding:0 32px 12px;margin-top:auto;}
+  .tnc-section{padding:0 32px 0;}
   .tnc-wrapper{border:2px solid #222;position:relative;background:#fff;}
   .tnc-bar{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:13px;font-weight:700;padding:4px 24px;white-space:nowrap;border-radius:3px;}
   .tnc-body{margin-top:22px;padding:8px 14px 4px;font-size:11.5px;line-height:1.75;color:#222;}

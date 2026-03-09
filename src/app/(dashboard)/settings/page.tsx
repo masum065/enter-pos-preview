@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
+import { useLockStatus } from "@/hooks/useLockStatus";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 
 type Tab = "general" | "users" | "security";
@@ -292,19 +293,24 @@ export default function SettingsPage() {
     })();
   }, [activeTab, securityLoaded]);
 
+  const { updateStatus } = useLockStatus();
+
   const handleToggleLock = async (enabled: boolean) => {
     setLockEnabled(enabled);
+    updateStatus({ lockEnabled: enabled });
     try {
       await apiClient.put("/api/lock/settings", { lockEnabled: enabled });
       showToast(enabled ? "Lock screen enabled" : "Lock screen disabled");
     } catch {
       showToast("Failed to update setting", "error");
       setLockEnabled(!enabled);
+      updateStatus({ lockEnabled: !enabled });
     }
   };
 
   const handleTimeoutChange = async (minutes: number) => {
     setLockTimeout(minutes);
+    updateStatus({ lockTimeoutMinutes: minutes });
     try {
       await apiClient.put("/api/lock/settings", { lockTimeoutMinutes: minutes });
       showToast(`Timeout set to ${minutes} minutes`);
@@ -325,6 +331,7 @@ export default function SettingsPage() {
       await apiClient.post("/api/lock/set-pin", { pin: pinValue });
       setHasPin(true);
       setLockEnabled(true);
+      updateStatus({ hasPin: true, lockEnabled: true });
       setPinValue("");
       setPinConfirm("");
       showToast("PIN set successfully! Lock screen is now enabled.");

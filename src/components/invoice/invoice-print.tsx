@@ -126,10 +126,10 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
     min-height:${forPreview ? 'auto' : '297mm'};
     display:flex;flex-direction:column;
   }
-  .content{flex:1;padding:0;}
+  .content{flex:1;padding:24px 32px 0;}
 
   /* ── Header ── */
-  .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 28px 14px;border-bottom:1px solid #ccc;}
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:1px solid #ccc;}
   .hdr-left{display:flex;flex-direction:column;gap:4px;}
   .hdr-left img{height:48px;object-fit:contain;}
   .hdr-left .tagline{font-size:11px;color:#555;margin-top:2px;}
@@ -138,12 +138,12 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   .hdr-right .addr{font-size:11.5px;color:#555;margin-top:3px;line-height:1.5;}
 
   /* ── Title row ── */
-  .title-row{display:flex;align-items:center;justify-content:space-between;padding:8px 28px;border-bottom:1px solid #ccc;}
+  .title-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ccc;}
   .title-row .bill-title{flex:1;text-align:center;font-size:16px;font-weight:700;font-style:italic;}
   .title-row .inv-no{font-size:13px;font-weight:600;white-space:nowrap;border:1px solid #aaa;padding:3px 12px;}
 
   /* ── Customer row ── */
-  .cust-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 28px;border-bottom:1px solid #ccc;font-size:13px;line-height:1.8;}
+  .cust-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #ccc;font-size:13px;line-height:1.8;}
   .cust-row .left span,.cust-row .right span{display:inline;}
   .cust-row .date-box{border:1px solid #9ca3af;padding:2px 14px;display:inline-block;margin-top:2px;}
 
@@ -156,17 +156,20 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   .mono{font-family:'Courier New',monospace;font-size:12px;}
 
   /* ── Paid / Due ── */
-  .paid-due{padding:6px 28px;text-align:right;font-size:13.5px;font-weight:700;}
+  .paid-due{padding:6px 0;text-align:right;font-size:13.5px;font-weight:700;}
 
   /* ── Note ── */
-  .note{padding:2px 28px 8px;font-size:12px;color:#666;font-style:italic;}
+  .note{padding:2px 0 8px;font-size:12px;color:#666;font-style:italic;}
 
   /* ── T&C wrapper ── */
+  .tnc-section{padding:0 32px 16px;}
   .tnc-wrapper{border:2px solid #222;position:relative;background:#fff;}
   .tnc-bar{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:13px;font-weight:700;padding:4px 24px;white-space:nowrap;border-radius:3px;}
-  .tnc-body{margin-top:20px;padding:6px 20px 0;font-size:12px;line-height:1.8;color:#111;}
-  .tnc-body .label{font-weight:700;}
-  .tnc-footer{background:#1a1a1a;color:#fff;font-size:12.5px;font-weight:700;text-align:center;padding:7px 16px;margin-top:10px;}
+  .tnc-body{margin-top:20px;padding:8px 16px 4px;font-size:12px;line-height:1.7;color:#222;}
+  .tnc-item{margin-bottom:6px;display:flex;gap:8px;align-items:flex-start;}
+  .tnc-pill{display:inline-block;background:#1a1a1a;color:#fff;font-weight:700;font-size:11px;padding:3px 10px;border-radius:4px;white-space:nowrap;flex-shrink:0;margin-top:1px;}
+  .tnc-desc{flex:1;}
+  .tnc-footer{background:#1a1a1a;color:#fff;font-size:12.5px;font-weight:700;text-align:center;padding:7px 16px;margin-top:6px;}
 
   /* ── Page Footer ── */
   .pg-footer{background:#2d2d2d;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 28px;font-size:13px;}
@@ -176,7 +179,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
     @page{size:A4;margin:0;}
     body{background:#fff;padding:0;}
     .page{box-shadow:none;min-height:auto;}
-    .pg-footer,.tnc-wrapper,.tnc-bar,.tnc-footer,.tbl thead th{
+    .pg-footer,.tnc-wrapper,.tnc-bar,.tnc-footer,.tnc-pill,.tbl thead th{
       -webkit-print-color-adjust:exact;print-color-adjust:exact;
     }
   }
@@ -201,7 +204,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   <!-- TITLE ROW -->
   <div class="title-row">
     <div class="bill-title">Bill of Supply</div>
-    <div class="inv-no">NO: <strong>${sale.invoiceNumber}</strong></div>
+    <div class="inv-no"><strong>${sale.invoiceNumber}</strong></div>
   </div>
 
   <!-- CUSTOMER -->
@@ -217,7 +220,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   </div>
 
   <!-- ITEMS TABLE -->
-  <div style="padding:14px 28px 6px;">
+  <div style="padding:14px 0 6px;">
     <table class="tbl">
       <thead>
         <tr>
@@ -263,7 +266,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
 
   <!-- PAYMENT HISTORY -->
   ${sale.payments?.length > 0 ? `
-  <div style="padding:4px 28px 20px;">
+  <div style="padding:4px 0 20px;">
     <p style="font-size:13px;font-weight:700;margin-bottom:6px;">Payment History</p>
     <table class="tbl">
       <thead>
@@ -285,24 +288,24 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
     </table>
   </div>` : ''}
 
-  <!-- TERMS & CONDITIONS -->
-  <div style="padding:0 28px 24px;">
-    <div class="tnc-wrapper">
-      <div class="tnc-bar bn">বিক্রয় পরবর্তী সেবা ও শর্তাবলী (Terms &amp; Conditions)</div>
-      <div class="tnc-body bn">
-        <span class="label">ল্যাপটপ ওয়ারেন্টি:</span> ১০ দিনের রিপ্লেসমেন্ট গ্যারান্টি (শুধুমাত্র হার্ডওয়্যার সমস্যার জন্য)। ২ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। প্রয়োজনীয় পার্টস বা খুচরা যন্ত্রাংশের মূল্য গ্রাহককে বহন করতে হবে।<br/>
-        <span class="label">মোবাইল ওয়ারেন্টি:</span> ৭ দিনের রিপ্লেসমেন্ট গ্যারান্টি। ১ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। মোবাইলের Display এবং Motherboard কোনো ওয়ারেন্টির অন্তর্ভুক্ত নয়।<br/>
-        <span class="label">রিপ্লেসমেন্ট নীতি:</span> রিপ্লেসমেন্টের ক্ষেত্রে একই মডেলের ডিভাইস প্রদান করা হবে। স্টক না থাকলে আলোচনা সাপেক্ষে অন্য মডেল নির্বাচন করা যাবে।<br/>
-        <span class="label">এক্সচেঞ্জ ও রিটার্ন:</span> ক্রয়ের ২ মাসের মধ্যে Exchange করলে নূন্যতম ২০% মূল্য কর্তন হবে। ক্রয়ের ২ মাসের মধ্যে Return করলে নূন্যতম ৩০% মূল্য কর্তন হবে। ডিভাইসের কন্ডিশন যাচাই করে চূড়ান্ত মূল্য নির্ধারণ করা হবে।<br/>
-        <span class="label">৬. ওয়ারেন্টি বাতিল হবে যদি:</span> ডিভাইসে Physical Damage / Scratch থাকে। পানি বা Liquid Damage হয়। শর্ট সার্কিট বা ভোল্টেজের সমস্যায় ক্ষতি হয়। ওয়ারেন্টি সিল বা স্টিকার নষ্ট করা হয়। অন্য কোনো টেকনিশিয়ান দ্বারা ডিভাইস খোলা হয়।
-      </div>
-      <div class="tnc-footer bn">
-        গুরুত্বপূর্ণ: ওয়ারেন্টি সুবিধা পেতে অরিজিনাল ক্যাশ মেমো/বিল অবশ্যই সংরক্ষণ করতে হবে।
-      </div>
-    </div>
-  </div>
+
 
 </div><!-- .content -->
+
+<!-- TERMS & CONDITIONS -->
+<div class="tnc-section">
+  <div class="tnc-wrapper">
+    <div class="tnc-bar bn">বিক্রয় পরবর্তী সেবা ও শর্তাবলী (Terms &amp; Conditions)</div>
+    <div class="tnc-body bn">
+      <div class="tnc-item"><span class="tnc-pill">ল্যাপটপ ওয়ারেন্টি</span><span class="tnc-desc">১০ দিনের রিপ্লেসমেন্ট গ্যারান্টি (শুধুমাত্র হার্ডওয়্যার সমস্যার জন্য)। ২ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। প্রয়োজনীয় পার্টস বা খুচরা যন্ত্রাংশের মূল্য গ্রাহককে বহন করতে হবে।</span></div>
+      <div class="tnc-item"><span class="tnc-pill">মোবাইল ওয়ারেন্টি</span><span class="tnc-desc">৭ দিনের রিপ্লেসমেন্ট গ্যারান্টি। ১ বছরের ফ্রি সার্ভিস ওয়ারেন্টি। মোবাইলের Display এবং Motherboard কোনো ওয়ারেন্টির অন্তর্ভুক্ত নয়।</span></div>
+      <div class="tnc-item"><span class="tnc-pill">রিপ্লেসমেন্ট নীতি</span><span class="tnc-desc">রিপ্লেসমেন্টের ক্ষেত্রে একই মডেলের ডিভাইস প্রদান করা হবে। স্টক না থাকলে আলোচনা সাপেক্ষে অন্য মডেল নির্বাচন করা যাবে।</span></div>
+      <div class="tnc-item"><span class="tnc-pill">এক্সচেঞ্জ ও রিটার্ন</span><span class="tnc-desc">ক্রয়ের ২ মাসের মধ্যে Exchange করলে নূন্যতম ২০% মূল্য কর্তন হবে। ক্রয়ের ২ মাসের মধ্যে Return করলে নূন্যতম ৩০% মূল্য কর্তন হবে। ডিভাইসের কন্ডিশন যাচাই করে চূড়ান্ত মূল্য নির্ধারণ করা হবে।</span></div>
+      <div class="tnc-item"><span class="tnc-pill">ওয়ারেন্টি বাতিল</span><span class="tnc-desc">ডিভাইসে Physical Damage / Scratch থাকে। পানি বা Liquid Damage হয়। শর্ট সার্কিট বা ভোল্টেজের সমস্যায় ক্ষতি হয়। ওয়ারেন্টি সিল বা স্টিকার নষ্ট করা হয়। অন্য কোনো টেকনিশিয়ান দ্বারা ডিভাইস খোলা হয়।</span></div>
+    </div>
+    <div class="tnc-footer bn">গুরুত্বপূর্ণ: ওয়ারেন্টি সুবিধা পেতে অরিজিনাল ক্যাশ মেমো/বিল অবশ্যই সংরক্ষণ করতে হবে।</div>
+  </div>
+</div>
 
 <!-- PAGE FOOTER -->
 <div class="pg-footer">

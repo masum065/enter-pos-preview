@@ -5,11 +5,19 @@ import { eq } from "drizzle-orm";
 import * as bcrypt from "bcryptjs";
 import { createSession } from "@/lib/session";
 import { cookies } from "next/headers";
+import { stripHtml, truncate } from "@/lib/sanitize";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, password } = body;
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+
+    const userId = truncate(stripHtml(String(body.userId || '')).trim(), 50);
+    const password = String(body.password || '');
 
     if (!userId || !password) {
       return NextResponse.json(

@@ -153,7 +153,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false): string {
   .tbl thead th{background:#f3f4f6;font-weight:700;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;}
   .tbl .ac{text-align:center;} .tbl .ar{text-align:right;} .tbl .al{text-align:left;padding-left:12px;}
   .tbl .fw{font-weight:700;} .tbl .bg{background:#f9fafb;}
-  .mono{font-family:'Courier New',monospace;font-size:12px;}
+  .mono{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;}
 
   /* ── Paid / Due ── */
   .paid-due{padding:6px 0;text-align:right;font-size:13.5px;font-weight:700;}

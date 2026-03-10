@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
         createdBy: session.id,
       });
 
-      return newSale;
+      return { ...newSale, createdByName: session.name || "Admin" };
     });
 
     return NextResponse.json(result, { status: 201 });

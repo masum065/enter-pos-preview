@@ -104,16 +104,20 @@ export async function POST(
         })
         .where(inArray(saleItems.id, saleItemIds));
 
-      // Update stock items status (returned)
-      const stockItemIds = itemsToReturn.map(i => i.stockItemId);
-      await tx
-        .update(stockItems)
-        .set({
-          status: "Returned",
-          saleId: null,
-          soldAt: null,
-        })
-        .where(inArray(stockItems.id, stockItemIds));
+      // Update stock items status based on user selection
+      for (const reqItem of validatedData.items) {
+        const item = itemsToReturn.find(i => i.id === reqItem.saleItemId);
+        if (item) {
+          await tx
+            .update(stockItems)
+            .set({
+              status: reqItem.stockDestination || "Returned",
+              saleId: null,
+              soldAt: null,
+            })
+            .where(eq(stockItems.id, item.stockItemId));
+        }
+      }
 
       // Get all sale items to determine new status
       const allSaleItems = await tx

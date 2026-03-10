@@ -48,6 +48,7 @@ export const addPaymentSchema = z.object({
 export const returnItemSchema = z.object({
   saleItemId: z.string().uuid("Invalid sale item ID"),
   reason: z.string().min(1, "Reason is required"),
+  stockDestination: z.enum(["Available", "Damaged", "Returned"]).default("Returned"),
 });
 
 // Process return schema

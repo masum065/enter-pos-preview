@@ -77,6 +77,7 @@ function ReturnModal({
   const [refundMethod, setRefundMethod] = useState<PaymentMethod>("Cash");
   const [reason, setReason] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [stockDestinations, setStockDestinations] = useState<Record<string, "Available" | "Damaged" | "Returned">>({});
   const { showToast } = useToast();
 
   const availableItems = sale.items.filter((item) => !item.isReturned);
@@ -115,6 +116,7 @@ function ReturnModal({
       const items = selectedItems.map((itemId) => ({
         saleItemId: itemId,
         reason: reason.trim(),
+        stockDestination: stockDestinations[itemId] || "Returned"
       }));
 
       await apiClient.post(`/api/sales/${sale.id}/returns`, {
@@ -168,28 +170,46 @@ function ReturnModal({
               </div>
               <div className="max-h-48 space-y-2 overflow-y-auto">
                 {availableItems.map((item) => (
-                  <label
+                  <div
                     key={item.id}
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-all ${
+                    className={`flex flex-col gap-2 rounded-lg border p-3 transition-all ${
                       selectedItems.includes(item.id)
                         ? "border-red-500 bg-red-50 dark:border-red-400 dark:bg-red-900/20"
                         : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selectedItems.includes(item.id)}
-                      onChange={() => toggleItem(item.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 dark:text-white">{item.productName}</p>
-                      <p className="text-sm text-gray-500">Serial: {item.serialNumber}</p>
-                    </div>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {formatCurrency(item.amount)}
-                    </span>
-                  </label>
+                    <label className="flex cursor-pointer items-center gap-3 w-full">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.includes(item.id)}
+                        onChange={() => toggleItem(item.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white">{item.productName}</p>
+                        <p className="text-sm text-gray-500">Serial: {item.serialNumber}</p>
+                      </div>
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(item.amount)}
+                      </span>
+                    </label>
+
+                    {/* Destination Dropdown visible only if selected */}
+                    {selectedItems.includes(item.id) && (
+                      <div className="pl-7 mt-1 animate-in fade-in slide-in-from-top-2">
+                        <label className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1 block">Stock Destination</label>
+                        <select 
+                          className="w-full sm:w-1/2 rounded-md border border-gray-300 text-sm shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white py-1.5 px-3"
+                          value={stockDestinations[item.id] || "Returned"}
+                          onChange={(e) => setStockDestinations(prev => ({ ...prev, [item.id]: e.target.value as "Available" | "Damaged" | "Returned" }))}
+                        >
+                          <option value="Returned">Keep as Returned</option>
+                          <option value="Available">Return to Available Stock</option>
+                          <option value="Damaged">Mark as Damaged</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

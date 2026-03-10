@@ -93,8 +93,10 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
   const itemRows = activeItems.map((item: any, i: number) => `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
-      <td style="padding-left:12px;">${item.productName || item.name || ""}</td>
-      <td style="text-align:center;">${item.warranty || "N/A"}</td>
+      <td style="padding-left:12px;">
+        ${item.productName || item.name || ""}
+        ${item.warranty && item.warranty.toLowerCase() !== 'n/a' && item.warranty !== 'undefined' ? `<br/><span style="font-size:10.5px;color:#555;">Warranty: ${item.warranty}</span>` : ""}
+      </td>
       <td style="text-align:center;" class="mono">${item.serialNumber || item.serial || ""}</td>
       <td style="text-align:center;">${item.quantity || item.qty || 1}</td>
       <td style="text-align:right;">${fmt(item.salePrice || item.price || 0)}</td>
@@ -110,44 +112,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
       <td style="text-align:right;">${fmt(Number(p.amount))}</td>
     </tr>`).join("");
 
-  const hasReturns = sale.returns && sale.returns.length > 0;
-  const refundRows = !hasReturns ? "" : sale.returns.map((ret: any, i: number) => `
-    <tr>
-      <td style="text-align:center;">${(sale.payments?.length || 0) + i + 1}</td>
-      <td style="text-align:center;color:#dc2626;">${fmtDateTime(ret.createdAt)}</td>
-      <td style="text-align:center;color:#dc2626;">Refund (${ret.refundMethod})</td>
-      <td style="text-align:center;color:#dc2626;">-</td>
-      <td style="text-align:right;color:#dc2626;font-weight:700;">-${fmt(Number(ret.refundAmount))}</td>
-    </tr>`).join("");
 
-  const returnsHistoryHTML = !hasReturns ? "" : `
-  <div style="padding:4px 0 20px;">
-    <p style="font-size:13px;font-weight:700;margin-bottom:6px;color:#dc2626;">Return History</p>
-    <table class="tbl">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th class="al">Reason</th>
-          <th class="al">Items Returned</th>
-          <th style="width:110px;">Amount Refunded</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${sale.returns.map((ret: any) => `
-          <tr>
-            <td style="text-align:center;">${fmtDateTime(ret.createdAt)}</td>
-            <td class="al">${ret.reason}</td>
-            <td class="al">
-              <ul style="padding-left:14px;margin:0;font-size:11.5px;">
-                ${ret.returnedItems?.map((ri: any) => `<li>${ri.productName} <span class="mono">(${ri.serialNumber})</span></li>`).join("")}
-              </ul>
-            </td>
-            <td class="ar" style="color:#dc2626;font-weight:700;">-${fmt(Number(ret.refundAmount))}</td>
-          </tr>
-        `).join("")}
-      </tbody>
-    </table>
-  </div>`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -274,7 +239,6 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
         <tr>
           <th style="width:36px;">SL.</th>
           <th class="al">ITEM</th>
-          <th style="width:72px;">WARRANTY</th>
           <th style="width:108px;">SERIAL NO.</th>
           <th style="width:40px;">QTY</th>
           <th style="width:95px;">PRICE</th>
@@ -284,7 +248,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
       <tbody>
         ${itemRows}
         <tr>
-          <td colspan="5" rowspan="${discount > 0 ? 3 : 2}" style="vertical-align:middle;padding:8px 10px;">
+          <td colspan="4" rowspan="${discount > 0 ? 3 : 2}" style="vertical-align:middle;padding:8px 10px;">
             <strong>Amount In Words:</strong> ${amountInWords(grandTotal)}
           </td>
           <td class="ar fw bg">Total</td>
@@ -328,7 +292,6 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
       </thead>
       <tbody>
         ${payRows}
-        ${refundRows}
         <tr style="font-weight:700;">
           <td colspan="4" class="bg" style="padding:5px 8px;"><strong>Total</strong></td>
           <td class="ar bg">${fmt(paidAmount)}</td>
@@ -338,7 +301,6 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
   </div>` : ''}
 
 
-  ${returnsHistoryHTML}
 
 </div><!-- .content -->
 

@@ -109,7 +109,7 @@ export async function POST(
       await tx
         .update(stockItems)
         .set({
-          status: "returned",
+          status: "Returned",
           saleId: null,
           soldAt: null,
         })

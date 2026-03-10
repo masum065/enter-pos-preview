@@ -2,6 +2,7 @@
 
 import { useState, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSales } from "@/hooks/useSales";
 import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
@@ -9,6 +10,7 @@ import { PrintInvoiceButton, InvoicePrintModal } from "@/components/invoice/invo
 import { Modal } from "@/components/ui/modal";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
+import { useToast } from "@/hooks/useToast";
 
 interface SaleItem {
   id: string;
@@ -75,6 +77,7 @@ function ReturnModal({
   const [refundMethod, setRefundMethod] = useState<PaymentMethod>("Cash");
   const [reason, setReason] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const { showToast } = useToast();
 
   const availableItems = sale.items.filter((item) => !item.isReturned);
 
@@ -101,26 +104,31 @@ function ReturnModal({
   const handleSubmit = async () => {
     if (selectedItems.length === 0) return;
     if (!reason.trim()) {
-      alert("Please provide a reason for the return");
+      showToast("Please provide a reason for the return.", "error");
       return;
     }
 
     setIsProcessing(true);
 
     try {
-      // Process the return via API
+      // Build items array matching processReturnSchema
+      const items = selectedItems.map((itemId) => ({
+        saleItemId: itemId,
+        reason: reason.trim(),
+      }));
+
       await apiClient.post(`/api/sales/${sale.id}/returns`, {
-        itemIds: selectedItems,
+        items,
         refundMethod,
         refundAmount: selectedTotal,
-        reason,
-        processedBy: "Admin",
+        reason: reason.trim(),
       });
-      
+
+      showToast(`Return processed — ৳${selectedTotal.toLocaleString()} refunded via ${refundMethod}.`);
       onSuccess();
     } catch (error) {
       console.error("Return failed:", error);
-      alert("Failed to process return");
+      showToast("Failed to process return.", "error");
     } finally {
       setIsProcessing(false);
     }
@@ -636,9 +644,10 @@ function SalesPageContent() {
     }
   };
 
+  const queryClient = useQueryClient();
   const handleReturnSuccess = () => {
     setReturningSale(null);
-    // Optionally show a toast
+    queryClient.invalidateQueries({ queryKey: ["sales"] });
   };
 
   if (isLoading) {

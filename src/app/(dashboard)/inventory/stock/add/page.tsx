@@ -39,14 +39,18 @@ function SupplierCombobox({
   selectedSupplier: Supplier | null;
   onSelect: (supplier: Supplier | null) => void;
 }) {
-  const { data: suppliersData } = useSuppliers();
-  const suppliers: Supplier[] = (suppliersData?.suppliers || []) as any[];
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const shouldSearch = query.trim().length >= MIN_SEARCH_LENGTH;
+
+  const { data: suppliersData, isFetching } = useSuppliers(
+    { search: query.trim(), limit: 10 },
+    shouldSearch
+  );
+  const suppliers: Supplier[] = shouldSearch ? ((suppliersData?.suppliers || []) as any[]) : [];
 
   const filteredSuppliers = useMemo(() => {
     if (!shouldSearch) return [];
@@ -88,7 +92,7 @@ function SupplierCombobox({
 
   // Show dropdown only after 2 chars
   const showDropdown = isOpen && shouldSearch;
-  const showNoResults = shouldSearch && filteredSuppliers.length === 0;
+  const showNoResults = shouldSearch && filteredSuppliers.length === 0 && !isFetching;
 
   return (
     <div className="relative">
@@ -154,8 +158,16 @@ function SupplierCombobox({
               ref={dropdownRef}
               className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
             >
+              {/* Loading State */}
+              {isFetching && (
+                <div className="flex flex-col items-center justify-center p-6 text-gray-500">
+                  <div className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
+                  <p className="text-sm font-medium">Searching suppliers...</p>
+                </div>
+              )}
+
               {/* Supplier List */}
-              {filteredSuppliers.map((supplier) => (
+              {!isFetching && filteredSuppliers.map((supplier) => (
                 <button
                   key={supplier.id}
                   type="button"
@@ -332,8 +344,26 @@ function AddStockContent() {
 
     try {
       const result = await apiClient.post("/api/stock/bulk", { items }) as any;
-      showToast(`${result?.added || serials.length} items added to stock successfully!`);
-      setBulkSerials("");
+      
+      if (result?.errors && result.errors.length > 0) {
+        if (result.added > 0) {
+          showToast(`${result.added} items added. ${result.errors.length} failed.`, "error");
+        } else {
+          showToast(`Failed to add items. Check for duplicates.`, "error");
+        }
+        
+        // Keep failed serials in the text string
+        const failedSerials = result.errors.map((e: any) => e.serialNumber).join("\n");
+        setBulkSerials(failedSerials);
+        
+        // Construct detailed error message
+        const detailedErrors = result.errors.map((e: any) => `${e.serialNumber}: ${e.error}`).join("\n");
+        setErrors({ submit: `Failed to add:\n${detailedErrors}` });
+      } else {
+        showToast(`${result?.added || serials.length} items added successfully!`);
+        setBulkSerials("");
+        setErrors({});
+      }
     } catch (error) {
       showToast((error as Error).message || "Failed to add bulk stock.", "error");
       setErrors({ submit: (error as Error).message });
@@ -401,6 +431,7 @@ function AddStockContent() {
               products={products}
               selectedProductId={selectedProduct}
               onSearch={setProductQuery}
+              isFetching={productsFetching}
               onSelect={(productId) => {
                 setSelectedProduct(productId);
                 const product = products.find((p) => p.id === productId);
@@ -415,6 +446,15 @@ function AddStockContent() {
             />
             {errors.product && <p className="mt-1 text-sm text-red-500">{errors.product}</p>}
           </div>
+
+          {/* Form Submit Error display */}
+          {errors.submit && (
+            <div className="rounded-lg bg-red-50 p-4 dark:bg-red-900/20">
+              <p className="whitespace-pre-wrap text-sm font-medium text-red-600 dark:text-red-400">
+                {errors.submit}
+              </p>
+            </div>
+          )}
 
           {selectedProductDetails && (
             <div className="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
@@ -602,12 +642,14 @@ function ProductSearchSelect({
   selectedProductId,
   onSelect,
   onSearch,
+  isFetching = false,
   hasError = false,
 }: {
   products: Product[];
   selectedProductId: string;
   onSelect: (productId: string) => void;
   onSearch?: (query: string) => void;
+  isFetching?: boolean;
   hasError?: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -718,7 +760,12 @@ function ProductSearchSelect({
           ref={dropdownRef}
           className="absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
         >
-          {filteredProducts.length === 0 ? (
+          {isFetching ? (
+            <div className="flex flex-col items-center justify-center p-6 text-gray-500">
+              <div className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+              <p className="text-sm font-medium">Searching products...</p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="px-4 py-4 text-center text-gray-500">
               <p>No products found</p>
               <p className="mt-1 text-sm">Try a different search term</p>

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useSuppliers, useUpdateSupplier, useDeleteSupplier } from "@/hooks/useSuppliers";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useSuppliers, useUpdateSupplier, useDeleteSupplier, supplierKeys } from "@/hooks/useSuppliers";
 import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, formatPhone } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
@@ -129,9 +130,10 @@ function EditSupplierModal({
 }
 
 // Payment Modal
-function PaymentModal({ isOpen, onClose, supplier, onPay }: {
+function PaymentModal({ isOpen, onClose, supplier, onPay, isPending = false }: {
   isOpen: boolean; onClose: () => void; supplier: Supplier | null;
   onPay: (amount: number, reference?: string) => void;
+  isPending?: boolean;
 }) {
   const [amount, setAmount] = useState(0);
   const [reference, setReference] = useState("");
@@ -164,8 +166,9 @@ function PaymentModal({ isOpen, onClose, supplier, onPay }: {
             placeholder="Transaction ID, Check No..." />
         </div>
       </div>
-      <ModalFooter onCancel={onClose} onConfirm={() => { if (amount > 0) { onPay(amount, reference || undefined); onClose(); } }}
-        cancelText="Cancel" confirmText="Record Payment" confirmVariant="primary" />
+      <ModalFooter onCancel={onClose} onConfirm={() => { if (amount > 0) { onPay(amount, reference || undefined); } }}
+        cancelText="Cancel" confirmText="Record Payment" confirmVariant="primary"
+        isLoading={isPending} confirmDisabled={isPending} />
     </Modal>
   );
 }
@@ -173,6 +176,7 @@ function PaymentModal({ isOpen, onClose, supplier, onPay }: {
 function SuppliersPageContent() {
   const updateSupplierMutation = useUpdateSupplier();
   const deleteSupplierMutation = useDeleteSupplier();
+  const queryClient = useQueryClient();
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -242,9 +246,50 @@ function SuppliersPageContent() {
     }
   };
 
-  const handlePayment = async (amount: number, reference?: string) => {
+  const paymentMutation = useMutation({
+    mutationFn: ({ supplierId, amount, reference }: { supplierId: string, amount: number, reference?: string }) =>
+      apiClient.post(`/api/suppliers/${supplierId}/payments`, { amount, reference }),
+    onSuccess: (_, variables) => {
+      // Optimistically update the cached supplier list data for instant UI feedback
+      queryClient.setQueriesData(
+        { queryKey: supplierKeys.lists() },
+        (oldData: any) => {
+          if (!oldData?.suppliers) return oldData;
+          return {
+            ...oldData,
+            suppliers: oldData.suppliers.map((s: any) => {
+              if (s.id === variables.supplierId) {
+                const newBalance = parseFloat(s.balance) - variables.amount;
+                const newTotalPaid = parseFloat(s.totalPaid) + variables.amount;
+                return {
+                  ...s,
+                  balance: newBalance.toFixed(2),
+                  totalPaid: newTotalPaid.toFixed(2),
+                };
+              }
+              return s;
+            }),
+            stats: oldData.stats ? {
+              ...oldData.stats,
+              totalPayable: Math.max(0, (parseFloat(oldData.stats.totalPayable) || 0) - variables.amount).toFixed(2),
+            } : oldData.stats,
+          };
+        }
+      );
+      // Also refetch to get the real server data
+      queryClient.refetchQueries({ queryKey: supplierKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: supplierKeys.detail(variables.supplierId) });
+      setShowPaymentModal(false);
+      showToast("Payment recorded successfully.");
+    },
+    onError: () => {
+      showToast("Failed to record payment.", "error");
+    }
+  });
+
+  const handlePayment = (amount: number, reference?: string) => {
     if (selectedSupplier) {
-      await apiClient.post(`/api/suppliers/${selectedSupplier.id}/payments`, { amount, reference });
+      paymentMutation.mutate({ supplierId: selectedSupplier.id, amount, reference });
     }
   };
 
@@ -456,7 +501,7 @@ function SuppliersPageContent() {
 
       {/* Payment Modal */}
       <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)}
-        supplier={selectedSupplier} onPay={handlePayment} />
+        supplier={selectedSupplier} onPay={handlePayment} isPending={paymentMutation.isPending} />
 
       {/* Delete Modal */}
       <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Delete Supplier" size="sm">

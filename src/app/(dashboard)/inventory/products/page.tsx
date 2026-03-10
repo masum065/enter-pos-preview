@@ -412,17 +412,17 @@ function ProductDetailModal({
   const [stockFilter, setStockFilter] = useState<"available" | "sold" | "all">("available");
   const [editingStockItem, setEditingStockItem] = useState<StockItem | null>(null);
 
-  const availableStock = stockItems.filter((s) => s.status === "available");
-  const soldStock = stockItems.filter((s) => s.status === "sold");
-  const serviceStock = stockItems.filter((s) => s.status === "service");
+  const availableStock = stockItems.filter((s) => s.status.toLowerCase() === "available");
+  const soldStock = stockItems.filter((s) => s.status.toLowerCase() === "sold");
+  const serviceStock = stockItems.filter((s) => s.status.toLowerCase() === "service");
 
   // Filtered stock based on selected tab
   const filteredStockItems = useMemo(() => {
     switch (stockFilter) {
       case "available":
-        return stockItems.filter((s) => s.status === "available");
+        return stockItems.filter((s) => s.status.toLowerCase() === "available");
       case "sold":
-        return stockItems.filter((s) => s.status === "sold");
+        return stockItems.filter((s) => s.status.toLowerCase() === "sold");
       default:
         return stockItems;
     }
@@ -553,7 +553,7 @@ function ProductDetailModal({
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{formatCurrency(parseFloat(item.purchasePrice))}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[item.status]}`}>
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[item.status.toLowerCase()] || statusColors.available}`}>
                             {item.status}
                           </span>
                         </td>
@@ -637,7 +637,7 @@ function ProductsPageContent() {
     sortBy: searchParams.get("sortBy") || "latest",
     sortOrder: searchParams.get("sortOrder") || "desc",
   });
-  const { data: stockData } = useStockItems();
+  const { data: stockData } = useStockItems({ limit: 100000 });
   const createProduct = useCreateProduct();
   const updateProductMutation = useUpdateProduct();
   const deleteProductMutation = useDeleteProduct();
@@ -700,10 +700,17 @@ function ProductsPageContent() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmColor: "red" | "green";
+    onConfirm: () => void;
+  } | null>(null);
 
   // Get stock count for each product
   const getStockCount = (productId: string) => {
-    return allStockItems.filter(s => s.productId === productId && s.status === "available").length;
+    return allStockItems.filter(s => s.productId === productId && s.status.toLowerCase() === "available").length;
   };
 
   // Get all stock for a product
@@ -733,9 +740,17 @@ function ProductsPageContent() {
 
   const handleDeleteProduct = (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete "${product.brand} ${product.modelName}"?`)) {
-      deleteProductMutation.mutate(product.id);
-    }
+    setConfirmModal({
+      title: "Delete Product",
+      message: `Are you sure you want to delete "${product.brand} ${product.modelName}"?`,
+      confirmLabel: "Delete",
+      confirmColor: "red",
+      onConfirm: () => {
+        deleteProductMutation.mutate(product.id, {
+          onSuccess: () => setConfirmModal(null)
+        });
+      }
+    });
   };
 
   const handleEditProduct = (e: React.MouseEvent, product: Product) => {
@@ -1002,6 +1017,25 @@ function ProductsPageContent() {
           totalPages={pagination.totalPages}
           onPageChange={setPage}
         />
+      )}
+
+      {/* Confirm Modal (Delete) */}
+      {confirmModal && (
+        <Modal
+          isOpen={!!confirmModal}
+          onClose={() => setConfirmModal(null)}
+          title={confirmModal.title}
+          size="sm"
+        >
+          <p className="text-sm text-gray-600 dark:text-gray-400">{confirmModal.message}</p>
+          <ModalFooter
+            onCancel={() => setConfirmModal(null)}
+            onConfirm={() => { confirmModal.onConfirm(); }}
+            cancelText="Cancel"
+            confirmText={confirmModal.confirmLabel}
+            confirmVariant={confirmModal.confirmColor === "red" ? "danger" : "success"}
+          />
+        </Modal>
       )}
     </div>
   );

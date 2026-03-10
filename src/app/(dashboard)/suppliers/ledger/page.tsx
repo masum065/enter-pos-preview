@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { useSupplier } from "@/hooks/useSuppliers";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSupplier, supplierKeys } from "@/hooks/useSuppliers";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import Link from "next/link";
@@ -196,28 +197,25 @@ function SupplierLedgerContent() {
   const supplierId = searchParams.get("id");
 
   const { data: supplierData, isLoading } = useSupplier(supplierId || "");
-  const [transactions, setTransactions] = useState<SupplierTransaction[]>([]);
+  const queryClient = useQueryClient();
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
 
-  // Fetch supplier transactions
-  useEffect(() => {
-    if (supplierId) {
-      apiClient.get<SupplierTransaction[]>(`/api/suppliers/${supplierId}/payments`)
-        .then((data: any) => setTransactions(Array.isArray(data) ? data : data.transactions || []))
-        .catch(() => setTransactions([]));
-    }
-  }, [supplierId]);
-
   const supplier = supplierData as Supplier | null;
+
+  // Derive transactions from the supplier detail query
+  const transactions: SupplierTransaction[] = useMemo(() => {
+    if (!supplierData) return [];
+    const data = supplierData as any;
+    return Array.isArray(data.transactions) ? data.transactions : [];
+  }, [supplierData]);
 
   const handlePayment = async (amount: number, reference?: string) => {
     if (supplier) {
       await apiClient.post(`/api/suppliers/${supplier.id}/payments`, { amount, reference });
-      // Refresh transactions
-      const data = await apiClient.get<any>(`/api/suppliers/${supplier.id}/payments`);
-      setTransactions(Array.isArray(data) ? data : data.transactions || []);
+      queryClient.invalidateQueries({ queryKey: supplierKeys.detail(supplier.id) });
+      queryClient.invalidateQueries({ queryKey: supplierKeys.lists() });
     }
   };
   const handleAdjustment = async (
@@ -228,11 +226,8 @@ function SupplierLedgerContent() {
   ) => {
     if (supplier) {
       await apiClient.post(`/api/suppliers/${supplier.id}/adjustments`, { type, amount, description, reference });
-      const data = await apiClient.get<any>(`/api/suppliers/${supplier.id}/payments`);
-      setTransactions(Array.isArray(data) ? data : data.transactions || []);
-      // Refresh supplier balance
-      const fresh = await apiClient.get<any>(`/api/suppliers/${supplier.id}`);
-      // useSupplier will re-fetch via query client, but we also refresh local transactions
+      queryClient.invalidateQueries({ queryKey: supplierKeys.detail(supplier.id) });
+      queryClient.invalidateQueries({ queryKey: supplierKeys.lists() });
     }
   };
 

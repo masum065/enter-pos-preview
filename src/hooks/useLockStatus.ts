@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { useEffect } from "react";
 
 interface LockStatus {
   lockEnabled: boolean;
@@ -69,9 +70,11 @@ export function useLockStatus() {
   const refresh = useLockStore((state) => state.refresh);
   const updateStatus = useLockStore((state) => state.updateStatus);
 
-  if (!loaded && typeof window !== "undefined" && !useLockStore.getState().fetchPromise) {
-    refresh();
-  }
+  useEffect(() => {
+    if (!loaded && !useLockStore.getState().fetchPromise) {
+      refresh();
+    }
+  }, [loaded, refresh]);
 
   return { status, loaded, refresh, updateStatus };
 }

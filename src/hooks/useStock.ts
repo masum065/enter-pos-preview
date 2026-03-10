@@ -74,9 +74,10 @@ export const stockKeys = {
 /**
  * Fetch stock items with optional filters
  */
-export function useStockItems(filters: StockFilters = {}) {
+export function useStockItems(filters: StockFilters = {}, enabled = true) {
   return useQuery({
     queryKey: stockKeys.list(filters),
+    enabled,
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const params: Record<string, string> = {};

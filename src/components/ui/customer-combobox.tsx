@@ -70,7 +70,7 @@ export function CustomerCombobox({
   };
 
   const showDropdown = isOpen && shouldSearch;
-  const showNoResults = shouldSearch && filteredCustomers.length === 0;
+  const showNoResults = shouldSearch && filteredCustomers.length === 0 && !isFetching;
 
   // --- Selected State ---
   if (selectedCustomer) {
@@ -146,8 +146,16 @@ export function CustomerCombobox({
           ref={dropdownRef}
           className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
         >
+          {/* Loading State */}
+          {isFetching && (
+            <div className="flex flex-col items-center justify-center p-6 text-gray-500">
+              <div className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+              <p className="text-sm font-medium">Searching customers...</p>
+            </div>
+          )}
+
           {/* Results */}
-          {filteredCustomers.map((customer) => (
+          {!isFetching && filteredCustomers.map((customer) => (
             <button
               key={customer.id}
               type="button"
@@ -201,7 +209,7 @@ export function CustomerCombobox({
           )}
 
           {/* Add New at bottom when results exist */}
-          {!showNoResults && filteredCustomers.length > 0 && onAddNew && (
+          {!isFetching && !showNoResults && filteredCustomers.length > 0 && onAddNew && (
             <button
               type="button"
               onClick={() => {

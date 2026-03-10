@@ -32,12 +32,23 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         try {
-          // Insert stock item
-          const [newStockItem] = await tx
+          // Insert stock item with ON CONFLICT DO NOTHING to prevent transaction aborts
+          const returningItems = await tx
             .insert(stockItems)
             .values({ ...item, createdBy: session.id })
+            .onConflictDoNothing({ target: stockItems.serialNumber })
             .returning();
 
+          if (!returningItems || returningItems.length === 0) {
+            errors.push({
+              index: i,
+              serialNumber: item.serialNumber,
+              error: "Duplicate serial number",
+            });
+            continue;
+          }
+
+          const newStockItem = returningItems[0];
           addedItems.push(newStockItem);
 
           // If purchased from supplier, update supplier financials
@@ -74,11 +85,11 @@ export async function POST(request: NextRequest) {
                 .where(eq(suppliers.id, item.supplierId));
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           errors.push({
             index: i,
             serialNumber: item.serialNumber,
-            error: (error as Error).message,
+            error: error?.code === '23505' ? "Duplicate serial number" : error.message,
           });
         }
       }

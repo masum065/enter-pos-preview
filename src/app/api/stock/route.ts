@@ -199,6 +199,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    
+    if ((error as any)?.code === '23505') {
+      return NextResponse.json(
+        { error: "Duplicate serial number: This stock item already exists in the system." },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json(
       { error: "Failed to add stock" },

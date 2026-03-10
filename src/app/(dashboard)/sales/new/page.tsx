@@ -74,10 +74,23 @@ function SerialCombobox({
   onSelectSerial: (stockItem: StockItem) => void;
   addedSerials: string[];
 }) {
-  const { data: stockData } = useStockItems();
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Filter by query (min 3 chars)
+  const shouldSearch = query.trim().length >= MIN_SEARCH_LENGTH;
+
+  const { data: stockData, isFetching } = useStockItems(
+    { search: query.trim(), status: "Available", limit: 50 },
+    shouldSearch
+  );
+
   // No separate products fetch — stock API already joins product info
   // Stock data returns StockItemWithProduct[] → flatten to StockItem[]
-  const rawStockItems = stockData?.stockItems || [];
+  const rawStockItems = shouldSearch ? (stockData?.stockItems || []) : [];
+  
   const allStockItems: StockItem[] = rawStockItems.map((s: any) => ({
     id: s.stockItem?.id || s.id,
     serialNumber: s.stockItem?.serialNumber || s.serialNumber,
@@ -87,36 +100,13 @@ function SerialCombobox({
     _product: s.product,          // carry product info from join
     ...(s.stockItem || s),
   }));
-  const allProducts: Product[] = [];  // no longer needed — using _product instead
-  const [query, setQuery] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const availableStock = useMemo(() => {
-    return allStockItems.filter(
-      (item) => item.status === "Available" && !addedSerials.includes(item.serialNumber)
-    );
-  }, [allStockItems, addedSerials]);
-
-  // Filter by query (min 3 chars)
-  const shouldSearch = query.trim().length >= MIN_SEARCH_LENGTH;
-  
   const filteredStock = useMemo(() => {
     if (!shouldSearch) return [];
-    const q = query.toUpperCase();
-    return availableStock
-      .filter((item) => {
-        if (item.serialNumber.includes(q)) return true;
-        const product = item._product;
-        if (product) {
-          const productName = `${product.brand} ${product.modelName}`.toUpperCase();
-          if (productName.includes(q)) return true;
-        }
-        return false;
-      })
-      .slice(0, 10);
-  }, [query, shouldSearch, availableStock]);
+    return allStockItems.filter(
+      (item) => !addedSerials.includes(item.serialNumber)
+    );
+  }, [allStockItems, addedSerials, shouldSearch]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -141,13 +131,10 @@ function SerialCombobox({
     inputRef.current?.focus();
   };
 
-  const getProductName = (productId: string) => {
-    const product = allProducts.find((p) => p.id === productId);
-    return product ? `${product.brand} ${product.modelName}` : "Unknown Product";
-  };
+
 
   const showDropdown = isOpen && shouldSearch;
-  const showNoResults = shouldSearch && filteredStock.length === 0;
+  const showNoResults = shouldSearch && filteredStock.length === 0 && !isFetching;
 
   return (
     <div className="relative flex-1">
@@ -193,8 +180,16 @@ function SerialCombobox({
           ref={dropdownRef}
           className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
         >
+          {/* Loading State */}
+          {isFetching && (
+            <div className="flex flex-col items-center justify-center p-6 text-gray-500">
+              <div className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+              <p className="text-sm font-medium">Searching products...</p>
+            </div>
+          )}
+
           {/* Stock List */}
-          {filteredStock.map((stockItem) => (
+          {!isFetching && filteredStock.map((stockItem) => (
             <button
               key={stockItem.id}
               type="button"
@@ -205,7 +200,9 @@ function SerialCombobox({
                 <p className="font-mono font-medium text-gray-900 dark:text-white">
                   {stockItem.serialNumber}
                 </p>
-                <p className="text-sm text-gray-500">{getProductName(stockItem.productId)}</p>
+                <p className="text-sm text-gray-500">
+                  {stockItem._product ? `${stockItem._product.brand} ${stockItem._product.modelName}` : "Unknown Product"}
+                </p>
               </div>
               <div className="text-right">
                 <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
@@ -233,9 +230,9 @@ function SerialCombobox({
           )}
 
           {/* Available count */}
-          {!showNoResults && filteredStock.length > 0 && (
+          {!isFetching && !showNoResults && filteredStock.length > 0 && stockData?.pagination?.total != null && (
             <div className="border-t border-gray-100 px-4 py-2 text-center text-xs text-gray-500 dark:border-gray-800">
-              {availableStock.length} items available in stock
+              {stockData.pagination.total} matching items found
             </div>
           )}
         </div>

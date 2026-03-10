@@ -44,9 +44,10 @@ export const supplierKeys = {
   detail: (id: string) => [...supplierKeys.all, "detail", id] as const,
 };
 
-export function useSuppliers(filters: { search?: string; balanceFilter?: string; page?: number; limit?: number } = {}) {
+export function useSuppliers(filters: { search?: string; balanceFilter?: string; page?: number; limit?: number } = {}, enabled: boolean = true) {
   return useQuery({
     queryKey: supplierKeys.list(filters),
+    enabled,
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (filters.search) params.search = filters.search;

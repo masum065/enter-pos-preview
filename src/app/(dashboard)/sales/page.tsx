@@ -322,7 +322,7 @@ function SaleDetailModal({
         {/* Items */}
         <div>
           <h4 className="mb-3 font-semibold text-gray-900 dark:text-white">
-            Items ({sale.items.length})
+            Items ({sale.items.filter(i => !i.isReturned).length})
           </h4>
           <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
             <table className="w-full">
@@ -335,21 +335,15 @@ function SaleDetailModal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {sale.items.map((item, idx) => (
-                  <tr key={idx} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${item.isReturned ? "opacity-50" : ""}`}>
+                {sale.items.filter(item => !item.isReturned).map((item, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-4 py-3 text-gray-900 dark:text-white">{item.productName}</td>
                     <td className="px-4 py-3 font-mono text-sm text-gray-600 dark:text-gray-400">{item.serialNumber}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(item.amount)}</td>
                     <td className="px-4 py-3 text-center">
-                      {item.isReturned ? (
-                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600 dark:bg-red-900/30 dark:text-red-400">
-                          Returned
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-600 dark:bg-green-900/30 dark:text-green-400">
-                          Active
-                        </span>
-                      )}
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                        Active
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -368,12 +362,6 @@ function SaleDetailModal({
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">Discount</span>
               <span className="font-medium text-red-600">-{formatCurrency(sale.discountAmount)}</span>
-            </div>
-          )}
-          {sale.totalReturned && sale.totalReturned > 0 && (
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Returned</span>
-              <span className="font-medium text-red-600">-{formatCurrency(sale.totalReturned)}</span>
             </div>
           )}
           <div className="flex justify-between border-t border-blue-200 pt-2 dark:border-blue-800">
@@ -435,8 +423,8 @@ function SaleDetailModal({
             <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(sale.dueAmount)}</p>
           </div>
           <div className="flex-1 rounded-lg bg-purple-50 p-3 text-center dark:bg-purple-900/20">
-            <p className="text-sm text-purple-700 dark:text-purple-300">Items</p>
-            <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{sale.items?.length || 0}</p>
+            <p className="text-sm text-purple-700 dark:text-purple-300">Items (Net)</p>
+            <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{sale.items?.filter(i => !i.isReturned).length || 0}</p>
           </div>
         </div>
 

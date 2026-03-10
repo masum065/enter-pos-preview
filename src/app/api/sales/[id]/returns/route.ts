@@ -132,13 +132,19 @@ export async function POST(
         newStatus = "partially_returned";
       }
 
-      // Calculate new profit (subtract returned items profit)
+      // Calculate new totals for the sale
       const returnedProfit = itemsToReturn.reduce(
         (sum, item) => sum + parseFloat(item.profit), 
         0
       );
       const newTotalProfit = parseFloat(sale.totalProfit) - returnedProfit;
       const newTotalReturned = parseFloat(sale.totalReturned || "0") + totalReturnAmount;
+      
+      const newSubtotal = parseFloat(sale.subtotal) - totalReturnAmount;
+      const newGrandTotal = parseFloat(sale.grandTotal) - totalReturnAmount;
+      const newPaidAmount = parseFloat(sale.paidAmount) - parseFloat(validatedData.refundAmount);
+      // Ensure due is not negative due to floating point math
+      const newDueAmount = Math.max(0, newGrandTotal - newPaidAmount);
 
       // Update sale
       const [updatedSale] = await tx
@@ -147,6 +153,10 @@ export async function POST(
           status: newStatus,
           totalReturned: newTotalReturned.toFixed(2),
           totalProfit: newTotalProfit.toFixed(2),
+          subtotal: newSubtotal.toFixed(2),
+          grandTotal: newGrandTotal.toFixed(2),
+          paidAmount: newPaidAmount.toFixed(2),
+          dueAmount: newDueAmount.toFixed(2),
           updatedAt: new Date(),
         })
         .where(eq(sales.id, params.id))
@@ -163,10 +173,12 @@ export async function POST(
         beforeData: {
           status: sale.status,
           totalReturned: sale.totalReturned || "0",
+          grandTotal: sale.grandTotal,
         },
         afterData: {
           status: newStatus,
           totalReturned: newTotalReturned.toFixed(2),
+          grandTotal: newGrandTotal.toFixed(2),
         },
       });
 

@@ -86,9 +86,11 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
   const paidAmount = Number(sale.paidAmount);
   const dueAmount  = Number(sale.dueAmount);
   const discount   = Number(sale.discountAmount);
-  const subtotal   = (sale.items || []).reduce((s: number, i: any) => s + Number(i.amount || i.salePrice || 0), 0);
+  
+  const activeItems = (sale.items || []).filter((i: any) => !i.isReturned);
+  const subtotal   = activeItems.reduce((s: number, i: any) => s + Number(i.amount || i.salePrice || 0), 0);
 
-  const itemRows = (sale.items || []).map((item: any, i: number) => `
+  const itemRows = activeItems.map((item: any, i: number) => `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
       <td style="padding-left:12px;">${item.productName || item.name || ""}</td>

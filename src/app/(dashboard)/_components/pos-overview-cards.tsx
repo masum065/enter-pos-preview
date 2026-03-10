@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import { useDashboardStats } from "@/hooks/useReports";
@@ -96,6 +96,9 @@ function OverviewCard({
   Icon,
   trend,
   trendLabel,
+  sensitive,
+  isVisible,
+  onToggleVisibility,
 }: {
   label: string;
   value: string;
@@ -103,21 +106,52 @@ function OverviewCard({
   Icon: React.ComponentType;
   trend?: number;
   trendLabel?: string;
+  sensitive?: boolean;
+  isVisible?: boolean;
+  onToggleVisibility?: () => void;
 }) {
   const isPositive = trend ? trend >= 0 : true;
+  const hidden = sensitive && !isVisible;
 
   return (
-    <div className="rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark">
+    <div className="group relative rounded-[10px] bg-white p-4 sm:p-6 shadow-1 dark:bg-gray-dark">
       <Icon />
+
+      {/* Eye toggle — appears on hover for sensitive cards */}
+      {sensitive && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(); }}
+          className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-gray-400 opacity-0 transition-all duration-200 hover:bg-gray-100 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          title={isVisible ? "Hide value" : "Show value"}
+        >
+          {isVisible ? (
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </svg>
+          ) : (
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          )}
+        </button>
+      )}
 
       <div className="mt-4 sm:mt-6 flex items-end justify-between">
         <dl>
           <dt className="mb-1.5 text-heading-6 font-bold text-dark dark:text-white">
-            {value}
+            {hidden ? (
+              <span className="select-none tracking-widest text-gray-400 dark:text-gray-500">● ● ● ●</span>
+            ) : (
+              value
+            )}
           </dt>
           <dd className="text-sm font-medium text-dark-6">{label}</dd>
           {subValue && (
-            <dd className="mt-1 text-xs text-gray-500 dark:text-gray-400">{subValue}</dd>
+            <dd className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {hidden ? "••••••" : subValue}
+            </dd>
           )}
         </dl>
 
@@ -149,7 +183,17 @@ export function POSOverviewCards() {
   const role = (sessionData as any)?.user?.role || (sessionData as any)?.role || "employee";
   const isEmployee = role === "employee";
 
-  // Show skeleton only if loading (first paint)
+  // Track which sensitive cards are revealed
+  const [visibleCards, setVisibleCards] = useState<Set<string>>(new Set());
+  const toggleCard = (key: string) => {
+    setVisibleCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 2xl:gap-7.5">
@@ -160,7 +204,6 @@ export function POSOverviewCards() {
     );
   }
 
-  // Gracefully handle undefined data
   if (!stats) return null;
 
   return (
@@ -170,15 +213,20 @@ export function POSOverviewCards() {
         value={formatCurrency(stats.today.revenue)}
         subValue={`${stats.today.sales} invoices`}
         Icon={SalesIcon}
+        sensitive
+        isVisible={visibleCards.has("sales")}
+        onToggleVisibility={() => toggleCard("sales")}
       />
 
-      {/* Profit — admin/manager only */}
       {!isEmployee && (
         <OverviewCard
           label="This Month Profit"
           value={formatCurrency(stats.thisMonth.profit)}
           subValue={`${stats.thisMonth.sales} total sales`}
           Icon={ProfitIcon}
+          sensitive
+          isVisible={visibleCards.has("profit")}
+          onToggleVisibility={() => toggleCard("profit")}
         />
       )}
 
@@ -195,7 +243,6 @@ export function POSOverviewCards() {
         Icon={ServiceIcon}
       />
 
-      {/* Stock value hidden from employee */}
       <OverviewCard
         label="Available Stock"
         value={stats.stock.available.toString()}
@@ -203,16 +250,17 @@ export function POSOverviewCards() {
         Icon={StockIcon}
       />
 
-      {/* Expenses — admin/manager only */}
       {!isEmployee && (
         <OverviewCard
           label="This Month Expenses"
           value={formatCurrency(stats.thisMonth.expenses)}
           subValue="All categories"
           Icon={ExpenseIcon}
+          sensitive
+          isVisible={visibleCards.has("expenses")}
+          onToggleVisibility={() => toggleCard("expenses")}
         />
       )}
     </div>
   );
 }
-

@@ -487,14 +487,15 @@ export default function Home() {
         </p>
       </div>
 
-      {/* Overview Cards */}
+      {/* Quick Access */}
       <Suspense fallback={<CardsSkeleton />}>
-        <POSOverviewCards />
+        <QuickActions isEmployee={isEmployee} />
       </Suspense>
 
-      {/* Quick Actions */}
+      {/* Overview Card */}
       <div className="mt-6">
-        <QuickActions isEmployee={isEmployee} />
+
+        <POSOverviewCards />
       </div>
 
       {/* Charts Section */}

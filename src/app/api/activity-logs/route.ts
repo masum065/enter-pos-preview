@@ -30,7 +30,11 @@ export async function GET(request: NextRequest) {
     if (userId) conditions.push(eq(activityLogs.userId, userId));
     if (action) conditions.push(eq(activityLogs.action, action));
     if (startDate) conditions.push(gte(activityLogs.createdAt, new Date(startDate)));
-    if (endDate) conditions.push(lte(activityLogs.createdAt, new Date(endDate)));
+    if (endDate) {
+      const endD = new Date(endDate);
+      endD.setHours(23, 59, 59, 999);
+      conditions.push(lte(activityLogs.createdAt, endD));
+    }
 
     if (conditions.length > 0) {
       queryBuilder = queryBuilder.where(and(...conditions));

@@ -27,6 +27,19 @@ export async function GET(
     const items = await db.select().from(saleItems).where(eq(saleItems.saleId, params.id));
     const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.saleId, params.id));
 
+    // Fetch returns and their items
+    const { saleReturns, saleReturnItems } = await import("@/db/schema");
+    const returnsRaw = await db.select().from(saleReturns).where(eq(saleReturns.saleId, params.id));
+    const returns = [];
+    
+    for (const ret of returnsRaw) {
+      const returnedItems = await db.select().from(saleReturnItems).where(eq(saleReturnItems.returnId, ret.id));
+      returns.push({
+        ...ret,
+        returnedItems
+      });
+    }
+
     // Salesman name
     let createdByName = "Admin";
     try {
@@ -43,7 +56,7 @@ export async function GET(
       if (cust?.address) customerAddress = cust.address;
     } catch {}
 
-    return NextResponse.json({ ...sale, items, payments, createdByName, customerAddress });
+    return NextResponse.json({ ...sale, items, payments, returns, createdByName, customerAddress });
   } catch (error) {
     console.error("Error fetching sale:", error);
     return NextResponse.json({ error: "Failed to fetch sale" }, { status: 500 });

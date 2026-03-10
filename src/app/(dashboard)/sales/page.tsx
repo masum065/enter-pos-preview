@@ -408,6 +408,18 @@ function SaleDetailModal({
                   <span className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(payment.amount)}</span>
                 </div>
               ))}
+              {/* Render Refunds explicitly */}
+              {hasReturns && sale.returns!.map((ret, idx) => (
+                <div key={`ret-${idx}`} className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-2 dark:bg-red-900/20">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-800 dark:text-red-300">
+                      Refund ({ret.refundMethod})
+                    </span>
+                    <span className="text-sm text-gray-500">{formatDate(ret.createdAt)}</span>
+                  </div>
+                  <span className="font-semibold text-red-600 dark:text-red-400">-{formatCurrency(ret.refundAmount)}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -418,14 +430,22 @@ function SaleDetailModal({
             <h4 className="font-semibold text-gray-900 dark:text-white">Return History</h4>
             <div className="space-y-2">
               {sale.returns!.map((ret, idx) => (
-                <div key={idx} className="rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500">{formatDate(ret.createdAt)}</span>
-                    <span className="font-semibold text-red-600 dark:text-red-400">-{formatCurrency(ret.refundAmount)}</span>
+                <div key={idx} className="rounded-lg bg-red-50 p-4 dark:bg-red-900/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{formatDate(ret.createdAt)}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Reason: {ret.reason}</span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                    {ret.returnedItems.length} item(s) • {ret.reason}
-                  </p>
+                  <ul className="space-y-1">
+                    {ret.returnedItems?.map((ri: any) => (
+                      <li key={ri.id} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
+                        <span className="mt-1 flex-shrink-0">•</span>
+                        <span>
+                          <span className="font-medium text-gray-800 dark:text-gray-200">{ri.productName}</span> 
+                          <span className="ml-1 text-xs font-mono">(SN: {ri.serialNumber})</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ))}
             </div>
@@ -465,7 +485,7 @@ function SaleDetailModal({
             </span>
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            Created by: {sale.createdBy}
+            Created by: {sale.createdByName || sale.createdBy}
           </div>
         </div>
 

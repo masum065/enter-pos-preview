@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
       conditions.push(gte(sales.invoiceDate, new Date(startDate)));
     }
     if (endDate) {
-      conditions.push(lte(sales.invoiceDate, new Date(endDate)));
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      conditions.push(lte(sales.invoiceDate, end));
     }
     if (customerId) {
       conditions.push(eq(sales.customerId, customerId));

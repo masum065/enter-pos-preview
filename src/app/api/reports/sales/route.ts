@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
 
     // Default: last 30 days
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Sales summary for period

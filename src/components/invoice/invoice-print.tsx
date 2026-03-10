@@ -110,6 +110,45 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
       <td style="text-align:right;">${fmt(Number(p.amount))}</td>
     </tr>`).join("");
 
+  const hasReturns = sale.returns && sale.returns.length > 0;
+  const refundRows = !hasReturns ? "" : sale.returns.map((ret: any, i: number) => `
+    <tr>
+      <td style="text-align:center;">${(sale.payments?.length || 0) + i + 1}</td>
+      <td style="text-align:center;color:#dc2626;">${fmtDateTime(ret.createdAt)}</td>
+      <td style="text-align:center;color:#dc2626;">Refund (${ret.refundMethod})</td>
+      <td style="text-align:center;color:#dc2626;">-</td>
+      <td style="text-align:right;color:#dc2626;font-weight:700;">-${fmt(Number(ret.refundAmount))}</td>
+    </tr>`).join("");
+
+  const returnsHistoryHTML = !hasReturns ? "" : `
+  <div style="padding:4px 0 20px;">
+    <p style="font-size:13px;font-weight:700;margin-bottom:6px;color:#dc2626;">Return History</p>
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th class="al">Reason</th>
+          <th class="al">Items Returned</th>
+          <th style="width:110px;">Amount Refunded</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sale.returns.map((ret: any) => `
+          <tr>
+            <td style="text-align:center;">${fmtDateTime(ret.createdAt)}</td>
+            <td class="al">${ret.reason}</td>
+            <td class="al">
+              <ul style="padding-left:14px;margin:0;font-size:11.5px;">
+                ${ret.returnedItems?.map((ri: any) => `<li>${ri.productName} <span class="mono">(${ri.serialNumber})</span></li>`).join("")}
+              </ul>
+            </td>
+            <td class="ar" style="color:#dc2626;font-weight:700;">-${fmt(Number(ret.refundAmount))}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  </div>`;
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -223,7 +262,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
       ${(sale as any).customerAddress ? `<span><strong>Address:</strong> ${(sale as any).customerAddress}</span>` : ''}
     </div>
     <div class="right" style="text-align:right;">
-      <span><strong>Salesman:</strong> System Administrator</span><br/>
+      <span><strong>Salesman:</strong> ${sale.createdByName || sale.createdBy}</span><br/>
       <div class="date-box">Date: ${fmtDate(sale.invoiceDate)}</div>
     </div>
   </div>
@@ -289,6 +328,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
       </thead>
       <tbody>
         ${payRows}
+        ${refundRows}
         <tr style="font-weight:700;">
           <td colspan="4" class="bg" style="padding:5px 8px;"><strong>Total</strong></td>
           <td class="ar bg">${fmt(paidAmount)}</td>
@@ -298,6 +338,7 @@ function buildInvoiceHTML(sale: Sale, forPreview = false, shopInfo: ShopInfo = D
   </div>` : ''}
 
 
+  ${returnsHistoryHTML}
 
 </div><!-- .content -->
 

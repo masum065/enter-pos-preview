@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { serviceRecords, activityLogs } from "@/db/schema";
-import { eq, and, or, desc, sql, ilike } from "drizzle-orm";
+import { eq, and, or, desc, sql, ilike, gte, lte } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { serviceRecordSchema } from "@/lib/validations/services";
 
@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const customerId = searchParams.get("customerId");
     const search = searchParams.get("search");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
     const page = parseInt(searchParams.get("page") || "1");
     const limitParam = searchParams.get("limit");
     const limit = limitParam === "all" ? 100000 : parseInt(limitParam || "20");
@@ -22,6 +24,12 @@ export async function GET(request: NextRequest) {
 
     // Build conditions — ALL must be AND
     const conditions = [];
+    if (startDate) conditions.push(gte(serviceRecords.createdAt, new Date(startDate)));
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      conditions.push(lte(serviceRecords.createdAt, end));
+    }
     if (status) conditions.push(eq(serviceRecords.status, status));
     if (customerId) conditions.push(eq(serviceRecords.customerId, customerId));
     if (search) {

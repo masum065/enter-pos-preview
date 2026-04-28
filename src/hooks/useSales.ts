@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { 
   CreateSaleInput, 
@@ -112,6 +112,7 @@ export function useSales(filters: SalesFilters = {}) {
       return apiClient.get<SalesResponse>("/api/sales", params);
     },
     staleTime: 30 * 1000, // 30 seconds (sales change frequently)
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -110,12 +110,12 @@ function buildPurchaseHTML(p: Purchase, forPreview = false, shopInfo: ShopInfo =
 
   /* ── Header ── */
   .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:1px solid #ccc;}
-  .hdr-left{display:flex;flex-direction:column;gap:4px;}
-  .hdr-left img{height:48px;object-fit:contain;}
+  .hdr-left{display:flex;flex-direction:column;gap:4px; align-items: self-start;}
+  .hdr-left img{height:60px;object-fit:contain;}
   .hdr-left .tagline{font-size:11px;color:#555;margin-top:2px;}
   .hdr-right{text-align:right;}
-  .hdr-right .phones{font-size:19px;font-weight:800;color:#1a1a1a;letter-spacing:0.3px;}
-  .hdr-right .addr{font-size:11.5px;color:#555;margin-top:3px;line-height:1.5;}
+  .hdr-right .phones{font-size:17px;font-weight:800;color:#1a1a1a;letter-spacing:0.3px;}
+  .hdr-right .addr{font-size:11.5px;color:#555;margin-top:3px;line-height:1.5; max-width:70%; margin-left: auto;}
 
   /* ── Title row ── */
   .title-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ccc;}
@@ -182,7 +182,7 @@ function buildPurchaseHTML(p: Purchase, forPreview = false, shopInfo: ShopInfo =
   <div class="hdr">
     <div class="hdr-left">
       <img src="${s.logo || '/enter-logo.png'}" alt="${s.shopName}"/>
-      <span class="tagline bn">${s.tagline}</span>
+     <!-- <span class="tagline bn">${s.tagline}</span> -->
     </div>
     <div class="hdr-right">
       <div class="phones">${s.phone1}${s.phone2 ? ' &nbsp; ' + s.phone2 : ''}</div>

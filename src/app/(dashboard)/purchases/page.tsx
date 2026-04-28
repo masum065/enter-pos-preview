@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense , useEffect} from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { usePurchases } from "@/hooks/usePurchases";
 import { Pagination } from "@/components/ui/pagination";
-import { Modal } from "@/components/ui/modal";
 import { PrintPurchaseButton } from "@/components/invoice/purchase-print";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { Modal, ModalFooter } from "@/components/ui/modal";
+import { useToast } from "@/hooks/useToast";
+import { useCreatePurchase } from "@/hooks/usePurchases";
+import { PurchaseFormFields, PurchaseFormData, Seller, PaymentMethod } from "@/components/purchases/purchase-form";
+import { AddCustomerModal } from "@/components/customers/customer-modals";
 import Link from "next/link";
 
 interface PurchaseInvoice {
@@ -27,6 +31,126 @@ interface PurchaseInvoice {
   createdByName?: string;
   createdAt: string;
   [key: string]: any;
+}
+
+// ── Add Purchase Modal ────────────────────────────────────────────────────────
+function AddPurchaseModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const createPurchase = useCreatePurchase();
+  const { showToast } = useToast();
+
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedSeller, setSelectedSeller] = useState<Seller | null>(null);
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+
+  const [formData, setFormData] = useState<PurchaseFormData>({
+    serialNumber: "",
+    imei: "",
+    purchasePrice: 0,
+    paymentMethod: "Cash",
+    paidAmount: 0,
+    purchaseDate: new Date().toISOString().split("T")[0],
+    notes: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        serialNumber: "",
+        imei: "",
+        purchasePrice: 0,
+        paymentMethod: "Cash",
+        paidAmount: 0,
+        purchaseDate: new Date().toISOString().split("T")[0],
+        notes: "",
+      });
+      setSelectedProduct(null);
+      setSelectedSeller(null);
+      setErrors({});
+    }
+  }, [isOpen]);
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!selectedSeller) newErrors.seller = "Please select a seller";
+    if (!selectedProduct) newErrors.product = "Please select a product";
+    if (!formData.serialNumber.trim()) newErrors.serialNumber = "Serial number is required";
+    if (formData.purchasePrice <= 0) newErrors.purchasePrice = "Purchase price must be greater than 0";
+    if (formData.paidAmount < 0) newErrors.paidAmount = "Paid amount cannot be negative";
+    if (formData.paidAmount > formData.purchasePrice) newErrors.paidAmount = "Paid amount cannot exceed purchase price";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (!validate() || !selectedSeller || !selectedProduct) return;
+
+    createPurchase.mutate(
+      {
+        serialNumber: formData.serialNumber.trim(),
+        imei: formData.imei.trim() || undefined,
+        productId: selectedProduct.id,
+        purchasePrice: formData.purchasePrice,
+        purchaseSource: "local",
+        sellerId: selectedSeller.id,
+        sellerName: selectedSeller.name,
+        sellerPhone: selectedSeller.phone,
+        productName: `${selectedProduct.brand} ${selectedProduct.modelName}`,
+        purchaseDate: formData.purchaseDate,
+        paymentMethod: formData.paymentMethod,
+        paidAmount: formData.paidAmount,
+        notes: formData.notes.trim() || undefined,
+      } as any,
+      {
+        onSuccess: () => {
+          showToast("Purchase completed successfully.");
+          onClose();
+        },
+        onError: () => {
+          showToast("Failed to create purchase.", "error");
+        },
+      }
+    );
+  };
+
+  return (
+    <>
+      <Modal isOpen={isOpen} onClose={onClose} title="Purchase Product" size="xl">
+        <PurchaseFormFields
+          formData={formData}
+          setFormData={setFormData}
+          errors={errors}
+          selectedProduct={selectedProduct}
+          setSelectedProduct={setSelectedProduct}
+          selectedSeller={selectedSeller}
+          setSelectedSeller={setSelectedSeller}
+          setCustomerSearchQuery={setCustomerSearchQuery}
+          setShowAddCustomerModal={setShowAddCustomerModal}
+          isPending={createPurchase.isPending}
+        />
+        <ModalFooter
+          onCancel={onClose}
+          onConfirm={handleSubmit}
+          cancelText="Cancel"
+          confirmText="Complete Purchase"
+          confirmVariant="danger"
+          isLoading={createPurchase.isPending}
+          confirmDisabled={createPurchase.isPending}
+        />
+      </Modal>
+
+      <AddCustomerModal
+        isOpen={showAddCustomerModal}
+        onClose={() => setShowAddCustomerModal(false)}
+        defaultName={customerSearchQuery}
+        onCustomerAdded={(newCustomer) => {
+          setSelectedSeller(newCustomer as Seller);
+          setShowAddCustomerModal(false);
+        }}
+      />
+    </>
+  );
 }
 
 // ── Invoice Detail Modal ─────────────────────────────────────────────────────
@@ -157,6 +281,7 @@ function PurchaseHistoryPageContent() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [viewingInvoice, setViewingInvoice] = useState<PurchaseInvoice | null>(null);
+  const [showAddPurchaseModal, setShowAddPurchaseModal] = useState(false);
 
   // Compute startDate/endDate from dateFilter for server-side filtering
   const getDateRange = () => {
@@ -228,15 +353,15 @@ function PurchaseHistoryPageContent() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Purchase History</h1>
           <p className="text-gray-600 dark:text-gray-400">View all local product purchases</p>
         </div>
-        <Link
-          href="/purchases/new"
+        <button
+          onClick={() => setShowAddPurchaseModal(true)}
           className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-2.5 font-medium text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           New Purchase
-        </Link>
+        </button>
       </div>
 
       {/* Stats Cards — light, like sales page */}
@@ -468,6 +593,12 @@ function PurchaseHistoryPageContent() {
           onClose={() => setViewingInvoice(null)}
         />
       )}
+
+      {/* Add Purchase Modal */}
+      <AddPurchaseModal
+        isOpen={showAddPurchaseModal}
+        onClose={() => setShowAddPurchaseModal(false)}
+      />
     </div>
   );
 }

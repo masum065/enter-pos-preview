@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useCreateCustomer, useUpdateCustomer } from "@/hooks/useCustomers";
 import { isValidBDPhone } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
+import { CustomerDocuments, DocumentFile } from "@/components/customers/customer-documents";
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export function AddCustomerModal({
     address: "",
     nid: "",
     notes: "",
+    documents: [] as DocumentFile[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -41,6 +43,7 @@ export function AddCustomerModal({
         address: "",
         nid: "",
         notes: "",
+        documents: [],
       });
       setErrors({});
     }
@@ -54,7 +57,8 @@ export function AddCustomerModal({
       email: "", 
       address: "", 
       nid: "", 
-      notes: "" 
+      notes: "",
+      documents: []
     });
     setErrors({});
   };
@@ -81,6 +85,7 @@ export function AddCustomerModal({
       address: formData.address.trim() || undefined,
       nid: formData.nid.trim() || undefined,
       notes: formData.notes.trim() || undefined,
+      documents: formData.documents,
     }, {
       onSuccess: (newCustomer) => {
         resetForm();
@@ -188,6 +193,17 @@ export function AddCustomerModal({
             placeholder="Additional notes..."
           />
         </div>
+
+        {/* Documents Upload */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Documents
+          </label>
+          <CustomerDocuments 
+            documents={formData.documents} 
+            onChange={(docs) => setFormData({ ...formData, documents: docs })} 
+          />
+        </div>
       </div>
 
       <ModalFooter
@@ -224,6 +240,7 @@ export function EditCustomerModal({
     address: "",
     nid: "",
     notes: "",
+    documents: [] as DocumentFile[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -237,6 +254,7 @@ export function EditCustomerModal({
         address: customer.address || "",
         nid: customer.nid || "",
         notes: customer.notes || "",
+        documents: customer.documents || [],
       });
     }
   });
@@ -251,6 +269,7 @@ export function EditCustomerModal({
         address: customer.address || "",
         nid: customer.nid || "",
         notes: customer.notes || "",
+        documents: customer.documents || [],
       });
     }
     setErrors({});
@@ -280,6 +299,7 @@ export function EditCustomerModal({
         address: formData.address.trim() || undefined,
         nid: formData.nid.trim() || undefined,
         notes: formData.notes.trim() || undefined,
+        documents: formData.documents,
       },
     }, {
       onSuccess: () => onClose(),
@@ -381,6 +401,17 @@ export function EditCustomerModal({
             rows={2}
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             placeholder="Additional notes..."
+          />
+        </div>
+
+        {/* Documents Upload */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Documents
+          </label>
+          <CustomerDocuments 
+            documents={formData.documents} 
+            onChange={(docs) => setFormData({ ...formData, documents: docs })} 
           />
         </div>
       </div>

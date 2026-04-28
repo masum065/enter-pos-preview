@@ -70,6 +70,7 @@ export const customers = pgTable('customers', {
   totalPurchases: decimal('total_purchases', { precision: 12, scale: 2 }).default('0').notNull(),
   totalPaid: decimal('total_paid', { precision: 12, scale: 2 }).default('0').notNull(),
   balance: decimal('balance', { precision: 12, scale: 2 }).default('0').notNull(),
+  documents: json('documents').default([]),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({

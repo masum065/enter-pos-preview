@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense , useEffect} from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useExpenses } from "@/hooks/useExpenses";
 import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import Link from "next/link";
+import { Modal, ModalFooter } from "@/components/ui/modal";
+import { useToast } from "@/hooks/useToast";
+import { useCreateExpense } from "@/hooks/useExpenses";
+import { ExpenseFormFields, ExpenseFormData } from "@/components/expenses/expense-form";
 
 const CATEGORIES = ["Rent", "Utilities", "Salary", "Transport", "Food", "Repairs", "Marketing", "Supplies", "Miscellaneous"];
 
@@ -21,6 +24,92 @@ interface Expense {
   receipt?: string;
   notes?: string;
   [key: string]: any;
+}
+
+// Add Expense Modal
+function AddExpenseModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const createExpense = useCreateExpense();
+  const { showToast } = useToast();
+  
+  const [formData, setFormData] = useState<ExpenseFormData>({
+    date: new Date().toISOString().split("T")[0],
+    category: "Miscellaneous",
+    description: "",
+    paymentMethod: "Cash",
+    amount: 0,
+    paidBy: "Admin",
+    receipt: "",
+    notes: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        date: new Date().toISOString().split("T")[0],
+        category: "Miscellaneous",
+        description: "",
+        paymentMethod: "Cash",
+        amount: 0,
+        paidBy: "Admin",
+        receipt: "",
+        notes: "",
+      });
+      setErrors({});
+    }
+  }, [isOpen]);
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.description.trim()) newErrors.description = "Description is required";
+    if (formData.amount <= 0) newErrors.amount = "Amount must be greater than 0";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (!validate()) return;
+
+    createExpense.mutate({
+      date: formData.date,
+      category: formData.category,
+      description: formData.description.trim(),
+      paymentMethod: formData.paymentMethod,
+      amount: formData.amount,
+      paidBy: formData.paidBy.trim(),
+      receipt: formData.receipt.trim() || undefined,
+      notes: formData.notes.trim() || undefined,
+    } as any, {
+      onSuccess: () => {
+        showToast("Expense created successfully.");
+        onClose();
+      },
+      onError: () => {
+        showToast("Failed to create expense.", "error");
+      }
+    });
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add New Expense" size="lg">
+      <ExpenseFormFields
+        formData={formData}
+        setFormData={setFormData}
+        errors={errors}
+        isPending={createExpense.isPending}
+      />
+      <ModalFooter
+        onCancel={onClose}
+        onConfirm={handleSubmit}
+        cancelText="Cancel"
+        confirmText="Add Expense"
+        confirmVariant="danger"
+        isLoading={createExpense.isPending}
+        confirmDisabled={createExpense.isPending}
+      />
+    </Modal>
+  );
 }
 
 function ExpensesPageContent() {
@@ -42,6 +131,8 @@ function ExpensesPageContent() {
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("month");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // Compute startDate/endDate from dateFilter
   const getDateRange = () => {
@@ -114,15 +205,15 @@ function ExpensesPageContent() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Expenses</h1>
           <p className="text-gray-600 dark:text-gray-400">Track and manage business expenses</p>
         </div>
-        <Link
-          href="/expenses/new"
+        <button
+          onClick={() => setShowAddModal(true)}
           className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-5 py-2.5 font-medium text-white shadow-lg transition-all hover:shadow-xl"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Add Expense
-        </Link>
+        </button>
       </div>
 
       {/* Stats Cards */}
@@ -370,6 +461,9 @@ function ExpensesPageContent() {
           onPageChange={setPage}
         />
       )}
+
+      {/* Add Modal */}
+      <AddExpenseModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
     </div>
   );
 }

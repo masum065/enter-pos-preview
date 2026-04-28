@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateSupplier } from "@/hooks/useSuppliers";
+import { SupplierFormFields } from "@/components/suppliers/supplier-form";
 import Link from "next/link";
 
 export default function NewSupplierPage() {
@@ -11,7 +12,6 @@ export default function NewSupplierPage() {
 
   const [formData, setFormData] = useState({
     companyName: "",
-    contactPerson: "",
     phone: "",
     email: "",
     address: "",
@@ -34,7 +34,6 @@ export default function NewSupplierPage() {
     createSupplierMutation.mutate(
       {
         companyName: formData.companyName.trim(),
-        contactPerson: formData.contactPerson.trim() || undefined,
         phone: formData.phone.trim(),
         email: formData.email.trim() || undefined,
         address: formData.address.trim() || undefined,
@@ -65,98 +64,12 @@ export default function NewSupplierPage() {
       <form onSubmit={handleSubmit} className="max-w-2xl">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
 
-          {/* Company Name */}
-          <div className="mb-4">
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Company / Supplier Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.companyName}
-              onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-              className={`w-full rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${
-                errors.companyName ? "border-red-500" : "border-gray-300 dark:border-gray-700"
-              }`}
-              placeholder="e.g. Samsung Electronics BD"
-              autoFocus
-            />
-            {errors.companyName && <p className="mt-1 text-sm text-red-500">{errors.companyName}</p>}
-          </div>
-
-          {/* Contact Person */}
-          <div className="mb-4">
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Contact Person <span className="text-xs font-normal text-gray-400">optional</span>
-            </label>
-            <input
-              type="text"
-              value={formData.contactPerson}
-              onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              placeholder="Contact person name"
-            />
-          </div>
-
-          <div className="mb-4 grid gap-4 md:grid-cols-2">
-            {/* Phone */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Phone <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className={`w-full rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${
-                  errors.phone ? "border-red-500" : "border-gray-300 dark:border-gray-700"
-                }`}
-                placeholder="01XXXXXXXXX"
-              />
-              {errors.phone && <p className="mt-1 text-sm text-red-500">{errors.phone}</p>}
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email <span className="text-xs font-normal text-gray-400">optional</span>
-              </label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                placeholder="email@example.com"
-              />
-            </div>
-          </div>
-
-          {/* Address */}
-          <div className="mb-4">
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Address <span className="text-xs font-normal text-gray-400">optional</span>
-            </label>
-            <input
-              type="text"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              placeholder="Supplier address"
-            />
-          </div>
-
-          {/* Notes */}
-          <div className="mb-6">
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Notes <span className="text-xs font-normal text-gray-400">optional</span>
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={3}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              placeholder="Additional notes about this supplier..."
-            />
-          </div>
+          <SupplierFormFields
+            formData={formData}
+            setFormData={setFormData}
+            errors={errors}
+            isPending={createSupplierMutation.isPending}
+          />
 
           {/* Buttons */}
           <div className="flex gap-4">

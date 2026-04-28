@@ -4,10 +4,11 @@ import { z } from "zod";
 export const customerSchema = z.object({
   name: z.string().min(1, "Name is required"),
   phone: z.string().min(1, "Phone number is required"),
-  email: z.string().email().optional().or(z.literal("")),
-  address: z.string().optional(),
-  nid: z.string().optional(),
-  notes: z.string().optional(),
+  email: z.string().email().nullable().optional().or(z.literal("")).or(z.literal(null)),
+  address: z.string().nullable().optional(),
+  nid: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  documents: z.array(z.any()).nullable().optional().default([]),
 });
 
 // Supplier schema

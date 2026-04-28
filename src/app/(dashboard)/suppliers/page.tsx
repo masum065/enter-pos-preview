@@ -3,7 +3,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
-import { useSuppliers, useUpdateSupplier, useDeleteSupplier, supplierKeys } from "@/hooks/useSuppliers";
+import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier, supplierKeys } from "@/hooks/useSuppliers";
+import { SupplierFormFields, SupplierFormData } from "@/components/suppliers/supplier-form";
 import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, formatPhone } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
@@ -27,6 +28,64 @@ interface Supplier {
   updatedAt: string;
 }
 
+// Add Supplier Modal
+function AddSupplierModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const createSupplier = useCreateSupplier();
+  const [formData, setFormData] = useState<SupplierFormData>({ companyName: "", phone: "", email: "", address: "", notes: "" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({ companyName: "", phone: "", email: "", address: "", notes: "" });
+      setErrors({});
+    }
+  }, [isOpen]);
+
+  const handleSubmit = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.companyName.trim()) newErrors.companyName = "Company name is required";
+    if (!formData.phone.trim()) newErrors.phone = "Phone is required";
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+
+    createSupplier.mutate({
+      companyName: formData.companyName.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim() || undefined,
+      address: formData.address.trim() || undefined,
+      notes: formData.notes.trim() || undefined,
+    }, {
+      onSuccess: () => {
+        showToast("Supplier created successfully.");
+        onClose();
+      },
+      onError: () => {
+        showToast("Failed to create supplier.", "error");
+      }
+    });
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add New Supplier" size="md">
+      <SupplierFormFields 
+        formData={formData} 
+        setFormData={setFormData} 
+        errors={errors} 
+        isPending={createSupplier.isPending} 
+      />
+      <ModalFooter
+        onCancel={onClose}
+        onConfirm={handleSubmit}
+        cancelText="Cancel"
+        confirmText="Add Supplier"
+        isLoading={createSupplier.isPending}
+        confirmDisabled={createSupplier.isPending}
+      />
+    </Modal>
+  );
+}
+
 // Edit Supplier Modal (kept for inline edit; Add is now a separate page)
 function EditSupplierModal({
   isOpen, onClose, supplier, onSave, isPending = false,
@@ -37,7 +96,7 @@ function EditSupplierModal({
   onSave: (data: Partial<Supplier>) => void;
   isPending?: boolean;
 }) {
-  const [formData, setFormData] = useState({ companyName: "", phone: "", email: "", address: "", notes: "" });
+  const [formData, setFormData] = useState<SupplierFormData>({ companyName: "", phone: "", email: "", address: "", notes: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -71,52 +130,12 @@ function EditSupplierModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Supplier" size="md">
-      <div className="space-y-4 text-left">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Company Name <span className="text-red-500">*</span></label>
-          <input type="text" value={formData.companyName}
-            onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-            disabled={isPending}
-            className={`w-full rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${errors.companyName ? "border-red-500" : "border-gray-300 dark:border-gray-700"}`}
-          />
-          {errors.companyName && <p className="mt-1 text-sm text-red-500">{errors.companyName}</p>}
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Phone <span className="text-red-500">*</span></label>
-            <input type="tel" value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              disabled={isPending}
-              className={`w-full rounded-lg border px-4 py-2.5 dark:bg-gray-800 dark:text-white ${errors.phone ? "border-red-500" : "border-gray-300 dark:border-gray-700"}`}
-            />
-            {errors.phone && <p className="mt-1 text-sm text-red-500">{errors.phone}</p>}
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-            <input type="email" value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              disabled={isPending}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
-          <input type="text" value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            disabled={isPending}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          />
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
-          <textarea value={formData.notes} rows={2}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            disabled={isPending}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          />
-        </div>
-      </div>
+      <SupplierFormFields 
+        formData={formData} 
+        setFormData={setFormData} 
+        errors={errors} 
+        isPending={isPending} 
+      />
       <ModalFooter
         onCancel={onClose}
         onConfirm={handleSubmit}
@@ -194,6 +213,7 @@ function SuppliersPageContent() {
   const [searchInput, setSearchInput] = useState(activeSearch);
   const [balanceFilter, setBalanceFilter] = useState<"all" | "due" | "clear" | "advance">("all");
 
+  const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -309,15 +329,15 @@ function SuppliersPageContent() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Suppliers</h1>
           <p className="text-gray-600 dark:text-gray-400">Manage your suppliers and their ledger</p>
         </div>
-        <Link
-          href="/suppliers/new"
+        <button
+          onClick={() => setShowAddModal(true)}
           className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 font-medium text-white shadow-lg transition-all hover:shadow-xl"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Add Supplier
-        </Link>
+        </button>
       </div>
 
       {/* Stats */}
@@ -493,6 +513,9 @@ function SuppliersPageContent() {
       {pagination && pagination.totalPages > 1 && (
         <Pagination currentPage={page} totalPages={pagination.totalPages} onPageChange={setPage} />
       )}
+
+      {/* Add Modal */}
+      <AddSupplierModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
 
       {/* Edit Modal */}
       <EditSupplierModal isOpen={showEditModal} onClose={() => setShowEditModal(false)}

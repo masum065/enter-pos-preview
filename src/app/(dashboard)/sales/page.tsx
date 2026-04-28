@@ -541,9 +541,51 @@ function SalesPageContent() {
     if (p <= 1) params.delete("page"); else params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
-  const { data: salesData, isLoading, isFetching } = useSales({ page, limit: 20, search: activeSearch || undefined });
+  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "partial" | "pending" | "returned">("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("today");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // Memoize API filters
+  const apiFilters = useMemo(() => {
+    const filters: any = { 
+      page, 
+      limit: 20, 
+      search: activeSearch || undefined 
+    };
+
+    // Status filter
+    if (statusFilter !== "all") {
+      filters.status = statusFilter === "returned" ? "returned,partially_returned" : statusFilter;
+    }
+
+    // Date filter
+    if (dateFilter !== "all") {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      if (dateFilter === "today") {
+        filters.startDate = today.toISOString();
+      } else if (dateFilter === "week") {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        filters.startDate = weekAgo.toISOString();
+      } else if (dateFilter === "month") {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        filters.startDate = monthStart.toISOString();
+      } else if (dateFilter === "custom") {
+        if (dateFrom) filters.startDate = new Date(dateFrom).toISOString();
+        if (dateTo) filters.endDate = new Date(dateTo).toISOString();
+      }
+    }
+
+    return filters;
+  }, [page, activeSearch, statusFilter, dateFilter, dateFrom, dateTo]);
+
+  const { data: salesData, isLoading, isFetching } = useSales(apiFilters);
   const sales: Sale[] = (salesData?.sales || []) as any[];
   const pagination = (salesData as any)?.pagination;
+  const apiStats = (salesData as any)?.stats;
 
   const [searchInput, setSearchInput] = useState(activeSearch);
   const handleSearch = (e?: React.FormEvent) => {
@@ -565,77 +607,19 @@ function SalesPageContent() {
     params.delete("page");
     router.push(`?${params.toString()}`);
   };
-  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "partial" | "pending" | "returned">("all");
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("today");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [viewingSale, setViewingSale] = useState<Sale | null>(null);
   const [printingSale, setPrintingSale] = useState<Sale | null>(null);
   const [returningSale, setReturningSale] = useState<Sale | null>(null);
 
-  // Filter sales (skip filters when search is active — search is global)
-  const filteredSales = useMemo(() => {
-    // When searching, return backend results directly — no client-side filtering
-    if (activeSearch) {
-      return [...sales].sort((a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime());
-    }
-
-    let result = [...sales];
-
-    // Status filter
-    if (statusFilter !== "all") {
-      if (statusFilter === "returned") {
-        result = result.filter((s) => s.status === "returned" || s.status === "partially_returned");
-      } else {
-        result = result.filter((s) => s.status === statusFilter);
-      }
-    }
-
-    // Date filter
-    if (dateFilter !== "all") {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      result = result.filter((s) => {
-        const saleDate = new Date(s.invoiceDate || s.createdAt);
-        if (dateFilter === "today") {
-          return saleDate >= today;
-        } else if (dateFilter === "week") {
-          const weekAgo = new Date(today);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return saleDate >= weekAgo;
-        } else if (dateFilter === "month") {
-          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          return saleDate >= monthStart;
-        } else if (dateFilter === "custom") {
-          if (dateFrom) {
-            const from = new Date(dateFrom);
-            from.setHours(0, 0, 0, 0);
-            if (saleDate < from) return false;
-          }
-          if (dateTo) {
-            const to = new Date(dateTo);
-            to.setHours(23, 59, 59, 999);
-            if (saleDate > to) return false;
-          }
-          return true;
-        }
-        return true;
-      });
-    }
-
-    return result.sort((a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime());
-  }, [sales, statusFilter, dateFilter, dateFrom, dateTo, activeSearch]);
-
-  // Stats — computed from FILTERED data so cards reflect current view
+  // Stats — use API stats or fallback to calculated if needed (though API is preferred)
   const stats = useMemo(() => ({
-    total: filteredSales.length,
-    totalAmount: filteredSales.reduce((sum, s) => sum + parseFloat(String(s.grandTotal || 0)), 0),
-    totalPaid: filteredSales.reduce((sum, s) => sum + parseFloat(String(s.paidAmount || 0)), 0),
-    totalDue: filteredSales.reduce((sum, s) => sum + parseFloat(String(s.dueAmount || 0)), 0),
-    dueCount: filteredSales.filter((s) => parseFloat(String(s.dueAmount || 0)) > 0).length,
-    returnedCount: filteredSales.filter((s) => s.status === "returned" || s.status === "partially_returned").length,
-  }), [filteredSales]);
+    total: apiStats?.total || 0,
+    totalAmount: apiStats?.totalAmount || 0,
+    totalPaid: apiStats?.totalPaid || 0,
+    totalDue: apiStats?.totalDue || 0,
+    dueCount: apiStats?.dueCount || 0,
+    returnedCount: apiStats?.returnedCount || 0,
+  }), [apiStats]);
 
   // Date filter label for display
   const dateLabel = dateFilter === "all" ? "All Time" : dateFilter === "today" ? "Today" : dateFilter === "week" ? "This Week" : dateFilter === "month" ? "This Month" : dateFrom && dateTo ? `${dateFrom} → ${dateTo}` : "Custom Range";
@@ -838,14 +822,14 @@ function SalesPageContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredSales.length === 0 ? (
+              {sales.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     {sales.length === 0 ? "No sales yet. Create your first invoice!" : "No sales match your filters."}
                   </td>
                 </tr>
               ) : (
-                filteredSales.map((sale) => (
+                sales.map((sale) => (
                   <tr 
                     key={sale.id} 
                     onClick={() => handleViewSale(sale)}
@@ -906,9 +890,9 @@ function SalesPageContent() {
       </div>
 
       {/* Results count */}
-      {filteredSales.length > 0 && (
+      {sales.length > 0 && (
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Showing {filteredSales.length} {filteredSales.length === 1 ? "invoice" : "invoices"}
+          Showing {sales.length} {sales.length === 1 ? "invoice" : "invoices"}
         </p>
       )}
 

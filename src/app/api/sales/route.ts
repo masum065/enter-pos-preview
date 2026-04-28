@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
       totalDue: sql<string>`COALESCE(SUM(${sales.dueAmount}), 0)`,
       totalPaid: sql<string>`COALESCE(SUM(${sales.paidAmount}), 0)`,
       dueCount: sql<number>`count(*) FILTER (WHERE ${sales.dueAmount}::numeric > 0)`,
+      returnedCount: sql<number>`count(*) FILTER (WHERE ${sales.status} IN ('returned', 'partially_returned'))`,
     })
       .from(sales)
       .where(whereClause);
@@ -106,6 +107,7 @@ export async function GET(request: NextRequest) {
         totalDue: Number(salesAgg.totalDue),
         totalPaid: Number(salesAgg.totalPaid),
         dueCount: Number(salesAgg.dueCount),
+        returnedCount: Number(salesAgg.returnedCount),
       },
       pagination: {
         page,

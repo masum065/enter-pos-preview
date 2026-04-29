@@ -246,7 +246,7 @@ function CustomersPageContent() {
     if (p <= 1) params.delete("page"); else params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
-  const { data: customersData, isLoading } = useCustomers({ page, limit: 20, search: activeSearch || undefined });
+  const { data: customersData, isLoading, isFetching } = useCustomers({ page, limit: 20, search: activeSearch || undefined });
   const deleteCustomerMutation = useDeleteCustomer();
 
   const customers: Customer[] = (customersData?.customers || []) as any[];
@@ -310,13 +310,6 @@ function CustomersPageContent() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -400,7 +393,8 @@ function CustomersPageContent() {
       )}
 
       {/* Customer Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+      <div className={`transition-opacity duration-200 ${isFetching ? "opacity-60 pointer-events-none" : ""}`}>
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -598,6 +592,7 @@ function CustomersPageContent() {
           onPageChange={setPage}
         />
       )}
+      </div>
 
       <ToastNotification toast={toast} />
     </div>

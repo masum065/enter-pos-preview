@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { CustomerInput } from "@/lib/validations/purchases";
 
@@ -37,6 +37,7 @@ export function useCustomers(filters: { search?: string; page?: number; limit?: 
       if (filters.limit) params.limit = String(filters.limit);
       return apiClient.get<CustomersResponse>("/api/customers", params);
     },
+    placeholderData: keepPreviousData,
   });
 }
 

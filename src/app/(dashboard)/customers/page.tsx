@@ -11,6 +11,7 @@ import { ToastNotification } from "@/components/ui/toast";
 import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 import { CustomerDocuments } from "@/components/customers/customer-documents";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 interface Customer {
   id: string;
@@ -555,34 +556,19 @@ function CustomersPageContent() {
       />
 
       {/* Delete Confirmation Modal */}
-      <Modal
+      <ConfirmModal
         isOpen={showDeleteModal}
         onClose={() => {
           setShowDeleteModal(false);
           setDeletingCustomer(null);
         }}
+        onConfirm={handleDeleteCustomer}
         title="Delete Customer"
-        size="sm"
-      >
-        <div className="text-left">
-          <p className="text-gray-600 dark:text-gray-400">
-            Are you sure you want to delete{" "}
-            <span className="font-semibold text-gray-900 dark:text-white">
-              {deletingCustomer?.name}
-            </span>
-            ? This action cannot be undone.
-          </p>
-        </div>
-        <ModalFooter
-          onCancel={() => {
-            setShowDeleteModal(false);
-            setDeletingCustomer(null);
-          }}
-          onConfirm={handleDeleteCustomer}
-          cancelText="Cancel"
-          confirmText="Delete"
-        />
-      </Modal>
+        message={`Are you sure you want to delete "${deletingCustomer?.name}"? This action cannot be undone and will remove all associated data.`}
+        confirmText="Delete"
+        variant="danger"
+        isLoading={deleteCustomerMutation.isPending}
+      />
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (

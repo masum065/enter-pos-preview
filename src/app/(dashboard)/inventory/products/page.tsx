@@ -9,6 +9,9 @@ import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { ToastNotification } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
 
 // Types from DB (matching API response)
 interface Product {
@@ -710,13 +713,9 @@ function ProductsPageContent() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
-  const [confirmModal, setConfirmModal] = useState<{
-    title: string;
-    message: string;
-    confirmLabel: string;
-    confirmColor: "red" | "green";
-    onConfirm: () => void;
-  } | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const { toast, showToast } = useToast();
 
   // Get stock count for each product
   const getStockCount = (productId: string) => {
@@ -730,7 +729,11 @@ function ProductsPageContent() {
 
   const handleAddProduct = (data: any) => {
     createProduct.mutate(data, {
-      onSuccess: () => setIsFormModalOpen(false),
+      onSuccess: () => {
+        setIsFormModalOpen(false);
+        showToast("Product created successfully.");
+      },
+      onError: () => showToast("Failed to create product.", "error"),
     });
   };
 
@@ -742,7 +745,9 @@ function ProductsPageContent() {
           onSuccess: () => {
             setEditingProduct(null);
             setIsFormModalOpen(false);
+            showToast("Product updated successfully.");
           },
+          onError: () => showToast("Failed to update product.", "error"),
         }
       );
     }
@@ -750,17 +755,21 @@ function ProductsPageContent() {
 
   const handleDeleteProduct = (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
-    setConfirmModal({
-      title: "Delete Product",
-      message: `Are you sure you want to delete "${product.brand} ${product.modelName}"?`,
-      confirmLabel: "Delete",
-      confirmColor: "red",
-      onConfirm: () => {
-        deleteProductMutation.mutate(product.id, {
-          onSuccess: () => setConfirmModal(null)
-        });
-      }
-    });
+    setProductToDelete(product);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = () => {
+    if (productToDelete) {
+      deleteProductMutation.mutate(productToDelete.id, {
+        onSuccess: () => {
+          setShowDeleteModal(false);
+          setProductToDelete(null);
+          showToast(`"${productToDelete.brand} ${productToDelete.modelName}" deleted successfully.`);
+        },
+        onError: () => showToast("Failed to delete product.", "error"),
+      });
+    }
   };
 
   const handleEditProduct = (e: React.MouseEvent, product: Product) => {
@@ -1029,24 +1038,22 @@ function ProductsPageContent() {
         />
       )}
 
-      {/* Confirm Modal (Delete) */}
-      {confirmModal && (
-        <Modal
-          isOpen={!!confirmModal}
-          onClose={() => setConfirmModal(null)}
-          title={confirmModal.title}
-          size="sm"
-        >
-          <p className="text-sm text-gray-600 dark:text-gray-400">{confirmModal.message}</p>
-          <ModalFooter
-            onCancel={() => setConfirmModal(null)}
-            onConfirm={() => { confirmModal.onConfirm(); }}
-            cancelText="Cancel"
-            confirmText={confirmModal.confirmLabel}
-            confirmVariant={confirmModal.confirmColor === "red" ? "danger" : "success"}
-          />
-        </Modal>
-      )}
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setProductToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Product"
+        message={`Are you sure you want to delete "${productToDelete?.brand} ${productToDelete?.modelName}"? This will remove the product and all associated stock information.`}
+        confirmText="Delete"
+        variant="danger"
+        isLoading={deleteProductMutation.isPending}
+      />
+
+      <ToastNotification toast={toast} />
     </div>
   );
 }

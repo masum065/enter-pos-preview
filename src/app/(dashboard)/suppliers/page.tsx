@@ -12,6 +12,7 @@ import { ToastNotification } from "@/components/ui/toast";
 import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 interface Supplier {
   id: string;
@@ -527,15 +528,16 @@ function SuppliersPageContent() {
         supplier={selectedSupplier} onPay={handlePayment} isPending={paymentMutation.isPending} />
 
       {/* Delete Modal */}
-      <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Delete Supplier" size="sm">
-        <p className="text-gray-600 dark:text-gray-400">
-          Are you sure you want to delete <strong>{selectedSupplier?.companyName}</strong>? This will delete all transaction history.
-        </p>
-        <ModalFooter onCancel={() => setShowDeleteConfirm(false)} onConfirm={handleDelete}
-          cancelText="Cancel" confirmText="Delete" confirmVariant="danger"
-          isLoading={deleteSupplierMutation.isPending}
-          confirmDisabled={deleteSupplierMutation.isPending} />
-      </Modal>
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDelete}
+        title="Delete Supplier"
+        message={`Are you sure you want to delete "${selectedSupplier?.companyName}"? This will delete all transaction history and ledger records. This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        isLoading={deleteSupplierMutation.isPending}
+      />
 
       <ToastNotification toast={toast} />
     </div>

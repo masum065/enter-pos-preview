@@ -2,14 +2,28 @@
 
 import React from "react";
 
-export type ExpenseCategory = "Rent" | "Utilities" | "Salary" | "Transport" | "Food" | "Repairs" | "Marketing" | "Supplies" | "Miscellaneous";
+export type ExpenseCategory = string;
 export type PaymentMethod = "Cash" | "Bkash" | "Nagad" | "Card" | "Bank Transfer";
 
-export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["Rent", "Utilities", "Salary", "Transport", "Food", "Repairs", "Marketing", "Supplies", "Miscellaneous"];
+export const EXPENSE_CATEGORIES = [
+  "Rent", 
+  "Salary", 
+  "Purchase/Stock", 
+  "Utilities", 
+  "Service Parts",
+  "Transportation", 
+  "Tea/Snacks", 
+  "Office Supplies", 
+  "Marketing",
+  "Maintenance", 
+  "Miscellaneous",
+  "Others"
+];
 
 export interface ExpenseFormData {
   date: string;
-  category: ExpenseCategory;
+  category: string;
+  customCategory?: string;
   description: string;
   paymentMethod: PaymentMethod;
   amount: number;
@@ -30,6 +44,7 @@ export function ExpenseFormFields({
   isPending?: boolean;
 }) {
   const quickAmounts = [100, 500, 1000, 2000, 5000, 10000];
+  const isCustomCategory = !EXPENSE_CATEGORIES.includes(formData.category);
 
   return (
     <div className="space-y-4 text-left">
@@ -60,18 +75,39 @@ export function ExpenseFormFields({
         </div>
 
         {/* Category */}
-        <div>
+        <div className={isCustomCategory ? "md:col-span-1" : "md:col-span-1"}>
           <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Category</label>
-          <select
-            value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value as ExpenseCategory })}
-            disabled={isPending}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          >
-            {EXPENSE_CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-2">
+            <select
+              value={EXPENSE_CATEGORIES.includes(formData.category) ? formData.category : "Custom"}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormData({ 
+                  ...formData, 
+                  category: val === "Custom" ? "" : val,
+                  customCategory: val === "Custom" ? "" : undefined 
+                });
+              }}
+              disabled={isPending}
+              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            >
+              {EXPENSE_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+              <option value="Custom">Custom / Other</option>
+            </select>
+            
+            {isCustomCategory && (
+              <input
+                type="text"
+                value={EXPENSE_CATEGORIES.includes(formData.category) ? "" : formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                placeholder="Enter custom category"
+                autoFocus
+                className="w-full rounded-lg border border-orange-300 px-4 py-2 dark:border-orange-500/50 dark:bg-gray-800 dark:text-white"
+              />
+            )}
+          </div>
         </div>
       </div>
 

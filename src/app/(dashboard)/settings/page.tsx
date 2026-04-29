@@ -6,6 +6,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
 import { useLockStatus } from "@/hooks/useLockStatus";
 import { Modal, ModalFooter } from "@/components/ui/modal";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { ToastNotification } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
 import type { ShopInfo } from "@/lib/shop-info";
 import { DEFAULT_SHOP_INFO } from "@/lib/shop-info";
 
@@ -227,13 +230,8 @@ function ResetPasswordModal({
 // ── Main component ─────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("general");
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const { toast, showToast } = useToast();
   const qc = useQueryClient();
-
-  const showToast = useCallback((msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
-  }, []);
 
   // Current logged-in user
   const { data: sessionData } = useSession();
@@ -357,12 +355,12 @@ export default function SettingsPage() {
   const [resetUser,      setResetUser]      = useState<User | null>(null);
   const [modalError,     setModalError]     = useState("");
   const [saving,         setSaving]         = useState(false);
-  const [confirmModal, setConfirmModal] = useState<{
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmData, setConfirmData] = useState<{
     title: string;
     message: string;
-    confirmLabel: string;
-    confirmColor: "red" | "green";
     onConfirm: () => void;
+    variant?: "danger" | "primary" | "success";
   } | null>(null);
 
   // ── Security / Lock Screen state ──────────────────────────────────────
@@ -535,30 +533,30 @@ export default function SettingsPage() {
 
   // ── Deactivate user
   const handleDeactivate = async (user: User) => {
-    setConfirmModal({
+    setConfirmData({
       title: "Deactivate User",
       message: `Are you sure you want to deactivate "${user.name}" (@${user.userId})? They will no longer be able to log in.`,
-      confirmLabel: "Deactivate",
-      confirmColor: "red",
+      variant: "danger",
       onConfirm: async () => {
         try {
           await apiClient.delete(`/api/users/${user.id}`);
           qc.invalidateQueries({ queryKey: ["settings", "users"] });
           showToast(`User "${user.name}" deactivated.`);
+          setShowConfirm(false);
         } catch (e: any) {
           showToast(e?.message || "Failed to deactivate user.", "error");
         }
       },
     });
+    setShowConfirm(true);
   };
 
   // ── Activate user
   const handleActivate = async (user: User) => {
-    setConfirmModal({
+    setConfirmData({
       title: "Activate User",
       message: `Re-activate "${user.name}" (@${user.userId})? They will be able to log in again.`,
-      confirmLabel: "Activate",
-      confirmColor: "green",
+      variant: "success",
       onConfirm: async () => {
         try {
           await apiClient.put(`/api/users/${user.id}`, {
@@ -569,11 +567,13 @@ export default function SettingsPage() {
           });
           qc.invalidateQueries({ queryKey: ["settings", "users"] });
           showToast(`User "${user.name}" activated.`);
+          setShowConfirm(false);
         } catch (e: any) {
           showToast(e?.message || "Failed to activate user.", "error");
         }
       },
     });
+    setShowConfirm(true);
   };
 
   const roleBadge = (role: string) =>
@@ -583,15 +583,6 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-lg text-white text-sm font-medium transition-all ${
-          toast.type === "success" ? "bg-green-600" : "bg-red-600"
-        }`}>
-          {toast.type === "success" ? "✓" : "✗"} {toast.msg}
-        </div>
-      )}
-
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
@@ -629,15 +620,15 @@ export default function SettingsPage() {
                 <textarea rows={2} className={inputCls} value={settings.shopAddress}
                   onChange={e => setSettings({ ...settings, shopAddress: e.target.value })} />
               </Field>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Phone">
+              <div className="grid gap-4 md:grid-cols-1">
+                {/* <Field label="Phone">
                   <input type="tel" className={inputCls} value={settings.shopPhone}
                     onChange={e => setSettings({ ...settings, shopPhone: e.target.value })} />
-                </Field>
-                <Field label="Tax %">
+                </Field> */}
+                {/* <Field label="Tax %">
                   <input type="number" min="0" max="100" className={inputCls} value={settings.taxPercent}
                     onChange={e => setSettings({ ...settings, taxPercent: Number(e.target.value) })} />
-                </Field>
+                </Field> */}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Invoice Prefix">
@@ -1161,24 +1152,16 @@ export default function SettingsPage() {
         />
       )}
 
-      {/* Confirm Modal (activate / deactivate) — uses shared Modal component */}
-      {confirmModal && (
-        <Modal
-          isOpen={!!confirmModal}
-          onClose={() => setConfirmModal(null)}
-          title={confirmModal.title}
-          size="sm"
-        >
-          <p className="text-sm text-gray-600 dark:text-gray-400">{confirmModal.message}</p>
-          <ModalFooter
-            onCancel={() => setConfirmModal(null)}
-            onConfirm={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
-            cancelText="Cancel"
-            confirmText={confirmModal.confirmLabel}
-            confirmVariant={confirmModal.confirmColor === "red" ? "danger" : "success"}
-          />
-        </Modal>
-      )}
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={confirmData?.onConfirm || (() => {})}
+        title={confirmData?.title || "Confirm Action"}
+        message={confirmData?.message || ""}
+        variant={confirmData?.variant || "danger"}
+        confirmText={confirmData?.variant === "success" || confirmData?.variant === "primary" ? "Activate" : "Deactivate"}
+      />
 
       {/* Set PIN Modal for user management */}
       {pinTargetUser && (
@@ -1213,6 +1196,7 @@ export default function SettingsPage() {
           />
         </Modal>
       )}
+      <ToastNotification toast={toast} />
     </div>
   );
 }

@@ -54,11 +54,7 @@ export const servicePaymentSchema = z.object({
 });
 
 // Expense categories
-export const expenseCategoryEnum = z.enum([
-  "Rent", "Salary", "Purchase/Stock", "Utilities", "Service Parts",
-  "Transportation", "Tea/Snacks", "Office Supplies", "Marketing",
-  "Maintenance", "Miscellaneous", "Others",
-]);
+export const expenseCategoryEnum = z.string().min(1, "Category is required");
 
 export const paymentMethodEnum = z.enum([
   "Cash", "Bkash", "Nagad", "Card", "Bank Transfer", "Other",

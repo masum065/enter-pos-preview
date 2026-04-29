@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCreateCustomer, useUpdateCustomer } from "@/hooks/useCustomers";
 import { isValidBDPhone } from "@/lib/utils";
 import { Modal, ModalFooter } from "@/components/ui/modal";
@@ -32,6 +32,7 @@ export function AddCustomerModal({
     documents: [] as DocumentFile[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const sessionUploadedFileIds = useRef<string[]>([]);
 
   // Sync form with default values when modal opens or defaults change
   useEffect(() => {
@@ -46,10 +47,31 @@ export function AddCustomerModal({
         documents: [],
       });
       setErrors({});
+      sessionUploadedFileIds.current = [];
     }
   }, [isOpen, defaultName, defaultPhone]);
 
-  // Update form when default values change (when modal opens with new search query)
+  const cleanupUnsavedFiles = async () => {
+    const idsToDelete = sessionUploadedFileIds.current;
+    if (idsToDelete.length === 0) return;
+
+    console.log("Cleaning up unsaved files:", idsToDelete);
+    // Loop through and delete from CDN
+    for (const fileId of idsToDelete) {
+      try {
+        await fetch(`https://media.entercomputers.com.bd/api/files/${fileId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CDN_API_KEY}`
+          }
+        });
+      } catch (err) {
+        console.error(`Failed to cleanup file ${fileId}`, err);
+      }
+    }
+    sessionUploadedFileIds.current = [];
+  };
+
   const resetForm = () => {
     setFormData({ 
       name: defaultName, 
@@ -88,6 +110,7 @@ export function AddCustomerModal({
       documents: formData.documents,
     }, {
       onSuccess: (newCustomer) => {
+        sessionUploadedFileIds.current = []; // Clear without deleting
         resetForm();
         onCustomerAdded?.(newCustomer);
         onClose();
@@ -96,6 +119,7 @@ export function AddCustomerModal({
   };
 
   const handleClose = () => {
+    cleanupUnsavedFiles();
     resetForm();
     onClose();
   };
@@ -202,6 +226,10 @@ export function AddCustomerModal({
           <CustomerDocuments 
             documents={formData.documents} 
             onChange={(docs) => setFormData({ ...formData, documents: docs })} 
+            onUploadSuccess={(doc) => {
+              sessionUploadedFileIds.current.push(doc.fileId);
+              setFormData(prev => ({ ...prev, documents: [...prev.documents, doc] }));
+            }}
           />
         </div>
       </div>
@@ -243,6 +271,7 @@ export function EditCustomerModal({
     documents: [] as DocumentFile[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const sessionUploadedFileIds = useRef<string[]>([]);
 
   // Update form when customer changes
   useState(() => {
@@ -259,6 +288,25 @@ export function EditCustomerModal({
     }
   });
 
+  const cleanupUnsavedFiles = async () => {
+    const idsToDelete = sessionUploadedFileIds.current;
+    if (idsToDelete.length === 0) return;
+
+    for (const fileId of idsToDelete) {
+      try {
+        await fetch(`https://media.entercomputers.com.bd/api/files/${fileId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CDN_API_KEY}`
+          }
+        });
+      } catch (err) {
+        console.error(`Failed to cleanup file ${fileId}`, err);
+      }
+    }
+    sessionUploadedFileIds.current = [];
+  };
+
   // Reset form with customer data when modal opens
   const initForm = () => {
     if (customer) {
@@ -273,6 +321,7 @@ export function EditCustomerModal({
       });
     }
     setErrors({});
+    sessionUploadedFileIds.current = [];
   };
 
   const validate = () => {
@@ -302,8 +351,16 @@ export function EditCustomerModal({
         documents: formData.documents,
       },
     }, {
-      onSuccess: () => onClose(),
+      onSuccess: () => {
+        sessionUploadedFileIds.current = []; // Clear without deleting
+        onClose();
+      },
     });
+  };
+
+  const handleClose = () => {
+    cleanupUnsavedFiles();
+    onClose();
   };
 
   // Initialize form when customer changes or modal opens
@@ -312,7 +369,7 @@ export function EditCustomerModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Edit Customer" size="md">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Edit Customer" size="md">
       <div className="space-y-4 text-left">
         {/* Name */}
         <div>
@@ -411,13 +468,22 @@ export function EditCustomerModal({
           </label>
           <CustomerDocuments 
             documents={formData.documents} 
-            onChange={(docs) => setFormData({ ...formData, documents: docs })} 
+            onChange={(docs) => {
+              // We need to check if a document was removed that was in sessionUploadedFileIds
+              const currentIds = docs.map(d => d.fileId);
+              sessionUploadedFileIds.current = sessionUploadedFileIds.current.filter(id => currentIds.includes(id));
+              setFormData({ ...formData, documents: docs });
+            }}
+            onUploadSuccess={(doc) => {
+              sessionUploadedFileIds.current.push(doc.fileId);
+              setFormData(prev => ({ ...prev, documents: [...prev.documents, doc] }));
+            }}
           />
         </div>
       </div>
 
       <ModalFooter
-        onCancel={onClose}
+        onCancel={handleClose}
         onConfirm={handleSubmit}
         cancelText="Cancel"
         confirmText="Update Customer"

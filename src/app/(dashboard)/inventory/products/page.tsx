@@ -615,6 +615,10 @@ const categoryColors: Record<string, string> = {
   Mobile: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   Tablet: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
   Accessories: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
+  Monitor: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400",
+  Printer: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400",
+  Router: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400",
+  Storage: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
   Parts: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
   Other: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400",
 };
@@ -644,8 +648,14 @@ function ProductsPageContent() {
 
   const products: Product[] = (productsData?.products || []) as any[];
   const pagination = (productsData as any)?.pagination;
+  const DEFAULT_CATEGORIES = ["Phone", "Laptop", "Tablet", "Accessories", "Monitor", "Printer", "Router", "Storage", "Parts", "Other"];
   const categoryCounts: Record<string, number> = (productsData as any)?.categoryCounts || {};
-  const categories = Object.keys(categoryCounts).filter(k => k !== 'All');
+  
+  // Combine API categories with defaults, removing duplicates
+  const categories = useMemo(() => {
+    const apiCats = Object.keys(categoryCounts).filter(k => k !== 'All');
+    return Array.from(new Set([...apiCats, ...DEFAULT_CATEGORIES])).sort();
+  }, [categoryCounts]);
   const allStockItems: StockItem[] = (stockData?.stockItems || []).map((s: any) => s.stockItem || s);
 
   // URL-based search

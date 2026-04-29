@@ -42,16 +42,6 @@ export default function SignInPage() {
     }
   };
 
-  const handleQuickLogin = (role: "admin" | "manager" | "employee") => {
-    const userMap = {
-      admin: { userId: "admin", password: "admin123" },
-      manager: { userId: "manager", password: "manager123" },
-      employee: { userId: "employee", password: "employee123" },
-    };
-    
-    setUserId(userMap[role].userId);
-    setPassword(userMap[role].password);
-  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
@@ -112,46 +102,6 @@ export default function SignInPage() {
               {isLoading ? "Signing in..." : "Sign In"}
             </button>
           </div>
-
-          {/* Quick Login */}
-          <div className="mt-6 border-t border-gray-200 pt-6 dark:border-gray-700">
-            <p className="mb-3 text-center text-sm text-gray-500 dark:text-gray-400">
-              Quick Login (Demo Accounts)
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("admin")}
-                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400"
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("manager")}
-                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-400"
-              >
-                Manager
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("employee")}
-                className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
-              >
-                Employee
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Demo Credentials */}
-        <div className="mt-6 rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
-          <p className="mb-2 text-sm font-medium text-blue-800 dark:text-blue-300">Demo Credentials:</p>
-          <ul className="space-y-1 text-xs text-blue-700 dark:text-blue-400">
-            <li><span className="font-medium">Admin:</span> admin / admin123</li>
-            <li><span className="font-medium">Manager:</span> manager / manager123</li>
-            <li><span className="font-medium">Employee:</span> employee / employee123</li>
-          </ul>
         </div>
 
         {/* Footer */}

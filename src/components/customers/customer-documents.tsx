@@ -167,7 +167,7 @@ export function CustomerDocuments({
       showToast("Document deleted");
     } catch (error) {
       console.error("Delete error:", error);
-      showToast("Failed to delete from storage, but removed from list", "warning");
+      showToast("Failed to delete from storage, but removed from list", "error");
       
       // Still remove from list even if storage delete fails to keep UI responsive
       const updatedDocs = documents.filter(d => d.rawUrl !== doc.rawUrl);

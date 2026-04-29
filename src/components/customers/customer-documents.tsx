@@ -422,7 +422,7 @@ export function CustomerDocuments({
               </button>
             </>
           )}
-        </div>,
+        </div>, document.body
       )}
 
       <ConfirmModal

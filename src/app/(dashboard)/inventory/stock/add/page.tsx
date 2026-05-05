@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { formatCurrency } from "@/lib/utils";
 import { ToastNotification } from "@/components/ui/toast";
 import { useToast } from "@/hooks/useToast";
+import { AddSupplierModal } from "@/components/suppliers/modals";
 import Link from "next/link";
 
 interface Product {
@@ -35,9 +36,11 @@ const MIN_SEARCH_LENGTH = 2;
 function SupplierCombobox({
   selectedSupplier,
   onSelect,
+  onAddNew,
 }: {
   selectedSupplier: Supplier | null;
   onSelect: (supplier: Supplier | null) => void;
+  onAddNew?: (query: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -190,15 +193,16 @@ function SupplierCombobox({
                   <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
                     No suppliers found for "{query}"
                   </p>
-                  <Link
-                    href="/suppliers"
+                  <button
+                    type="button"
+                    onClick={() => onAddNew?.(query)}
                     className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                     Add New Supplier
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>
@@ -208,6 +212,7 @@ function SupplierCombobox({
     </div>
   );
 }
+
 
 // Wrapper component for Suspense
 export default function AddStockPage() {
@@ -237,6 +242,8 @@ function AddStockContent() {
   const [mode, setMode] = useState<"single" | "bulk">("single");
   const [selectedProduct, setSelectedProduct] = useState<string>(preSelectedProductId);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
+  const [supplierSearchQuery, setSupplierSearchQuery] = useState("");
   const [formData, setFormData] = useState({
     serialNumber: "",
     imei: "",
@@ -266,18 +273,15 @@ function AddStockContent() {
 
   const validateSingle = () => {
     const newErrors: Record<string, string> = {};
-    
     if (!selectedProduct) newErrors.product = "Please select a product";
     if (!formData.serialNumber.trim()) newErrors.serialNumber = "Serial number is required";
     if (formData.purchasePrice === "" || Number(formData.purchasePrice) <= 0) newErrors.purchasePrice = "Purchase price must be greater than 0";
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSingleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateSingle()) return;
 
     try {
@@ -310,7 +314,6 @@ function AddStockContent() {
 
   const handleBulkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!selectedProduct) {
       setErrors({ product: "Please select a product" });
       return;
@@ -344,18 +347,15 @@ function AddStockContent() {
 
     try {
       const result = await apiClient.post("/api/stock/bulk", { items }) as any;
-      
       if (result?.errors && result.errors.length > 0) {
         if (result.added > 0) {
           showToast(`${result.added} items added. ${result.errors.length} failed.`, "error");
         } else {
           showToast(`Failed to add items. Check for duplicates.`, "error");
         }
-        
         // Keep failed serials in the text string
         const failedSerials = result.errors.map((e: any) => e.serialNumber).join("\n");
         setBulkSerials(failedSerials);
-        
         // Construct detailed error message
         const detailedErrors = result.errors.map((e: any) => `${e.serialNumber}: ${e.error}`).join("\n");
         setErrors({ submit: `Failed to add:\n${detailedErrors}` });
@@ -542,6 +542,10 @@ function AddStockContent() {
                 <SupplierCombobox
                   selectedSupplier={selectedSupplier}
                   onSelect={setSelectedSupplier}
+                  onAddNew={(query) => {
+                    setSupplierSearchQuery(query);
+                    setShowAddSupplierModal(true);
+                  }}
                 />
               </div>
             </>
@@ -586,6 +590,10 @@ function AddStockContent() {
                 <SupplierCombobox
                   selectedSupplier={selectedSupplier}
                   onSelect={setSelectedSupplier}
+                  onAddNew={(query) => {
+                    setSupplierSearchQuery(query);
+                    setShowAddSupplierModal(true);
+                  }}
                 />
               </div>
 
@@ -632,6 +640,17 @@ C02X9012EFGH`}
       </div>
 
       <ToastNotification toast={toast} />
+
+      {/* Add Supplier Modal */}
+      <AddSupplierModal
+        isOpen={showAddSupplierModal}
+        onClose={() => setShowAddSupplierModal(false)}
+        defaultName={supplierSearchQuery}
+        onSupplierAdded={(newSupplier) => {
+          setSelectedSupplier(newSupplier as Supplier);
+          setShowAddSupplierModal(false);
+        }}
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ export const supplierSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   address: z.string().optional(),
   notes: z.string().optional(),
+  documents: z.array(z.any()).nullable().optional().default([]),
 });
 
 // Supplier payment schema

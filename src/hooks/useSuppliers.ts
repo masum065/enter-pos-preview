@@ -14,6 +14,7 @@ interface Supplier {
   totalPaid: string;
   createdAt: Date;
   updatedAt: Date;
+  documents?: any[];
 }
 
 interface SupplierTransaction {
@@ -30,6 +31,7 @@ interface SupplierTransaction {
 
 interface SupplierWithTransactions extends Supplier {
   transactions: SupplierTransaction[];
+  documents?: any[];
 }
 
 interface SuppliersResponse {

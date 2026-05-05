@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
-import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier, supplierKeys } from "@/hooks/useSuppliers";
+import { useSuppliers, useSupplier, useCreateSupplier, useUpdateSupplier, useDeleteSupplier, supplierKeys } from "@/hooks/useSuppliers";
 import { SupplierFormFields, SupplierFormData } from "@/components/suppliers/supplier-form";
 import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, formatDate, formatPhone } from "@/lib/utils";
@@ -13,6 +13,9 @@ import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { SupplierDocuments } from "@/components/suppliers/supplier-documents";
+import { AddSupplierModal } from "@/components/suppliers/modals";
+import { FileText, MapPin, Phone, Mail, Calendar, CreditCard, ArrowUpRight, ArrowDownRight, User, Settings, Eye } from "lucide-react";
 
 interface Supplier {
   id: string;
@@ -27,65 +30,9 @@ interface Supplier {
   totalPaid: string;
   createdAt: string;
   updatedAt: string;
+  documents?: any[];
 }
 
-// Add Supplier Modal
-function AddSupplierModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const createSupplier = useCreateSupplier();
-  const [formData, setFormData] = useState<SupplierFormData>({ companyName: "", phone: "", email: "", address: "", notes: "" });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const { showToast } = useToast();
-
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({ companyName: "", phone: "", email: "", address: "", notes: "" });
-      setErrors({});
-    }
-  }, [isOpen]);
-
-  const handleSubmit = () => {
-    const newErrors: Record<string, string> = {};
-    if (!formData.companyName.trim()) newErrors.companyName = "Company name is required";
-    if (!formData.phone.trim()) newErrors.phone = "Phone is required";
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
-
-    createSupplier.mutate({
-      companyName: formData.companyName.trim(),
-      phone: formData.phone.trim(),
-      email: formData.email.trim() || undefined,
-      address: formData.address.trim() || undefined,
-      notes: formData.notes.trim() || undefined,
-    }, {
-      onSuccess: () => {
-        showToast("Supplier created successfully.");
-        onClose();
-      },
-      onError: () => {
-        showToast("Failed to create supplier.", "error");
-      }
-    });
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add New Supplier" size="md">
-      <SupplierFormFields 
-        formData={formData} 
-        setFormData={setFormData} 
-        errors={errors} 
-        isPending={createSupplier.isPending} 
-      />
-      <ModalFooter
-        onCancel={onClose}
-        onConfirm={handleSubmit}
-        cancelText="Cancel"
-        confirmText="Add Supplier"
-        isLoading={createSupplier.isPending}
-        confirmDisabled={createSupplier.isPending}
-      />
-    </Modal>
-  );
-}
 
 // Edit Supplier Modal (kept for inline edit; Add is now a separate page)
 function EditSupplierModal({
@@ -193,6 +140,218 @@ function PaymentModal({ isOpen, onClose, supplier, onPay, isPending = false }: {
   );
 }
 
+// Supplier Detail Modal Component
+function SupplierDetailModal({
+  supplier: initialSupplier,
+  isOpen,
+  onClose,
+  onEdit,
+}: {
+  supplier: Supplier;
+  isOpen: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  const { data: supplierDetail } = useSupplier(initialSupplier.id);
+  const supplier = supplierDetail || initialSupplier;
+
+  const stats = useMemo(() => ({
+    totalPurchases: parseFloat(supplier.totalPurchases || '0'),
+    totalPaid: parseFloat(supplier.totalPaid || '0'),
+    balance: parseFloat(supplier.balance || '0'),
+  }), [supplier]);
+
+  const handleDocumentsChange = async (updatedDocs: any[]) => {
+    try {
+      await apiClient.put(`/api/suppliers/${supplier.id}`, {
+        companyName: supplier.companyName,
+        phone: supplier.phone,
+        documents: updatedDocs
+      });
+      queryClient.invalidateQueries({ queryKey: supplierKeys.all });
+    } catch (error) {
+      showToast("Failed to update documents", "error");
+    }
+  };
+
+  const handleUploadSuccess = async (newDoc: any) => {
+    const currentDocs = supplier.documents || [];
+    await handleDocumentsChange([...currentDocs, newDoc]);
+    showToast("Document uploaded successfully");
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Supplier Profile" size="xl">
+      <div className="flex flex-col gap-6">
+        {/* Header Profile Info */}
+        <div className="flex flex-col md:flex-row gap-6 p-1 border-b border-gray-100 dark:border-gray-800 pb-6">
+          <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-bold text-white shadow-lg shadow-blue-500/20">
+            {supplier.companyName?.charAt(0).toUpperCase() || "S"}
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{supplier.companyName}</h2>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                stats.balance > 0 
+                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' 
+                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              }`}>
+                {stats.balance > 0 ? 'Due Balance' : 'Advance Payment'}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+              <div className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> {formatPhone(supplier.phone)}</div>
+              {supplier.email && <div className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> {supplier.email}</div>}
+              <div className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Since {formatDate(supplier.createdAt)}</div>
+            </div>
+          </div>
+          <div className="flex flex-wrap md:flex-col gap-2">
+            <button 
+              onClick={onEdit}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 text-sm font-medium transition-colors"
+            >
+              <Settings className="h-4 w-4" /> Edit Profile
+            </button>
+            <Link 
+              href={`/suppliers/ledger?id=${supplier.id}`}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+            >
+              <CreditCard className="h-4 w-4" /> View Ledger
+            </Link>
+          </div>
+        </div>
+
+        {/* Quick Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Purchases</p>
+            <p className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(stats.totalPurchases)}</p>
+          </div>
+          <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Paid</p>
+            <p className="text-lg font-bold text-green-600">{formatCurrency(stats.totalPaid)}</p>
+          </div>
+          <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Current Balance</p>
+            <p className={`text-lg font-bold ${stats.balance > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+              {formatCurrency(Math.abs(stats.balance))} {stats.balance > 0 ? '(Due)' : '(Adv)'}
+            </p>
+          </div>
+        </div>
+
+        {/* Tabs & Content */}
+        <div className="flex flex-col gap-4 min-h-[400px]">
+          <div className="flex border-b border-gray-100 dark:border-gray-800">
+            <button 
+              onClick={() => setIsDocumentsOpen(false)}
+              className={`px-6 py-3 text-sm font-semibold transition-colors relative ${!isDocumentsOpen ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Supplier Details
+              {!isDocumentsOpen && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />}
+            </button>
+            <button 
+              onClick={() => setIsDocumentsOpen(true)}
+              className={`px-6 py-3 text-sm font-semibold transition-colors relative flex items-center gap-2 ${isDocumentsOpen ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Documents
+              <span className="bg-gray-100 dark:bg-gray-800 text-gray-600 px-2 py-0.5 rounded-full text-[10px]">
+                {supplier.documents?.length || 0}
+              </span>
+              {isDocumentsOpen && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />}
+            </button>
+          </div>
+
+          <div className="py-2">
+            {isDocumentsOpen ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-tight">Attached Documents</h3>
+                  <p className="text-xs text-gray-500 italic">Images and PDFs only</p>
+                </div>
+                <SupplierDocuments 
+                  documents={supplier.documents || []}
+                  onChange={handleDocumentsChange}
+                  onUploadSuccess={handleUploadSuccess}
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <MapPin className="h-3 w-3" /> Address Information
+                    </h3>
+                    <p className="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/30 p-3 rounded-lg border border-gray-100 dark:border-gray-800 min-h-[80px]">
+                      {supplier.address || "No address provided"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <FileText className="h-3 w-3" /> Internal Notes
+                    </h3>
+                    <p className="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/30 p-3 rounded-lg border border-gray-100 dark:border-gray-800 min-h-[80px]">
+                      {supplier.notes || "No notes available for this supplier"}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Quick Actions</h3>
+                   <div className="grid grid-cols-1 gap-2">
+                      <button 
+                        onClick={onEdit}
+                        className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg group-hover:scale-110 transition-transform">
+                            <Settings className="h-4 w-4" />
+                          </div>
+                          <div className="text-left">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">Update Information</p>
+                            <p className="text-xs text-gray-500">Edit company details, phone, etc.</p>
+                          </div>
+                        </div>
+                        <ArrowUpRight className="h-4 w-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                      </button>
+
+                      <Link 
+                        href={`/suppliers/ledger?id=${supplier.id}`}
+                        className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-lg group-hover:scale-110 transition-transform">
+                            <CreditCard className="h-4 w-4" />
+                          </div>
+                          <div className="text-left">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">Financial Ledger</p>
+                            <p className="text-xs text-gray-500">View transaction history and due</p>
+                          </div>
+                        </div>
+                        <ArrowUpRight className="h-4 w-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                      </Link>
+                   </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+        <button 
+          onClick={onClose}
+          className="px-6 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+        >
+          Close Profile
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function SuppliersPageContent() {
   const updateSupplierMutation = useUpdateSupplier();
   const deleteSupplierMutation = useDeleteSupplier();
@@ -217,6 +376,7 @@ function SuppliersPageContent() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast, showToast } = useToast();
@@ -251,7 +411,13 @@ function SuppliersPageContent() {
 
   const handleUpdate = (data: Partial<Supplier>) => {
     if (selectedSupplier) {
-      updateSupplierMutation.mutate({ id: selectedSupplier.id, data: data as any }, {
+      updateSupplierMutation.mutate({ 
+        id: selectedSupplier.id, 
+        data: {
+          ...data,
+          documents: selectedSupplier.documents || []
+        } as any 
+      }, {
         onSuccess: () => { setShowEditModal(false); showToast(`"${selectedSupplier.companyName}" updated.`); },
         onError: () => showToast("Failed to update supplier.", "error"),
       });
@@ -434,7 +600,7 @@ function SuppliersPageContent() {
                   <tr
                     key={supplier.id}
                     className="cursor-pointer transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/10"
-                    onClick={() => router.push(`/suppliers/ledger?id=${supplier.id}`)}
+                    onClick={() => { setSelectedSupplier(supplier); setShowDetailModal(true); }}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -474,6 +640,10 @@ function SuppliersPageContent() {
                     </td>
                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => { setSelectedSupplier(supplier); setShowDetailModal(true); }}
+                          className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20" title="View Profile">
+                          <Eye className="h-4 w-4" />
+                        </button>
                         <Link href={`/suppliers/ledger?id=${supplier.id}`}
                           className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20" title="View Ledger">
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -517,6 +687,16 @@ function SuppliersPageContent() {
 
       {/* Add Modal */}
       <AddSupplierModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
+
+      {/* Supplier Detail Modal (Profile & Documents) */}
+      {selectedSupplier && (
+        <SupplierDetailModal
+          supplier={selectedSupplier}
+          isOpen={showDetailModal}
+          onClose={() => { setShowDetailModal(false); setSelectedSupplier(null); }}
+          onEdit={() => { setShowDetailModal(false); setShowEditModal(true); }}
+        />
+      )}
 
       {/* Edit Modal */}
       <EditSupplierModal isOpen={showEditModal} onClose={() => setShowEditModal(false)}

@@ -12,8 +12,8 @@ export const formatCurrency = (amount: number | string, symbol: string = "৳"):
 };
 
 // Format date to readable string
-export const formatDate = (dateStr: string, format: "short" | "long" | "datetime" = "short"): string => {
-  const date = new Date(dateStr);
+export const formatDate = (dateStr: string | Date | undefined, format: "short" | "long" | "datetime" = "short"): string => {
+  if (!dateStr) return "-"; const date = new Date(dateStr);
   
   if (format === "short") {
     return date.toLocaleDateString("en-GB", {
@@ -47,7 +47,7 @@ export const formatDate = (dateStr: string, format: "short" | "long" | "datetime
 export const formatPhone = (phone: string): string => {
   // Format as: 017-1234-5678
   if (phone.length === 11) {
-    return `${phone.slice(0, 3)}-${phone.slice(3, 7)}-${phone.slice(7)}`;
+    return `${phone.slice(0, 4)}-${phone.slice(4, 7)}${phone.slice(7)}`;
   }
   return phone;
 };
@@ -65,13 +65,16 @@ export const generateId = (prefix: string = "id"): string => {
 
 // Check if date is today
 export const isToday = (dateStr: string): boolean => {
+  if (!dateStr) return false;
   const date = new Date(dateStr);
   const today = new Date();
   return date.toDateString() === today.toDateString();
 };
 
+
 // Check if date is this month
 export const isThisMonth = (dateStr: string): boolean => {
+  if (!dateStr) return false;
   const date = new Date(dateStr);
   const today = new Date();
   return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
@@ -79,6 +82,7 @@ export const isThisMonth = (dateStr: string): boolean => {
 
 // Check if date is this week
 export const isThisWeek = (dateStr: string): boolean => {
+  if (!dateStr) return false;
   const date = new Date(dateStr);
   const today = new Date();
   const weekStart = new Date(today);
@@ -93,7 +97,7 @@ export const isThisWeek = (dateStr: string): boolean => {
 
 // Get relative time string
 export const getRelativeTime = (dateStr: string): string => {
-  const date = new Date(dateStr);
+  if (!dateStr) return "-"; const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
